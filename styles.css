@@ -333,6 +333,25 @@ math[display="inline"] { white-space: nowrap; }
 .controls button:disabled { opacity: 0.35; cursor: not-allowed; pointer-events: none; }
 .controls button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .controls button.primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+/* "Continue" state — the Start button auto-flips here when a batch
+   session has finished and the next one is queued behind a click.
+   Amber accent + soft pulse so the invitation to advance is obvious
+   without looking alarming. */
+.controls button.primary.continue {
+  background: var(--amber);
+  border-color: var(--amber);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--amber) 40%, transparent);
+  animation: continuePulse 1.6s ease-in-out infinite;
+}
+.controls button.primary.continue:hover {
+  background: color-mix(in srgb, var(--amber) 80%, #000);
+  border-color: color-mix(in srgb, var(--amber) 80%, #000);
+  animation: none;
+}
+@keyframes continuePulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--amber) 40%, transparent); }
+  50%      { box-shadow: 0 0 0 6px color-mix(in srgb, var(--amber) 0%, transparent); }
+}
 .controls .theme-btn {
   width: 32px; height: 32px;
   padding: 0;

@@ -191,6 +191,16 @@ const App = {
   // boundary and reset to 0 by reset() or when the batch completes.
   currentSession: 0,
 
+  // Resume-aware batch state. After each session completes, the
+  // onEnd chain auto-pauses the batch and stores the next session
+  // index in _pendingSession; the Start button flips to "▶ Continue"
+  // and the user has to click it again to advance. _batchRates /
+  // _batchTotalSessions are hoisted from start()'s inner closure so
+  // _runBatchSession can read them across auto-pause boundaries.
+  _pendingSession: null,
+  _batchRates: null,
+  _batchTotalSessions: 10,
+
   // LLM endpoint state for Plans II and III. Populated from the
   // #ai-key / #ai-endpoint / #ai-model inputs on every change event
   // and consumed by start() to gate the run (both plans refuse to
@@ -394,6 +404,7 @@ const App = {
 
   _wireControls() {
     document.getElementById('btn-start').addEventListener('click', () => this.start());
+    this._updateStartButton();
     document.getElementById('btn-pause').addEventListener('click', () => this.pause());
     document.getElementById('btn-reset').addEventListener('click', () => this.reset());
     const exportBtn = document.getElementById('btn-export');
@@ -1688,7 +1699,18 @@ const App = {
   reset() {
     this.seed = this._rollSeed();
     this.agentSpecs = null;
-    if (!this._batchRunning) this.currentSession = 0;
+    // Reset() called from outside the batch chain cancels any pending
+    // "▶ Continue" resume — the user is asking for a fresh start, not
+    // to reboot into the middle of a prior batch. In-batch reset()
+    // (from _runBatchSession) runs with _pendingSession already null
+    // so the extra assignment is a no-op there.
+    if (!this._batchRunning) {
+      this.currentSession = 0;
+      if (this._pendingSession != null) {
+        this._pendingSession = null;
+        this._updateStartButton();
+      }
+    }
     this.rebuild();
   },
 
@@ -1857,13 +1879,30 @@ const App = {
    * (round(split/10)); the rest use the big treatment. Sessions are
    * ordered small-first. Each session is a fresh game with a new seed
    * and fresh agents, animated at the current Speed setting. The onEnd
-   * callback chains to the next session automatically.
+   * callback auto-pauses the batch at every session boundary and
+   * flips the Start button into "▶ Continue" — so the user advances
+   * one session per click instead of streaming through all ten in a
+   * single run. Calling start() while a session is pending resumes
+   * the batch from where it paused without re-initialising state.
    *
    * Plan II/III require an API key; Plan I runs immediately.
    */
   start() {
     if (this.replayMode) this.exitReplay();
     if (this._batchRunning) return;   // don't re-enter mid-batch
+
+    // Resume path: a session finished and we auto-paused the batch
+    // with a "▶ Continue" hint. Pick up where we left off without
+    // wiping batchResults or re-rolling rates.
+    if (this._pendingSession != null) {
+      const resumeIdx = this._pendingSession;
+      this._pendingSession = null;
+      this._batchRunning   = true;
+      this._updateStartButton();
+      this._runBatchSession(resumeIdx);
+      return;
+    }
+
     if (this.plan === 'II' || this.plan === 'III') {
       const key = this.aiConfig && (this.aiConfig.apiKey || '').trim();
       if (!key) {
@@ -1875,25 +1914,43 @@ const App = {
       this._setAiStatus('');
     }
 
-    const SESSIONS = 10;
+    this._batchTotalSessions = 10;
     this._ensureSessionRates();
-    const rates = this.sessionRates.slice();
-    this.batchResults = [];
+    this._batchRates     = this.sessionRates.slice();
+    this.batchResults    = [];
     this._exportSessions = [];
-    this._batchRunning = true;
+    this._batchRunning   = true;
+    this._pendingSession = null;
     const btnExport = document.getElementById('btn-export');
     if (btnExport) btnExport.disabled = true;
+    this._updateStartButton();
 
-    const runSession = (s) => {
-      if (s >= SESSIONS) {
-        this._batchRunning = false;
-        this.currentSession = 0;
-        this.treatmentSize = this._rateToTreatment(rates[0]);
-        console.table(this.batchResults);
-        if (btnExport) btnExport.disabled = false;
-        this.requestRender();
-        return;
-      }
+    this._runBatchSession(0);
+  },
+
+  /**
+   * Run a single session in the batch. Hoisted from the inner closure
+   * of start() so that after each session completes, the chain can
+   * auto-pause at the session boundary (setting _pendingSession to
+   * s + 1) and later resume from start() without re-initialising the
+   * batch. Every branch that needs the batch-level state reads from
+   * the hoisted _batchRates / _batchTotalSessions.
+   */
+  _runBatchSession(s) {
+    const SESSIONS = this._batchTotalSessions;
+    const rates    = this._batchRates;
+    const btnExport = document.getElementById('btn-export');
+    if (s >= SESSIONS) {
+      this._batchRunning   = false;
+      this._pendingSession = null;
+      this.currentSession  = 0;
+      this.treatmentSize   = this._rateToTreatment(rates[0]);
+      console.table(this.batchResults);
+      if (btnExport) btnExport.disabled = false;
+      this._updateStartButton();
+      this.requestRender();
+      return;
+    }
       // Rates are fractions in [0.1, 0.5]; the engine consumes an
       // integer agent count, so we project through the current N.
       const treatment = this._rateToTreatment(rates[s]);
@@ -1965,13 +2022,25 @@ const App = {
         // and lets the browser paint the transitional states.
         this._yield(() => {
           this._exportSessions.push(this._snapshotSession());
-          this._yield(() => runSession(s + 1));
+          // Auto-pause at every session boundary: mark the next
+          // session as pending and flip the Start button into a
+          // "▶ Continue" hint. The batch stays live (_batchRunning
+          // remains true until the last session completes) so that
+          // start() takes the resume branch instead of booting a
+          // fresh batch. The final session falls through to the
+          // s >= SESSIONS branch of _runBatchSession and exits
+          // the batch cleanly.
+          if (s + 1 >= SESSIONS) {
+            this._runBatchSession(s + 1);
+          } else {
+            this._batchRunning   = false;
+            this._pendingSession = s + 1;
+            this._updateStartButton();
+            this.requestRender();
+          }
         });
       };
       this.engine.start();
-    };
-
-    runSession(0);
   },
 
   /**
@@ -2134,6 +2203,32 @@ const App = {
     this._batchRunning = false;
     this.engine.pause();
     this.requestRender();
+  },
+
+  /**
+   * Flip the Start button between "▶ Start", "▶ Continue", and the
+   * disabled mid-session state. Called whenever _pendingSession or
+   * _batchRunning changes so the control reflects what clicking it
+   * will actually do: boot a fresh batch (▶ Start), resume into
+   * session N+1 (▶ Continue), or nothing (disabled while the engine
+   * is animating the current session).
+   */
+  _updateStartButton() {
+    const btn = document.getElementById('btn-start');
+    if (!btn) return;
+    if (this._pendingSession != null) {
+      const s   = this._pendingSession + 1;            // human 1-based
+      const tot = this._batchTotalSessions || 10;
+      btn.textContent = '▶ Continue';
+      btn.title       = `Session ${this._pendingSession} finished — click to start session ${s} of ${tot}`;
+      btn.disabled    = false;
+      btn.classList.add('continue');
+    } else {
+      btn.textContent = '▶ Start';
+      btn.title       = 'Start the 10-session batch';
+      btn.disabled    = false;
+      btn.classList.remove('continue');
+    }
   },
 
   enterReplayAt(tick) {
