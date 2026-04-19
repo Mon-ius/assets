@@ -1633,44 +1633,54 @@ const UI = {
     const totalTicks     = sessionPeriods * config.ticksPerPeriod;
     const pts = v.priceHistory.map(p => ({
       x: p.tick,
-      y: p.price != null ? Math.abs(p.price - p.fv) : null,
+      y: p.price != null ? (p.price - p.fv) : null,
     }));
-    const ys   = pts.filter(p => p.y != null).map(p => p.y);
-    const yMax = Math.max(10, ...(ys.length ? ys : [10])) * 1.1;
-    const yMin = 0;
+    const ys    = pts.filter(p => p.y != null).map(p => p.y);
+    const peakY = Math.max(10, ...(ys.length ? ys.map(Math.abs) : [10])) * 1.1;
+    const yMin  = -peakY, yMax = peakY;
 
     Viz.axes(ctx, rect, {
       xMin: 0, xMax: totalTicks, yMin, yMax,
       xTicks: rounds, yTicks: 4,
       xFmt: x => this._roundLabel(v, config, x),
-      yFmt: y => y.toFixed(0),
+      yFmt: y => (y >= 0 ? '+' : '') + y.toFixed(0),
     });
-    // Absolute mispricing |P_t − FV_t| inherits the same null-aware
-    // breaks as Figure 1 (the y is null wherever the underlying price
-    // is null), so the stroke drops out at every round boundary until
-    // the new round's first trade lands. Underlay a faint dashed
-    // connector through the non-null points so the line reads as one
-    // series across the whole session without claiming a trade in the
-    // gap; the area fill already spans gaps via Viz.area's continue.
+
+    // Signed mispricing P_t − FV_t on a symmetric ±peak axis, with the
+    // area filled between the curve and the zero baseline so positive
+    // regions read as a blue premium mound and negative regions as a
+    // red discount trough. Null-aware breaks inherit from Figure 1.
     const bridgePts = pts.filter(p => p.y != null);
-    Viz.area(ctx, rect, pts,       { xMin: 0, xMax: totalTicks, yMin, yMax, color: this.theme.red + '30' });
-    Viz.line(ctx, rect, bridgePts, { xMin: 0, xMax: totalTicks, yMin, yMax, color: this.theme.red + '55', width: 1, dashed: true });
-    Viz.line(ctx, rect, pts,       { xMin: 0, xMax: totalTicks, yMin, yMax, color: this.theme.red, width: 2 });
+    const posPts    = pts.map(p => ({ x: p.x, y: p.y == null ? null : Math.max(0, p.y) }));
+    const negPts    = pts.map(p => ({ x: p.x, y: p.y == null ? null : Math.min(0, p.y) }));
+    Viz.area(ctx, rect, posPts,    { xMin: 0, xMax: totalTicks, yMin, yMax, color: this.theme.accent + '30' });
+    Viz.area(ctx, rect, negPts,    { xMin: 0, xMax: totalTicks, yMin, yMax, color: this.theme.red    + '30' });
+    Viz.line(ctx, rect, bridgePts, { xMin: 0, xMax: totalTicks, yMin, yMax, color: this.theme.red    + '55', width: 1, dashed: true });
+    Viz.line(ctx, rect, pts,       { xMin: 0, xMax: totalTicks, yMin, yMax, color: this.theme.red,           width: 2 });
+
+    // Zero baseline so the eye can read premium vs. discount directly.
+    const baseY = Viz.mapY(rect, 0, yMin, yMax);
+    ctx.save();
+    ctx.strokeStyle = this.theme.fg3;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(rect.x, baseY); ctx.lineTo(rect.x + rect.w, baseY); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
 
     this._drawRoundDividers(ctx, rect, config, 0, totalTicks, v);
 
     Viz.axisLabel(ctx, rect, v.session > 0 ? 'Round R · Session ' + v.session : 'Round R', 'bottom');
     const bubbleLegend = [
-      { color: this.theme.red, label: '▬ absolute mispricing' },
+      { color: this.theme.red, label: '▬ mispricing P − FV' },
     ];
-    this._appendMispricingLegend(bubbleLegend, v, config, 'absolute');
+    this._appendMispricingLegend(bubbleLegend, v, config, 'signed');
     Viz.legendRow(ctx, rect, bubbleLegend);
 
     this._registerHover('bubble', {
       mode: 'series', rect, xMin: 0, xMax: totalTicks, yMin, yMax,
       xFmt: x => this._tickHoverFmt(v, config, x),
       series: [
-        { name: '|P − FV|', color: this.theme.red, points: bridgePts, yFmt: y => y.toFixed(2) + '¢' },
+        { name: 'P − FV', color: this.theme.red, points: bridgePts, yFmt: y => (y >= 0 ? '+' : '') + y.toFixed(2) + '¢' },
       ],
     });
   },
