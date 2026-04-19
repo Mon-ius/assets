@@ -1165,43 +1165,39 @@ const App = {
     return num / Math.sqrt(dx * dy);
   },
 
-  /** Correlation of the PRE and POST assets' FV paths sampled from a
-   *  single pre-round r₀ simulation (one round, T periods) per asset.
-   *  Deterministic assets trivially reproduce their `init()` path; for
-   *  stochastic assets (random walk, jump/crash) a seeded RNG draws
-   *  one representative trajectory so the readout is reproducible.
+  /** Pearson correlation of the PRE and POST assets' determined
+   *  fundamental-value curves — the same FV_1..FV_T points plotted on
+   *  Figure 1 for each asset. Deterministic assets (LD, CP, LG, CY)
+   *  read their curve straight from `asset.init(config)`; path-based
+   *  assets (random walk, jump/crash) use their expected Figure 1
+   *  path (martingale for RW, E[step]-drift for JC). No RNG, no
+   *  simulated trajectories — the readout is a pure function of the
+   *  asset pair and the period count T.
    *
-   *  Returns 1 when the two asset ids match (identical paths). When
-   *  exactly one asset has a flat sampled path (the perpetual, by
-   *  construction; or a degenerate random-walk seed) Pearson is
-   *  mathematically undefined — we coerce that case to 0 so the
-   *  experience-blending rule still has a well-defined |corr| weight
-   *  to apply (|corr| = 0 means "none of the pre-asset training
-   *  transfers, so the trader effectively resets toward the novice
-   *  anchors"). This keeps the corr chip on every session row numeric
-   *  instead of rendering "—" for Perpetual-vs-anything pairings. */
+   *  Returns 1 when the two asset ids match (identical curves). When
+   *  either curve is flat (the perpetual, the RW expected path)
+   *  Pearson is mathematically undefined — we coerce that case to 0
+   *  so the experience-blending rule still has a well-defined |corr|
+   *  weight to apply (|corr| = 0 means "none of the pre-asset
+   *  training transfers, so the trader effectively resets toward the
+   *  novice anchors"). This keeps the corr chip on every session row
+   *  numeric instead of rendering "—" for Perpetual-vs-anything. */
   _sessionAssetCorr(session) {
     this._ensureSessionAssets();
     const idx = Math.max(0, Math.min(9, (session | 0) - 1));
     const preId  = this.sessionAssets[idx];
     const postId = this.sessionAssetsPost[idx];
     if (preId === postId) return 1;
-    if (typeof simulateAssetFvPath !== 'function' || typeof makeRNG !== 'function') return NaN;
+    if (typeof expectedAssetFvPath !== 'function') return NaN;
     const T   = (this.config && this.config.periods) | 0;
     const pre  = (typeof getAssetType === 'function') ? getAssetType(preId)  : null;
     const post = (typeof getAssetType === 'function') ? getAssetType(postId) : null;
     if (!pre || !post || !T) return NaN;
-    // Stable per-session seed — identical on every render, so the corr
-    // chip doesn't jitter when the user re-opens the panel. Mixing the
-    // session index in keeps each row's r₀ sample independent.
-    const baseSeed = 0xC0FFEE ^ ((idx + 1) * 0x9E3779B1);
-    const rngPre   = makeRNG(baseSeed >>> 0);
-    const rngPost  = makeRNG((baseSeed ^ 0xA5A5A5A5) >>> 0);
-    const pathPre  = simulateAssetFvPath(pre,  this.config, rngPre);
-    const pathPost = simulateAssetFvPath(post, this.config, rngPost);
+    const pathPre  = expectedAssetFvPath(pre,  this.config);
+    const pathPost = expectedAssetFvPath(post, this.config);
     const r = this._pearson(pathPre, pathPost);
-    // One-sided degeneracy: a flat path carries no linear information
-    // about the other asset. Treat as uncorrelated rather than NaN.
+    // One-sided degeneracy: a flat Figure 1 curve carries no linear
+    // information about the other asset. Treat as uncorrelated.
     if (!Number.isFinite(r)) return 0;
     return r;
   },
@@ -1304,7 +1300,7 @@ const App = {
       const corr = document.createElement('span');
       corr.className = 'session-asset-corr';
       corr.dataset.session = String(s);
-      corr.title = 'Pearson correlation of the pre and post assets\u2019 expected FV paths (corr = 1 when both selectors pick the same asset)';
+      corr.title = 'Pearson correlation of the pre and post assets\u2019 determined fundamental-value points as plotted on Figure 1 (corr = 1 when both selectors pick the same asset)';
 
       const refreshCorr = () => {
         const r = this._sessionAssetCorr(s + 1);

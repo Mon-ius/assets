@@ -268,40 +268,49 @@ const ASSET_TYPES = [
 
 const ASSET_TYPES_BY_ID = Object.fromEntries(ASSET_TYPES.map(a => [a.id, a]));
 
-/* Simulate a single "pre-round" (r₀) of the asset under the given config
- * and seeded RNG, and return the realised FV path FV_1..FV_T. Used by
- * the per-session asset-pair selector to compute a Pearson correlation
- * between the pre- and post-replacement assets from actual simulated
- * values rather than closed-form expected paths.
+/* Return the canonical FV points plotted on Figure 1 — the
+ * "determined" fundamental-value path FV_1..FV_T implied by the
+ * asset's spec, with no stochastic draws. Used by the per-session
+ * asset-pair selector to compute a Pearson correlation between the
+ * pre- and post-replacement assets directly from the curve that
+ * Figure 1 would display (rather than from any single realised
+ * trajectory).
  *
- * The procedure mirrors what `Market.payDividend` does every tick:
- *   1. `asset.init(config)` sets up state and pins `state.fv[1] = 100`
- *   2. For t = 1..T, call `drawDividend(t, …)` so path-dependent assets
- *      extend `state.fv[t+1]` just as they would in a live round.
- * The returned slice is `state.fv[1..T]`, i.e. FV at the start of each
- * period of the simulated round. A deterministic seed gives a stable,
- * reproducible readout so the correlation chip in the UI doesn't jitter
- * between re-renders. */
-function simulateAssetFvPath(asset, config, rng) {
+ * Deterministic assets (linear declining, perpetual, linear growth,
+ * cyclical) already encode the full path in `state.fv[1..T]` after
+ * `asset.init(config)`, so nothing else is needed. Path-dependent
+ * assets (random walk, jump/crash) only seed `state.fv[1] = 100` in
+ * their init; their Figure 1 curve is the expected path:
+ *   - randomWalk is a reflected martingale, so E[FV_t] = FV_1 for all t
+ *     (floored at `state.floor`).
+ *   - jumpCrash drifts by E[step] = (1 − p)·drift + p·crash per period,
+ *     floored at `state.floor`.
+ * Both cases are constructed in closed form here with no RNG, so the
+ * correlation chip is stable across renders and reflects the curves
+ * the user actually sees on Figure 1. */
+function expectedAssetFvPath(asset, config) {
   if (!asset || !config || !(config.periods > 0)) return [];
   const T = config.periods;
   const state = asset.init(config);
-  // Drive drawDividend from t=1..T-1 so stochastic assets fill state.fv
-  // up to state.fv[T]. The T-th call is unnecessary for the path since
-  // we don't read FV_{T+1}, but running it keeps the seed stream length
-  // independent of asset type for paired-seed comparisons.
-  for (let t = 1; t <= T; t++) {
-    try {
-      asset.drawDividend(t, state, rng, config, null);
-    } catch (_err) {
-      // Asset draws should never throw, but don't let a pre-round sim
-      // break the UI — treat the rest of the path as flat at FV_1.
-      break;
+  if (asset.id === 'randomWalk') {
+    const floor = Number.isFinite(state.floor) ? state.floor : 0;
+    for (let t = 2; t <= T; t++) {
+      state.fv[t] = Math.max(floor, state.fv[t - 1]);
+    }
+  } else if (asset.id === 'jumpCrash') {
+    const floor = Number.isFinite(state.floor) ? state.floor : 0;
+    const p     = Number.isFinite(state.crashProb) ? state.crashProb : 0;
+    const drift = Number.isFinite(state.drift) ? state.drift : 0;
+    const crash = Number.isFinite(state.crash) ? state.crash : 0;
+    const eStep = (1 - p) * drift + p * crash;
+    for (let t = 2; t <= T; t++) {
+      state.fv[t] = Math.max(floor, state.fv[t - 1] + eStep);
     }
   }
   const out = new Array(T);
   for (let t = 1; t <= T; t++) {
-    out[t - 1] = (state.fv[t] != null) ? state.fv[t] : ASSET_ANCHOR_FV;
+    const v = state.fv[t];
+    out[t - 1] = Number.isFinite(v) ? v : ASSET_ANCHOR_FV;
   }
   return out;
 }
