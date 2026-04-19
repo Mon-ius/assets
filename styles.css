@@ -1051,6 +1051,12 @@ body:not(.plan-iii) .plan-iii-only { display: none !important; }
   position: fixed;
   width: 340px;
   max-width: min(420px, 90vw);
+  /* Cap height to the viewport so tall tooltips (Session Replacement
+     Rate + Pre/Post Asset & FV Correlation carries ~5 paragraphs)
+     can never exceed the window. The JS positioner reads this
+     clamped height and flips / anchors within the viewport. */
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
   padding: 12px 14px;
   background: var(--bg-1);
   border: 1px solid var(--border);

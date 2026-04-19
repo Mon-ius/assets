@@ -292,18 +292,41 @@ const App = {
       // / innerHeight directly. Adding scroll offsets here (the previous
       // behaviour) was the reason the Prior Bias tooltip drifted off-
       // screen once the Advanced Settings section was scrolled into view.
-      const rect = target.getBoundingClientRect();
+      const rect    = target.getBoundingClientRect();
       const tipRect = tip.getBoundingClientRect();
       const margin  = 10;
+      const vw      = window.innerWidth;
+      const vh      = window.innerHeight;
+      const th      = tipRect.height;
+
       let left = rect.left;
-      const maxLeft = window.innerWidth - tipRect.width - 4;
+      const maxLeft = vw - tipRect.width - 4;
       if (left > maxLeft) left = maxLeft;
       if (left < 4) left = 4;
-      // Prefer above; flip below if there isn't room.
-      let top = rect.top - tipRect.height - margin;
-      if (top < 4) top = rect.bottom + margin;
+
+      // Vertical placement — pick whichever side (above / below) has more
+      // room, and clamp the result so the tip never overflows the viewport.
+      // Without the clamp, tall tiles like "Session Replacement Rate(%),
+      // Pre/Post Asset & FV Correlation" (a 10-row session-rate grid)
+      // push the fallback "below" placement past the bottom of the
+      // viewport and cut off the upper half of the tooltip.
+      const spaceAbove = rect.top;
+      const spaceBelow = vh - rect.bottom;
+      let top;
+      if (th + margin <= spaceAbove) {
+        top = rect.top - th - margin;
+      } else if (th + margin <= spaceBelow) {
+        top = rect.bottom + margin;
+      } else {
+        // Neither side fits fully — anchor to the side with more room
+        // and clamp so the entire tooltip stays in view.
+        top = spaceAbove >= spaceBelow ? 4 : vh - th - 4;
+      }
+      if (top < 4) top = 4;
+      if (top + th > vh - 4) top = vh - th - 4;
+
       tip.style.left = left + 'px';
-      tip.style.top  = top + 'px';
+      tip.style.top  = top  + 'px';
     };
 
     const show = (target) => {
