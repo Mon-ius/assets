@@ -2053,6 +2053,48 @@ Action: &lt;BUY_NOW / SELL_NOW / BID_1 / BID_3 / ASK_1 / ASK_3 / HOLD&gt;</pre>
   <p>Plan I has no LLM channel, so the toggle is recorded in the snapshot but agent behavior is unchanged.</p>
 </template>
 
+<!-- Per-asset rich tips. The session-asset <select> carries a
+     data-tip-id matching the currently selected asset, so hovering
+     the closed dropdown surfaces the full specification of the
+     active asset. Native-title tooltips on each <option> give a
+     one-line hint inside the opened dropdown. -->
+<template id="tpl-asset-linearDeclining">
+  <p><strong>Linear Declining (DLM)</strong> — the classic Smith-Suchanek / Dufwenberg–Lindqvist–Moore experimental asset.</p>
+  <p>Fundamental value: <code>FV<sub>t</sub> = 5 · (T − t + 1)</code>, so FV<sub>1</sub> = 100 and FV<sub>T</sub> = 5 at T = 20. The staircase is the canonical bubble-experiment target: every period the asset is worth one less dividend of expected cash flow.</p>
+  <p>Dividend: <code>d<sub>t</sub> ∈ {0, 10}¢</code> with equal probability, so <code>E[d<sub>t</sub>] = 5¢</code>. No terminal value — after period T the asset is worthless.</p>
+  <p><em>Use case.</em> Reproduces DLM 2005 Figure 1. Mispricing against a known-declining fundamental is the textbook bubble signature; the Complex-Dividends toggle swaps the coin flip for the paper's 5-point distribution to activate bounded-rationality priors.</p>
+</template>
+<template id="tpl-asset-constantPerpetual">
+  <p><strong>Constant / Perpetual</strong> — a flat-FV reference asset. Removes the declining-value channel so any bubble must come from belief / liquidity dynamics alone.</p>
+  <p>Fundamental value: <code>FV<sub>t</sub> = E[d] / r = 5 / 0.05 = 100</code> for every period. The asset is a perpetual claim with terminal value 100 (no horizon effect).</p>
+  <p>Dividend: <code>d<sub>t</sub> ∈ {4, 6}¢</code> with equal probability, <code>E[d<sub>t</sub>] = 5¢</code>. Tight dispersion keeps the sample mean close to the truth, so the rational prior should stick at 100 across the full round.</p>
+  <p><em>Use case.</em> Null asset for bubble-attribution studies — if prices drift from 100 there is no fundamental tailwind to blame.</p>
+</template>
+<template id="tpl-asset-linearGrowth">
+  <p><strong>Linear Growth</strong> — rising-expectations regime where each period's expected dividend increases linearly in <code>t</code>.</p>
+  <p>Dividend: <code>d<sub>t</sub> ~ N(a + b·t, 1)</code> with <code>b = 0.3</code> and <code>a = (100 − b·T(T+1)/2) / T ≈ 1.85</code> at T = 20, so <code>a + b·t</code> walks from ≈ 2.15 at <code>t = 1</code> up to ≈ 7.85 at <code>t = T</code>.</p>
+  <p>Fundamental value is the remaining tail sum <code>FV<sub>t</sub> = Σ<sub>s=t</sub><sup>T</sup> (a + b·s)</code>, anchored at FV<sub>1</sub> = 100 by construction and declining to 0 at the terminal period.</p>
+  <p><em>Use case.</em> Does growth priming (rising <code>E[d]</code>) help agents stay anchored, or does it amplify optimism? The FV still ends at 0, so late-period overpricing remains a bubble signature.</p>
+</template>
+<template id="tpl-asset-cyclicalSine">
+  <p><strong>Cyclical (Sine Wave)</strong> — wave-shaped FV around a flat mean, probing whether agents can track a non-monotone fundamental.</p>
+  <p>Fundamental value: <code>FV<sub>t</sub> = 100 + 20 · sin(2π (t − 1) / 10)</code>. Period 10, amplitude 20, long-run mean 100. FV<sub>1</sub> = 100 on every round.</p>
+  <p>Dividend: <code>d<sub>t</sub> ~ N(5 + 2 · sin(2π (t − 1) / 10), 1)</code>, clamped to be non-negative. The dividend phase is aligned with FV so the observable cash flow carries the same cycle.</p>
+  <p><em>Use case.</em> Seasonal / cyclical value benchmark. Measures whether trading rules trained on monotone FV transfer to oscillatory environments.</p>
+</template>
+<template id="tpl-asset-randomWalk">
+  <p><strong>Random Walk Fundamental</strong> — a path-dependent FV with no predictable trajectory, so every round traces a different FV history.</p>
+  <p>Fundamental value: <code>FV<sub>t+1</sub> = max(20, FV<sub>t</sub> + η<sub>t</sub>)</code> with <code>η<sub>t</sub> ~ N(0, 5<sup>2</sup>)</code> and floor 20. FV<sub>1</sub> = 100; the path is generated lazily one period at a time so replay is deterministic given the seed.</p>
+  <p>Dividend: <code>d<sub>t</sub> = FV<sub>t</sub> − FV<sub>t+1</sub> / (1 + r)</code> with <code>r = 5%</code>, clamped at 0. This is the martingale-consistent cash flow backed out of the realised path.</p>
+  <p><em>Use case.</em> No trend-following edge: any bubble here indicates pure belief coordination or herding rather than a reaction to an exploitable FV pattern.</p>
+</template>
+<template id="tpl-asset-jumpCrash">
+  <p><strong>Jump / Crash</strong> — slow positive drift punctuated by rare disasters.</p>
+  <p>Fundamental value: <code>FV<sub>t+1</sub> = FV<sub>t</sub> + 2</code> with probability 0.9, <code>FV<sub>t+1</sub> = max(5, FV<sub>t</sub> − 30)</code> with probability 0.1. FV<sub>1</sub> = 100, floor at 5, expected per-period drift −1.2.</p>
+  <p>Dividend: <code>d<sub>t</sub> = FV<sub>t</sub> − FV<sub>t+1</sub> / (1 + r)</code> with <code>r = 5%</code>, non-negative. Crashes produce a large positive dividend spike (the pre-crash FV paid out as cash before the drop).</p>
+  <p><em>Use case.</em> Rare-disaster / fat-tailed regime. Tests whether agents discount the crash correctly or over-weight the 90% drift and get caught out.</p>
+</template>
+
 <script data-cfasync="false" src="js/messaging.js?v=21"></script>
 <script data-cfasync="false" src="js/assets.js?v=22"></script>
 <script data-cfasync="false" src="js/market.js?v=22"></script>
@@ -2063,6 +2105,6 @@ Action: &lt;BUY_NOW / SELL_NOW / BID_1 / BID_3 / ASK_1 / ASK_3 / HOLD&gt;</pre>
 <script data-cfasync="false" src="js/engine.js?v=22"></script>
 <script data-cfasync="false" src="js/ui.js?v=22"></script>
 <script data-cfasync="false" src="js/replay.js?v=22"></script>
-<script data-cfasync="false" src="js/main.js?v=24"></script>
+<script data-cfasync="false" src="js/main.js?v=25"></script>
 </body>
 </html>

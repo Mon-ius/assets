@@ -1183,15 +1183,25 @@ const App = {
       const assetSel = document.createElement('select');
       assetSel.className = 'session-asset-select';
       assetSel.dataset.session = String(s);
+      // data-tip-id points at the <template id="tpl-asset-<id>"> in
+      // index.html so hovering the closed dropdown surfaces the full
+      // specification of the currently-selected asset through the same
+      // rich-tip path used by every other Advanced-panel control.
+      assetSel.setAttribute('data-tip-id', 'asset-' + this.sessionAssets[s]);
       for (const a of assetList) {
         const opt = document.createElement('option');
         opt.value = a.id;
         opt.textContent = a.label;
+        // Native browser tooltip for the option row inside an open
+        // dropdown — a compact one-liner; the rich tip on the select
+        // itself carries the full formulaic detail.
+        if (a.description) opt.title = a.description;
         if (a.id === this.sessionAssets[s]) opt.selected = true;
         assetSel.appendChild(opt);
       }
       assetSel.addEventListener('change', () => {
         this.sessionAssets[s] = assetSel.value;
+        assetSel.setAttribute('data-tip-id', 'asset-' + assetSel.value);
         this.reset();
       });
 
