@@ -113,3 +113,48 @@ function markPrice(market) {
   if (market && market.lastPrice != null) return market.lastPrice;
   return market ? market.fundamentalValue() : 0;
 }
+
+/* =====================================================================
+   Experience mechanism — follows `different_asset_simulation_v3.html` §3.
+
+   Each trader i carries an integer experience level k_i ∈ {0, 1, 2, …}
+   (the number of prior rounds of a similar market the agent has played;
+   in this simulator k_i ≡ agent.roundsPlayed). Three per-agent modelling
+   parameters depend on k_i and shape how confidently that agent anchors
+   to its own model vs. the crowd:
+
+       α_i = min{1, α_0 + γ_α · k_i}          (model reliance)
+       σ_i = σ_0 · e^{−γ_σ · k_i}             (valuation noise)
+       ω_i = 0.6 + 0.1 · min(3, k_i)          (self-vs-crowd blend)
+
+   The anchors α_0, σ_0, ω_0 are the values for a completely
+   inexperienced agent (k_i = 0) and also appear verbatim in the
+   Parameters → Hidden Constants panel. γ_α, γ_σ are growth rates
+   specified by v3; ω_i saturates at 0.9 once k_i ≥ 3. See
+   experienceFactors() below for the single call site used by the UI
+   and (eventually) by the belief-revision code. */
+
+const EXPERIENCE_ALPHA_0       = 0.40;  // anchor for model reliance
+const EXPERIENCE_GAMMA_ALPHA   = 0.15;  // per-round growth of α_i
+const EXPERIENCE_SIGMA_0       = 15;    // anchor for valuation noise
+const EXPERIENCE_GAMMA_SIGMA   = 0.30;  // per-round decay rate of σ_i
+const EXPERIENCE_OMEGA_0       = 0.60;  // anchor for self-weight ω_i
+const EXPERIENCE_OMEGA_STEP    = 0.10;  // per-round increment of ω_i
+const EXPERIENCE_OMEGA_KMAX    = 3;     // saturation horizon for ω_i
+
+/**
+ * experienceFactors — return the per-agent (α_i, σ_i, ω_i) triple
+ * implied by an integer experience level k. Safe for any finite k ≥ 0;
+ * non-finite or negative inputs are clamped to 0 so a fresh replacement
+ * agent always reports the novice triple (0.40, 15, 0.60).
+ */
+function experienceFactors(k) {
+  const ki = Math.max(0, Number.isFinite(k) ? Math.floor(k) : 0);
+  return {
+    k:     ki,
+    alpha: Math.min(1, EXPERIENCE_ALPHA_0 + EXPERIENCE_GAMMA_ALPHA * ki),
+    sigma: EXPERIENCE_SIGMA_0 * Math.exp(-EXPERIENCE_GAMMA_SIGMA * ki),
+    omega: EXPERIENCE_OMEGA_0
+         + EXPERIENCE_OMEGA_STEP * Math.min(EXPERIENCE_OMEGA_KMAX, ki),
+  };
+}

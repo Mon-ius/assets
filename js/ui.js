@@ -520,10 +520,22 @@ const UI = {
       // renders the normalized RHS (w/w₀)^(1−ρ_i) so the subscript
       // matches the rho badge in the subtitle.
       const formulaSym = (window.Sym && window.Sym.uCRRANormI) ? window.Sym.uCRRANormI : '';
+      // Experience-dependent modelling parameters from v3 §3 — computed
+      // from k_i ≡ agent.roundsPlayed every render so the card keeps up
+      // when the engine increments the counter at a round boundary. The
+      // inexperienced anchors (α_0, σ_0, ω_0) are documented in the
+      // Parameters → Hidden Constants panel.
+      const exp = (typeof experienceFactors === 'function')
+        ? experienceFactors(rp)
+        : { k: rp, alpha: 0.4, sigma: 15, omega: 0.6 };
+      const expRows = `
+          <span class="metric">Model reliance <span class="sym">${sym.alphaI || ''}</span></span> <span class="metric-val">${exp.alpha.toFixed(2)}</span>
+          <span class="metric">Valuation noise <span class="sym">${sym.sigmaI || ''}</span></span> <span class="metric-val">${exp.sigma.toFixed(1)}</span>
+          <span class="metric">Self-weight <span class="sym">${sym.omegaI || ''}</span></span> <span class="metric-val">${exp.omega.toFixed(2)}</span>`;
       const extraRows = isUtil ? `
           <span class="metric">Subj V <span class="sym">${sym.subjV || ''}</span></span> <span class="metric-val">${a.subjectiveValuation != null ? a.subjectiveValuation.toFixed(1) : '—'}</span>
           <span class="metric">Report <span class="sym">${sym.reportV || ''}</span></span> <span class="metric-val">${a.reportedValuation != null ? a.reportedValuation.toFixed(1) : '—'}</span>
-          <span class="metric metric-util">Utility <span class="sym">${sym.uOfW || ''}</span></span> <span class="metric-val metric-util-val"><span class="sym">${formulaSym}</span></span>` : '';
+          <span class="metric metric-util">Utility <span class="sym">${sym.uOfW || ''}</span></span> <span class="metric-val metric-util-val"><span class="sym">${formulaSym}</span></span>${expRows}` : expRows;
 
       // Back-face content — LLM prompt for utility agents, rule
       // explanation for algorithmic agents.

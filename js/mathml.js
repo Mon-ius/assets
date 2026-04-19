@@ -196,6 +196,41 @@ const Sym = {
     _sup(_mi('σ'), _mn('2')), _mo(')'),
   )),                                                                          // N(0, σ²)
   maxOp:     _wrap(_mi('max')),                                                // max(·,·)
+  minOp:     _wrap(_mi('min')),                                                // min(·,·)
+
+  /* Experience mechanism (v3 §3) — per-agent α_i, σ_i, ω_i indexed by
+     the integer experience level k_i ≡ agent.roundsPlayed. The anchors
+     α_0, σ_0, ω_0 are the novice values (k_i = 0) and also appear as
+     standalone entries in the Parameters → Hidden Constants panel. */
+  kI:         _wrap(_sub(_mi('k'), _mi('i'))),                                  // k_i
+  alphaI:     _wrap(_sub(_mi('α'), _mi('i'))),                                  // α_i
+  sigmaI:     _wrap(_sub(_mi('σ'), _mi('i'))),                                  // σ_i
+  omegaI:     _wrap(_sub(_mi('ω'), _mi('i'))),                                  // ω_i
+  alphaZero:  _wrap(_sub(_mi('α'), _mn('0'))),                                  // α_0
+  sigmaZero:  _wrap(_sub(_mi('σ'), _mn('0'))),                                  // σ_0
+  omegaZero:  _wrap(_sub(_mi('ω'), _mn('0'))),                                  // ω_0
+  gammaAlpha: _wrap(_sub(_mi('γ'), _mi('α'))),                                  // γ_α
+  gammaSigma: _wrap(_sub(_mi('γ'), _mi('σ'))),                                  // γ_σ
+  alphaIDef:  _wrap(_row(                                                       // α_i = min{1, α_0 + γ_α · k_i}
+    _sub(_mi('α'), _mi('i')), _mo('='),
+    _mi('min'), _mo('{'), _mn('1'), _mo(','),
+    _sub(_mi('α'), _mn('0')), _mo('+'),
+    _sub(_mi('γ'), _mi('α')), _mo('·'), _sub(_mi('k'), _mi('i')),
+    _mo('}'),
+  )),
+  sigmaIDef:  _wrap(_row(                                                       // σ_i = σ_0 · e^(−γ_σ · k_i)
+    _sub(_mi('σ'), _mi('i')), _mo('='),
+    _sub(_mi('σ'), _mn('0')), _mo('·'),
+    _sup(_mi('e'), _row(
+      _mo('−'), _sub(_mi('γ'), _mi('σ')), _mo('·'), _sub(_mi('k'), _mi('i')),
+    )),
+  )),
+  omegaIDef:  _wrap(_row(                                                       // ω_i = 0.6 + 0.1 · min(3, k_i)
+    _sub(_mi('ω'), _mi('i')), _mo('='),
+    _mn('0.6'), _mo('+'),
+    _mn('0.1'), _mo('·'),
+    _mi('min'), _mo('('), _mn('3'), _mo(','), _sub(_mi('k'), _mi('i')), _mo(')'),
+  )),
 
   /* Utility functionals — compact form used by slider labels and the
      agent-card subtitle where horizontal space is tight. */

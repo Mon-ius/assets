@@ -424,6 +424,21 @@
         <dd class="const-label">Persistent over/under-valuation of biased Utility agents</dd>
         <dd class="const-note">Applied as $b_i = \delta_i \cdot \beta$ with $\beta = 0.15$; sign set by the per-slot bias direction $\delta_i \in \{-1, 0, +1\}$ (see Architecture Figure 2). Drives the biased U-agent slots in the default strategy cube (U2, U4, U5). Not in DLM 2005; chosen large enough to perturb the market without dominating the risk-preference split.<span class="const-src">agents.js — UTILITY_DEFAULTS.biasAmount</span></dd>
       </div>
+      <div class="const-item">
+        <dt>novice model reliance <span data-sym="alphaZero"></span> <span class="const-val">= 0.40</span></dt>
+        <dd class="const-label">Anchor for the per-agent α<sub>i</sub> at experience k<sub>i</sub> = 0</dd>
+        <dd class="const-note">First of three experience-indexed modelling parameters from v3 §3. The rule is <span data-sym="alphaIDef"></span>, where <span data-sym="kI"></span> ≡ <code>agent.roundsPlayed</code> (integer rounds the agent has actually played in this session) and <span data-sym="gammaAlpha"></span> = 0.15 is the per-round growth. <span data-sym="alphaI"></span> is the weight an agent places on its model-based (FV-anchored) valuation relative to its own heuristic reading of recent prices: at the inexperienced anchor <span data-sym="alphaZero"></span> = 0.40 a novice trusts the model 40%, and after roughly four rounds the min-cap clips <span data-sym="alphaI"></span> at 1. Why 0.40: it reproduces the v3 calibration in which k<sub>i</sub> = 0 agents are bubble-prone and k<sub>i</sub> ≥ 4 agents converge to rational anchoring. Not in DLM 2005, which has no belief-update model.<span class="const-src">utility.js — EXPERIENCE_ALPHA_0, EXPERIENCE_GAMMA_ALPHA</span></dd>
+      </div>
+      <div class="const-item">
+        <dt>novice valuation noise <span data-sym="sigmaZero"></span> <span class="const-val">= 15</span></dt>
+        <dd class="const-label">Anchor for the per-agent σ<sub>i</sub> at experience k<sub>i</sub> = 0</dd>
+        <dd class="const-note">Second experience-indexed parameter. The rule is <span data-sym="sigmaIDef"></span>, with <span data-sym="gammaSigma"></span> = 0.30 decay per round. <span data-sym="sigmaI"></span> is the standard deviation (in cents) of the i.i.d. draw an agent adds to its subjective valuation each period to model computational imprecision; a novice at <span data-sym="sigmaZero"></span> = 15 produces ±15¢ spread around the model anchor (on an asset with FV<sub>1</sub> = 100 that is the same ±15% band the Advanced → Prior Noise toggle emulates at k<sub>i</sub> = 0). Experience contracts this exponentially — by k<sub>i</sub> = 3 the noise is ≈ 6¢ and by k<sub>i</sub> = 10 it is &lt; 1¢. This is the "experience kills the bubble" channel from DLM 2005 restated as a computational-precision decay; DLM itself specifies no noise model.<span class="const-src">utility.js — EXPERIENCE_SIGMA_0, EXPERIENCE_GAMMA_SIGMA</span></dd>
+      </div>
+      <div class="const-item">
+        <dt>novice self-weight <span data-sym="omegaZero"></span> <span class="const-val">= 0.60</span></dt>
+        <dd class="const-label">Anchor for the per-agent ω<sub>i</sub> at experience k<sub>i</sub> = 0</dd>
+        <dd class="const-note">Third experience-indexed parameter. The rule is <span data-sym="omegaIDef"></span>, so <span data-sym="omegaI"></span> saturates at 0.9 once k<sub>i</sub> ≥ 3: k<sub>i</sub> = 0 ⇒ 0.60, k<sub>i</sub> = 1 ⇒ 0.70, k<sub>i</sub> = 2 ⇒ 0.80, k<sub>i</sub> ≥ 3 ⇒ 0.90. <span data-sym="omegaI"></span> is the convex weight on the agent's <em>own</em> prior when it blends peer opinion into its posterior: V<sup>post</sup><sub>i,t</sub> = <span data-sym="omegaI"></span>·V<sup>prior</sup><sub>i,t</sub> + (1 − <span data-sym="omegaI"></span>)·m̄<sub>t</sub> (v3 §2). At the novice anchor <span data-sym="omegaZero"></span> = 0.60 a fresh agent leans 40% toward the market aggregate m̄<sub>t</sub>; veterans with k<sub>i</sub> ≥ 3 absorb only 10% of peer belief, matching the DLM observation that experienced subjects anchor to fundamentals and ignore the crowd. Not in DLM 2005 (which has no messaging layer at all); chosen so the novice weight matches the legacy naive-prior-weight above (also 0.60) for continuity with Plan I.<span class="const-src">utility.js — EXPERIENCE_OMEGA_0, EXPERIENCE_OMEGA_STEP, EXPERIENCE_OMEGA_KMAX</span></dd>
+      </div>
           </dl>
         </div>
       </details>
@@ -2011,8 +2026,8 @@ Action: &lt;BUY_NOW / SELL_NOW / BID_1 / BID_3 / ASK_1 / ASK_3 / HOLD&gt;</pre>
 </section>
 
 <script defer src="https://cloud.umami.is/script.js" data-website-id="7949072b-501b-43b1-b400-323e6dbc53c4"></script>
-<script data-cfasync="false" src="js/mathml.js?v=21"></script>
-<script data-cfasync="false" src="js/utility.js?v=21"></script>
+<script data-cfasync="false" src="js/mathml.js?v=22"></script>
+<script data-cfasync="false" src="js/utility.js?v=22"></script>
 <!--
   Rich hover tooltip templates — Advanced Settings tiles. Each
   template is cloned into a shared floating div by App._initRichTips
@@ -2114,7 +2129,7 @@ Action: &lt;BUY_NOW / SELL_NOW / BID_1 / BID_3 / ASK_1 / ASK_3 / HOLD&gt;</pre>
 <script data-cfasync="false" src="js/viz.js?v=21"></script>
 <script data-cfasync="false" src="js/ai.js?v=21"></script>
 <script data-cfasync="false" src="js/engine.js?v=22"></script>
-<script data-cfasync="false" src="js/ui.js?v=23"></script>
+<script data-cfasync="false" src="js/ui.js?v=24"></script>
 <script data-cfasync="false" src="js/replay.js?v=22"></script>
 <script data-cfasync="false" src="js/main.js?v=25"></script>
 </body>
