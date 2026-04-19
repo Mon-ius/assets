@@ -914,9 +914,9 @@ const UI = {
         : { k: rp, alpha: 0.4, sigma: 15, omega: 0.6 };
       const exp = UI._blendExperience(trained, a, v);
       const expRows = `
-          <span class="metric">Fund. weight <span class="sym">${sym.alphaI || ''}</span></span> <span class="metric-val">${exp.alpha.toFixed(2)}</span>
+          <span class="metric">Fundamental weight <span class="sym">${sym.alphaI || ''}</span></span> <span class="metric-val">${exp.alpha.toFixed(2)}</span>
           <span class="metric">Valuation noise <span class="sym">${sym.sigmaI || ''}</span></span> <span class="metric-val">${exp.sigma.toFixed(1)}</span>
-          <span class="metric">Self-weight <span class="sym">${sym.omegaI || ''}</span></span> <span class="metric-val">${exp.omega.toFixed(2)}</span>`;
+          <span class="metric">Self (non-peer) weight <span class="sym">${sym.omegaI || ''}</span></span> <span class="metric-val">${exp.omega.toFixed(2)}</span>`;
       const extraRows = isUtil ? `
           <span class="metric">Subj V <span class="sym">${sym.subjV || ''}</span></span> <span class="metric-val">${a.subjectiveValuation != null ? a.subjectiveValuation.toFixed(1) : '—'}</span>
           <span class="metric">Report <span class="sym">${sym.reportV || ''}</span></span> <span class="metric-val">${a.reportedValuation != null ? a.reportedValuation.toFixed(1) : '—'}</span>

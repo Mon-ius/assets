@@ -149,7 +149,7 @@ const ExperienceConfig = {
   gammaAlpha: 0.15,  // per-round growth of α_i
   sigma0:     15,    // anchor for valuation noise
   gammaSigma: 0.30,  // per-round decay rate of σ_i
-  omega0:     0.60,  // anchor for self-weight ω_i (not slider-backed)
+  omega0:     0.60,  // novice self (non-peer) weight ω_i (v3 §3)
   omegaStep:  0.10,  // per-round increment of ω_i
   omegaKmax:  3,     // saturation horizon for ω_i
 };
