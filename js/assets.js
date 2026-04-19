@@ -26,14 +26,17 @@
    cyclical, linear growth) can still lean on `state.fv[]` so replay
    views don't need per-asset code paths.
 
-   All six assets are scaled so FV_1 = 100 at T = 20, matching the
-   simulator's default horizon. Formulas follow
-   `different_asset_simulation_v2.html`.
+   Formulas follow `different_asset_simulation_v4.html`. Under v4 five of
+   the six assets have FV_1 = 100 at T = 20 (linear-declining, perpetual,
+   cyclical, random-walk, jump/crash); Linear Growth is the exception —
+   its §5.13 discounted tail-sum gives FV_1 ≈ 58.3 and the "rise" shows
+   up in E[d_s], not in FV_t itself.
    ===================================================================== */
 
-/* Anchor for the first period of every session/round. The spec pins
- * this at 100 for every asset so that the order-book bootstrap and the
- * agent priors always begin from the same scale. */
+/* Default first-period anchor used by assets whose §5 formula hits 100 at
+ * t = 1 (and as a safety fallback for path-dependent assets that seed
+ * fv[1] = 100 directly). Linear Growth does NOT anchor at 100 — its
+ * discounted tail-sum is computed from the dividend schedule instead. */
 const ASSET_ANCHOR_FV = 100;
 
 /* Risk-free discount rate used by the spec's constant/perpetual and
@@ -123,15 +126,15 @@ const ASSET_CONSTANT_PERPETUAL = {
 };
 
 /**
- * Asset 3 — Linear Growth. Expected dividend rises linearly in t:
- * E[d_s] = a + b·s with (a, b) = (2, 0.3) per v3 §5.13. The model-based
- * FV is the Gordon-style perpetuity at the current expected dividend,
- *     FṼ_{i,t} = (a + b·t) / r,
- * which is what a rational trader would discount the growing dividend
- * stream back to today at the risk-free rate r = ASSET_DISCOUNT_RATE.
- * With (a, b, r) = (2, 0.3, 0.05) the curve rises from FV_1 = 46 at
- * t = 1 to FV_T = 160 at t = 20; the simulator still terminates at
- * T so fv[T+1] = 0 is kept to match the finite-round settlement.
+ * Asset 3 — Linear Growth (v4 §5.13–§5.16). Expected dividend rises
+ * linearly in s: E[d_s] = a + b·s with (a, b) = (2, 0.3). The true FV
+ * is the finite discounted tail-sum of expected dividends,
+ *     FV_t = Σ_{s=t..T} (a + b·s) / (1+r)^{s-t+1},
+ * matching the agent's model-based Ṽ_{FV} in §5.16 so a rational
+ * (α = 1) trader is exactly right. With (a, b, r, T) = (2, 0.3, 0.05, 20)
+ * the path runs from FV_1 ≈ 58.3 down to FV_20 ≈ 7.62 — the "growth"
+ * shows up in the rising dividend mean, not in the FV itself (finite-
+ * horizon remaining value still declines as terms fall out of the sum).
  */
 const ASSET_LINEAR_GROWTH = {
   id:          'linearGrowth',
@@ -144,7 +147,14 @@ const ASSET_LINEAR_GROWTH = {
     const b = 0.3;
     const r = ASSET_DISCOUNT_RATE;
     const fv = new Array(T + 2).fill(0);
-    for (let t = 1; t <= T; t++) fv[t] = (a + b * t) / r;
+    // FV_t = Σ_{s=t..T} (a + b·s) / (1+r)^{s-t+1}
+    for (let t = 1; t <= T; t++) {
+      let v = 0;
+      for (let s = t; s <= T; s++) {
+        v += (a + b * s) / Math.pow(1 + r, s - t + 1);
+      }
+      fv[t] = v;
+    }
     fv[T + 1] = 0;
     return { fv, a, b, r, expectedDividend: a + b * Math.ceil(T / 2), terminalValue: 0 };
   },
@@ -328,8 +338,8 @@ const ASSET_AGENT_TEMPLATES = {
     extras: [
       'Capital opportunity cost / discount rate r = 5% per period.',
     ],
-    fvFormula: 'Model-based FV at period t: FV_t = (2 + 0.3·t) / r = (2 + 0.3·t) / 0.05 — Gordon-style perpetuity on the growing dividend. Monotonically rising in t (FV_1 = 46, FV_T = 160 at T = 20).',
-    heuristic: 'Naive agents extrapolate the rising dividend into ever-rising prices and forget the discount factor r — over-paying late when the perpetuity anchor flattens out.',
+    fvFormula: 'Model-based FV at period t: FV_t = Σ_{s=t..T} (2 + 0.3·s) / (1 + r)^(s−t+1) — the discounted tail-sum of remaining expected dividends at r = 0.05. With T = 20 the path runs from FV_1 ≈ 58.3 down to FV_20 ≈ 7.62; FV declines because the remaining-dividend sum shrinks each period, even though the per-period mean E[d_s] is rising.',
+    heuristic: 'Naive agents mistake the rising dividend stream for a rising price path and ignore that finite-horizon remaining FV actually declines — over-paying early and late as terms fall out of the tail sum.',
   },
   cyclicalSine: {
     typeLabel:    'Cyclical asset',
@@ -550,13 +560,19 @@ const ASSET_FV_FORMULAS = {
     + '<mfrac>' + _mEdt + '<mi>r</mi></mfrac>'
     + '</mrow>',
   ),
-  // FV_t = (2 + 0.3·t) / r            (v3 §5.13, Gordon perpetuity on E[d_t])
+  // FV_t = Σ_{s=t..T} (2 + 0.3·s) / (1+r)^(s−t+1)   (v4 §5.13)
   linearGrowth: _assetMath(
     '<mrow>'
     + _mFv + '<mo>=</mo>'
+    + '<munderover>'
+    + '<mo>∑</mo>'
+    + '<mrow><mi>s</mi><mo>=</mo><mi>t</mi></mrow>'
+    + '<mi>T</mi>'
+    + '</munderover>'
     + '<mfrac>'
-    + '<mrow><mn>2</mn><mo>+</mo><mn>0.3</mn><mi>t</mi></mrow>'
-    + '<mi>r</mi>'
+    + '<mrow><mo>(</mo><mn>2</mn><mo>+</mo><mn>0.3</mn><mi>s</mi><mo>)</mo></mrow>'
+    + '<msup><mrow><mo>(</mo><mn>1</mn><mo>+</mo><mi>r</mi><mo>)</mo></mrow>'
+    + '<mrow><mi>s</mi><mo>−</mo><mi>t</mi><mo>+</mo><mn>1</mn></mrow></msup>'
     + '</mfrac>'
     + '</mrow>',
   ),

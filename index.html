@@ -1579,9 +1579,9 @@ Action: &lt;BUY_NOW / SELL_NOW / BID_1 / BID_3 / ASK_1 / ASK_3 / HOLD&gt;</pre>
 - Environmental notes:
     - Capital opportunity cost / discount rate r = 5% per period.
 - Model-based valuation rule (what a rational agent would derive from the public rule):
-    Model-based FV at period t: FV_t = (2 + 0.3·t) / r = (2 + 0.3·t) / 0.05 — Gordon-style perpetuity on the growing dividend. Monotonically rising in t (FV_1 = 46, FV_T = 160 at T = 20).
+    Model-based FV at period t: FV_t = Σ_{s=t..T} (2 + 0.3·s) / (1 + r)^(s−t+1) — discounted tail-sum of remaining expected dividends at r = 0.05. With T = 20 the path runs from FV_1 ≈ 58.3 down to FV_20 ≈ 7.62; FV declines because the remaining-dividend sum shrinks each period, even though per-period E[d_s] is rising.
 - Common heuristic mistake in this environment:
-    Naive agents extrapolate the rising dividend into ever-rising prices and forget the discount factor r — over-paying late when the perpetuity anchor flattens out.</pre>
+    Naive agents mistake the rising dividend stream for a rising price path and ignore that finite-horizon remaining FV actually declines — over-paying as terms fall out of the tail sum.</pre>
 
           <pre class="prompt-sample asset-variant" data-asset="cyclicalSine" role="tabpanel" hidden>【Asset Environment】
 - Asset name: Cyclical
@@ -2459,10 +2459,10 @@ Action Rules
   <p><em>Use case.</em> Null asset for bubble-attribution studies — if prices drift from 100 there is no fundamental tailwind to blame.</p>
 </template>
 <template id="tpl-asset-linearGrowth">
-  <p><strong>Linear Growth</strong> — rising-expectations regime where each period's expected dividend increases linearly in <code>t</code>.</p>
+  <p><strong>Linear Growth</strong> — rising-expectations regime where each period's expected dividend increases linearly in <code>t</code> (v4 §5.13–§5.16).</p>
   <p>Dividend: <code>d<sub>t</sub> ~ N(a + b·t, 1)</code> with <code>(a, b) = (2, 0.3)</code>, so the mean walks from 2.3 at <code>t = 1</code> up to 8.0 at <code>t = T = 20</code>.</p>
-  <p>Fundamental value is the Gordon perpetuity on the growing dividend, <code>FV<sub>t</sub> = (2 + 0.3·t) / r</code> at <code>r = 0.05</code>, rising from <code>FV<sub>1</sub> = 46</code> to <code>FV<sub>T</sub> = 160</code>. The simulator still settles at the terminal period so <code>FV<sub>T+1</sub> = 0</code>.</p>
-  <p><em>Use case.</em> Does growth priming (rising <code>E[d]</code>) help agents stay anchored to the discounted perpetuity, or does it amplify optimism? Late-period overpricing above <code>(2 + 0.3·t) / r</code> remains a bubble signature.</p>
+  <p>Fundamental value is the finite discounted tail-sum of expected dividends, <code>FV<sub>t</sub> = Σ<sub>s=t..T</sub> (2 + 0.3·s) / (1 + r)<sup>s−t+1</sup></code> at <code>r = 0.05</code>. The path runs from <code>FV<sub>1</sub> ≈ 58.3</code> down to <code>FV<sub>T</sub> ≈ 7.62</code>; the simulator settles at <code>FV<sub>T+1</sub> = 0</code>. The "growth" is in the dividend schedule, not in FV — remaining-FV still declines as terms leave the tail sum.</p>
+  <p><em>Use case.</em> Does a visibly rising <code>E[d<sub>s</sub>]</code> mislead agents into extrapolating rising <em>prices</em>, even though the correct remaining-FV is shrinking? Overpricing above the tail-sum is the bubble signature.</p>
 </template>
 <template id="tpl-asset-cyclicalSine">
   <p><strong>Cyclical</strong> — wave-shaped FV around a flat mean, probing whether agents can track a non-monotone fundamental.</p>
@@ -2484,7 +2484,7 @@ Action Rules
 </template>
 
 <script data-cfasync="false" src="js/messaging.js?v=21"></script>
-<script data-cfasync="false" src="js/assets.js?v=28"></script>
+<script data-cfasync="false" src="js/assets.js?v=29"></script>
 <script data-cfasync="false" src="js/market.js?v=23"></script>
 <script data-cfasync="false" src="js/agents.js?v=22"></script>
 <script data-cfasync="false" src="js/logger.js?v=21"></script>
