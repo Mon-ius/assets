@@ -311,7 +311,7 @@ const ASSET_AGENT_TEMPLATES = {
     extras: [
       'No terminal value — K_t = 0.',
     ],
-    fvFormula: 'Model-based FV at period t: FV_t = 5 × (T − t + 1) = E[d] × remaining periods. Undiscounted tail sum of expected dividends.',
+    fvFormula: 'v4 §5.4 — agent infers μ̂_{i,t+j} = 5 from the public rule, then  FṼ_{i,t} = Σ_{j=1..k_t} 5 / (1+r)^j  where k_t = T − t + 1. Simplified (undiscounted first-version):  FṼ_{i,t} = 5·k_t.',
     heuristic: 'Naive agents anchor to the initial total value 5T and fail to internalise the declining path; they also over-weight the last observed price as a trend signal.',
   },
   constantPerpetual: {
@@ -325,7 +325,7 @@ const ASSET_AGENT_TEMPLATES = {
     extras: [
       'Capital opportunity cost / discount rate r = 5% per period.',
     ],
-    fvFormula: 'Model-based FV at every period: FV_t = E[d] / r = 5 / 0.05 = 100 (constant over t).',
+    fvFormula: 'v4 §5.10 — agent infers μ̂_{i,t+j} = 5, then  FṼ_{i,t} = 5 / 0.05 = 100  (constant across t; Gordon perpetuity on the flat expected dividend).',
     heuristic: 'Naive agents treat the perpetual as if it were finite-horizon and drift toward a declining mental model; peer messages about "price going up" can push them away from the flat 100 anchor.',
   },
   linearGrowth: {
@@ -338,7 +338,7 @@ const ASSET_AGENT_TEMPLATES = {
     extras: [
       'Capital opportunity cost / discount rate r = 5% per period.',
     ],
-    fvFormula: 'Model-based FV at period t: FV_t = Σ_{s=t..T} (2 + 0.3·s) / (1 + r)^(s−t+1) — the discounted tail-sum of remaining expected dividends at r = 0.05. With T = 20 the path runs from FV_1 ≈ 58.3 down to FV_20 ≈ 7.62; FV declines because the remaining-dividend sum shrinks each period, even though the per-period mean E[d_s] is rising.',
+    fvFormula: 'v4 §5.16 — agent infers μ̂_{i,s} = 2 + 0.3·s, then  FṼ_{i,t} = Σ_{s=t..T} (2 + 0.3·s) / (1+r)^{s−t+1}  — discounted tail-sum of the rising expected dividend stream at r = 0.05.',
     heuristic: 'Naive agents mistake the rising dividend stream for a rising price path and ignore that finite-horizon remaining FV actually declines — over-paying early and late as terms fall out of the tail sum.',
   },
   cyclicalSine: {
@@ -351,7 +351,7 @@ const ASSET_AGENT_TEMPLATES = {
     extras: [
       'You know a cycle exists, but may not know exactly which phase you are in.',
     ],
-    fvFormula: 'Model-based FV at period t: FV_t = 100 + 20·sin(2π · (t−1) / 10). The FV oscillates between 80 and 120 around a mean of 100.',
+    fvFormula: 'v4 §5.22 — if agent understands the cycle rule, μ̂_{i,s} = 5 + 2·sin(2π·(s−1)/10), then  FṼ_{i,t} = Σ_{s=t..T} [5 + 2·sin(2π·(s−1)/10)] / (1+r)^{s−t+1}  — discounted tail-sum of the sinusoidal expected dividend at r = 0.05.',
     heuristic: 'Naive agents mistake the rising half of the cycle for a durable trend and the falling half for a crash; phase confusion is the dominant error.',
   },
   randomWalk: {
@@ -364,7 +364,7 @@ const ASSET_AGENT_TEMPLATES = {
     extras: [
       'Current environment starts at FV_1 = 100. Future FV may rise or fall symmetrically.',
     ],
-    fvFormula: 'Model-based FV is a martingale: E[FV_{t+k} | FV_t] = FV_t for all k ≥ 0. Your best point estimate of future FV is today\u2019s FV_t (floored at 20).',
+    fvFormula: 'v4 §5.28 — with no explicit structure the agent can only take the "current central level". First-version default:  FṼ_{i,1} = 100  and  FṼ_{i,t} = 100  (constant anchor, simplest). Alternatives mentioned in the spec for t ≥ 2:  FṼ_{i,t} = p_{t−1}^{last}  (last trade price of the previous period) or  FṼ_{i,t} = p̄_{t−1}^{(L)}  (rolling L-period mean).',
     heuristic: 'Naive agents over-extrapolate recent moves — they treat a short up-run as a trend and a short down-run as a crash, instead of treating FV as memoryless.',
   },
   jumpCrash: {
@@ -380,7 +380,7 @@ const ASSET_AGENT_TEMPLATES = {
       'Current environment starts at FV_1 = 100. Floor at 5 (FV cannot fall below 5).',
       'Expected per-period drift E[ΔFV] = 0.9·(+2) + 0.1·(−30) = −1.2 — slightly negative on average.',
     ],
-    fvFormula: 'Model-based FV at period t using the stated probabilities: E[FV_{t+k} | FV_t] ≈ max(5, FV_t + k·(−1.2)). A correctly-calibrated agent anchors to this drift; an over-optimistic one discounts the crash probability.',
+    fvFormula: 'v4 §5.34 — if agent uses the stated probabilities,  Ẽ_i[ΔFV] = 0.9·(+2) + 0.1·(−30) = −1.2.  Therefore  FṼ_{i,t} = FV_t^{anchor} − 1.2·k_t  with the first-version anchor  FV_t^{anchor} = 100  (constant, public starting level), so  FṼ_{i,1} = 100 − 1.2·T.  k_t = T − t + 1.',
     heuristic: 'Naive agents under-weight the 10% crash branch after a long calm run, treating +2 as the norm and getting caught when the crash hits.',
   },
 };
