@@ -35,6 +35,54 @@ const UI = {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   },
 
+  /**
+   * _blendExperience — apply the post-replacement experience-transfer
+   * blend from the Hidden Constants spec:
+   *
+   *   α_new = |corr| · α_trained + (1 − |corr|) · α_0
+   *   σ_new = |corr| · σ_trained + (1 − |corr|) · σ_0
+   *   ω_new = |corr| · ω_trained + (1 − |corr|) · ω_0
+   *
+   * Returns the trained triple unchanged when the blend should not
+   * apply — pre-run state, pre-replacement rounds, no asset swap, or
+   * novice agents (k_i = 0, where trained already equals the anchors).
+   * |corr| is read from App._sessionAssetCorr for the current session
+   * and coerced into [0, 1] so a flat-path NaN (already fixed to 0 in
+   * main.js) still yields a defined blend.
+   */
+  _blendExperience(trained, agent, v) {
+    if (!trained) return trained;
+    const App = window.App;
+    // Pre-run / replay at tick 0: no session is live yet, show trained.
+    const session = (v && v.session) || (App && App.currentSession) || 0;
+    if (!App || !session) return trained;
+    const round  = (v && v.round) || 1;
+    const replR  = (App.replacementRound | 0) || 4;
+    if (round < replR) return trained;  // still in pre-asset phase
+    const idx = Math.max(0, Math.min(9, session - 1));
+    const preId  = App.sessionAssets && App.sessionAssets[idx];
+    const postId = App.sessionAssetsPost && App.sessionAssetsPost[idx];
+    if (!preId || !postId || preId === postId) return trained;
+    // Novices carry no training to blend — skip the work.
+    if (!(agent && (agent.roundsPlayed | 0) > 0)) return trained;
+    const corr = (typeof App._sessionAssetCorr === 'function')
+      ? App._sessionAssetCorr(session)
+      : NaN;
+    const w = Math.abs(Number.isFinite(corr) ? corr : 0);
+    const clamped = Math.min(1, Math.max(0, w));
+    const novice = (typeof experienceFactors === 'function')
+      ? experienceFactors(0)
+      : { alpha: 0.4, sigma: 15, omega: 0.6 };
+    return {
+      k:      trained.k,
+      alpha:  clamped * trained.alpha + (1 - clamped) * novice.alpha,
+      sigma:  clamped * trained.sigma + (1 - clamped) * novice.sigma,
+      omega:  clamped * trained.omega + (1 - clamped) * novice.omega,
+      corr:   clamped,
+      blended: true,
+    };
+  },
+
   // Canvas-time theme cache. Populated by refreshTheme() which reads
   // CSS custom properties off :root via getComputedStyle. Every chart
   // renderer pulls colors from here so a theme switch flows through
@@ -525,9 +573,19 @@ const UI = {
       // when the engine increments the counter at a round boundary. The
       // inexperienced anchors (α_0, σ_0, ω_0) are documented in the
       // Parameters → Hidden Constants panel.
-      const exp = (typeof experienceFactors === 'function')
+      //
+      // Experience-transfer blend (post-replacement phase only): when
+      // the pre and post assets differ and the session has advanced
+      // past the replacement round, experienced traders only retain a
+      // |corr| fraction of their trained α/σ/ω and are pulled back
+      // toward the novice anchors by (1 − |corr|). At |corr| = 1 the
+      // asset essentially didn't change so training transfers fully;
+      // at |corr| = 0 the post-asset dynamics are uncorrelated with
+      // what the trader learned, so they effectively re-enter at k = 0.
+      const trained = (typeof experienceFactors === 'function')
         ? experienceFactors(rp)
         : { k: rp, alpha: 0.4, sigma: 15, omega: 0.6 };
+      const exp = UI._blendExperience(trained, a, v);
       const expRows = `
           <span class="metric">Model reliance <span class="sym">${sym.alphaI || ''}</span></span> <span class="metric-val">${exp.alpha.toFixed(2)}</span>
           <span class="metric">Valuation noise <span class="sym">${sym.sigmaI || ''}</span></span> <span class="metric-val">${exp.sigma.toFixed(1)}</span>

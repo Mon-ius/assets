@@ -1170,9 +1170,16 @@ const App = {
    *  Deterministic assets trivially reproduce their `init()` path; for
    *  stochastic assets (random walk, jump/crash) a seeded RNG draws
    *  one representative trajectory so the readout is reproducible.
-   *  Short-circuits to 1 when the two asset ids match (user's "if both
-   *  the same, it should be one" rule) so the chip doesn't collapse to
-   *  NaN for flat-FV assets (perpetual) where variance is zero. */
+   *
+   *  Returns 1 when the two asset ids match (identical paths). When
+   *  exactly one asset has a flat sampled path (the perpetual, by
+   *  construction; or a degenerate random-walk seed) Pearson is
+   *  mathematically undefined — we coerce that case to 0 so the
+   *  experience-blending rule still has a well-defined |corr| weight
+   *  to apply (|corr| = 0 means "none of the pre-asset training
+   *  transfers, so the trader effectively resets toward the novice
+   *  anchors"). This keeps the corr chip on every session row numeric
+   *  instead of rendering "—" for Perpetual-vs-anything pairings. */
   _sessionAssetCorr(session) {
     this._ensureSessionAssets();
     const idx = Math.max(0, Math.min(9, (session | 0) - 1));
@@ -1192,7 +1199,11 @@ const App = {
     const rngPost  = makeRNG((baseSeed ^ 0xA5A5A5A5) >>> 0);
     const pathPre  = simulateAssetFvPath(pre,  this.config, rngPre);
     const pathPost = simulateAssetFvPath(post, this.config, rngPost);
-    return this._pearson(pathPre, pathPost);
+    const r = this._pearson(pathPre, pathPost);
+    // One-sided degeneracy: a flat path carries no linear information
+    // about the other asset. Treat as uncorrelated rather than NaN.
+    if (!Number.isFinite(r)) return 0;
+    return r;
   },
 
   /** Convert a session-rate fraction + current N into an integer
