@@ -1626,7 +1626,10 @@ const UI = {
     if (!this.charts.bubble) return;
     const { ctx, width, height } = this.charts.bubble;
     Viz.clear(ctx, width, height);
-    const rect = Viz.plotRect(width, height, 44, 14, 16, 38);
+    // padT 28: matches Figure 3's volume chart so the legend row (and
+    // the per-round mispricing chips) sit above the plot frame, freeing
+    // vertical space inside the plot for the ρ_t overlay.
+    const rect = Viz.plotRect(width, height, 44, 14, 28, 38);
 
     const rounds         = config.roundsPerSession || 1;
     const sessionPeriods = rounds * config.periods;
@@ -1671,10 +1674,10 @@ const UI = {
 
     Viz.axisLabel(ctx, rect, v.session > 0 ? 'Round R · Session ' + v.session : 'Round R', 'bottom');
     const bubbleLegend = [
-      { color: this.theme.red, label: '▬ mispricing P − FV' },
+      { color: this.theme.red, label: '▬ mispricing' },
     ];
     this._appendMispricingLegend(bubbleLegend, v, config, 'signed');
-    Viz.legendRow(ctx, rect, bubbleLegend);
+    Viz.legendRow(ctx, rect, bubbleLegend, { padY: -10 });
 
     this._registerHover('bubble', {
       mode: 'series', rect, xMin: 0, xMax: totalTicks, yMin, yMax,
