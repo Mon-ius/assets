@@ -1378,6 +1378,79 @@ const UI = {
    * @param {number} xMax
    * @param {object} v      — view (v.events carries round_4_replacement)
    */
+  /**
+   * Per-round mispricing summary.
+   *   signedPct : mean over round r of (P − FV) / FV  — the blue/orange
+   *               gap on Figure 1 (sign preserved, unit-free).
+   *   absMean   : mean over round r of |P − FV|       — the area under
+   *               Figure 2 (unit = ¢).
+   *   absPct    : mean over round r of |P − FV| / FV  — Figure 2
+   *               expressed as a percentage of FV.
+   * Returns `[null, {round:1, ...}, {round:2, ...}, ...]` (1-indexed
+   * so callers can read out[r] directly without offsets).
+   */
+  _mispricingByRound(v, config) {
+    const rounds = config.roundsPerSession || 1;
+    const T      = config.periods;
+    const out    = new Array(rounds + 1).fill(null);
+    const sums   = new Array(rounds + 1).fill(null).map(() => ({ s: 0, a: 0, r: 0, n: 0 }));
+    for (const p of v.priceHistory || []) {
+      if (p == null || p.price == null || p.fv == null || !Number.isFinite(p.fv) || p.fv === 0) continue;
+      const r = p.round || Math.min(rounds, Math.floor((p.tick - 1) / (T * config.ticksPerPeriod)) + 1);
+      if (r < 1 || r > rounds) continue;
+      const diff = p.price - p.fv;
+      const bucket = sums[r];
+      bucket.s += diff / p.fv;
+      bucket.a += Math.abs(diff);
+      bucket.r += Math.abs(diff) / p.fv;
+      bucket.n += 1;
+    }
+    for (let r = 1; r <= rounds; r++) {
+      const b = sums[r];
+      if (!b || !b.n) continue;
+      out[r] = { round: r, signedPct: b.s / b.n, absMean: b.a / b.n, absPct: b.r / b.n };
+    }
+    return out;
+  },
+
+  /**
+   * Draw a per-round mispricing readout at the top of each round's
+   * vertical band. Used by Figures 1 and 2 so the rendered curves are
+   * backed by a numeric summary that travels with them across rounds.
+   */
+  _drawRoundMispricing(cx, rect, config, xMin, xMax, v, mode) {
+    const rounds = config.roundsPerSession || 1;
+    const mp     = this._mispricingByRound(v, config);
+    const ticksPerRnd = config.periods * config.ticksPerPeriod;
+    cx.save();
+    cx.font         = '10px "SF Mono", ui-monospace, Menlo, Consolas, monospace';
+    cx.textAlign    = 'center';
+    cx.textBaseline = 'top';
+    for (let r = 1; r <= rounds; r++) {
+      const row = mp[r];
+      if (!row) continue;
+      const mid = (r - 0.5) * ticksPerRnd;
+      const x   = Viz.mapX(rect, mid, xMin, xMax);
+      let label, color;
+      if (mode === 'signed') {
+        const v01  = row.signedPct;
+        const sign = v01 >= 0 ? '+' : '−';
+        label = `${sign}${(Math.abs(v01) * 100).toFixed(1)}%`;
+        color = v01 >= 0 ? this.theme.accent : this.theme.red;
+      } else {
+        label = `${row.absMean.toFixed(1)}¢ · ${(row.absPct * 100).toFixed(1)}%`;
+        color = this.theme.red;
+      }
+      // White halo so the number reads over chart fills/lines.
+      cx.lineWidth   = 3;
+      cx.strokeStyle = this.theme.bg1 || '#ffffff';
+      cx.strokeText(label, x, rect.y + 2);
+      cx.fillStyle   = color;
+      cx.fillText(label, x, rect.y + 2);
+    }
+    cx.restore();
+  },
+
   _drawRoundDividers(cx, rect, config, xMin, xMax, v) {
     const rounds = config.roundsPerSession || 1;
     if (rounds <= 1) return;
@@ -1503,6 +1576,8 @@ const UI = {
       { color: this.theme.amber,  label: '▬ fundamental value' },
     ]);
 
+    this._drawRoundMispricing(ctx, rect, config, xMin, xMax, v, 'signed');
+
     const fvSeries = [];
     for (let g = 1; g <= sessionPeriods; g++) {
       const lp = ((g - 1) % config.periods) + 1;
@@ -1563,6 +1638,8 @@ const UI = {
     Viz.legendRow(ctx, rect, [
       { color: this.theme.red, label: '▬ absolute mispricing' },
     ]);
+
+    this._drawRoundMispricing(ctx, rect, config, 0, totalTicks, v, 'absolute');
 
     this._registerHover('bubble', {
       mode: 'series', rect, xMin: 0, xMax: totalTicks, yMin, yMax,

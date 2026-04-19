@@ -1140,22 +1140,24 @@ const App = {
    * fractions in [SESSION_RATE_MIN, SESSION_RATE_MAX]. Storing the
    * fraction (not an absolute agent count) makes the schedule invariant
    * under N changes — 20% replacement means 20% whether the population
-   * is 6 or 100. The first-time default reproduces DLM 2005's symmetric
-   * split at N = 100 (5 × T20 + 5 × T40 ↔ 5 × 0.20 + 5 × 0.40).
+   * is 6 or 100. First-time default is a flat 33% across all 10 sessions
+   * (the intermediate point between DLM's T20/T40 that keeps the R4
+   * replacement fraction constant across the batch).
    */
   SESSION_RATE_MIN:  0.10,
   SESSION_RATE_MAX:  0.50,
   SESSION_RATE_STEP: 0.01,
+  SESSION_RATE_DEFAULT: 0.33,
   _ensureSessionRates() {
     if (!Array.isArray(this.sessionRates) || this.sessionRates.length !== 10) {
-      this.sessionRates = new Array(10).fill(0).map((_, i) => i < 5 ? 0.20 : 0.40);
+      this.sessionRates = new Array(10).fill(this.SESSION_RATE_DEFAULT);
       return;
     }
     const lo = this.SESSION_RATE_MIN, hi = this.SESSION_RATE_MAX;
     for (let i = 0; i < 10; i++) {
       const v = Number(this.sessionRates[i]);
       this.sessionRates[i] = Math.max(lo, Math.min(hi,
-        Number.isFinite(v) ? Math.round(v * 100) / 100 : 0.20,
+        Number.isFinite(v) ? Math.round(v * 100) / 100 : this.SESSION_RATE_DEFAULT,
       ));
     }
   },
