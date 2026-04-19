@@ -2154,20 +2154,22 @@ body.n-small .agents-grid { max-height: none; overflow-y: visible; padding-right
 }
 .agent-card .agent-name { font-weight: 600; font-size: 13px; letter-spacing: 0.02em; }
 .agent-card .agent-type {
-  font-size: 10px;
+  font-size: 9px;
   color: var(--fg-2);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
+  flex-wrap: nowrap;
+  align-items: baseline;
+  gap: 5px;
   min-width: 0;
+  white-space: nowrap;
 }
 .agent-card .agent-type > .sym {
   text-transform: none;
   letter-spacing: 0;
   white-space: nowrap;
+  flex: none;
 }
 .agent-card .metrics {
   display: grid;
