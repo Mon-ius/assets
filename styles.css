@@ -2697,12 +2697,21 @@ body.n-small .agents-flip-inner { min-height: 0; }
   margin-left: auto;
 }
 .stats-model-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
   padding: 1px 6px;
   border: 1px solid var(--border);
   border-radius: 999px;
   font-size: 10.5px;
   color: var(--fg-2);
   background: var(--bg-2);
+}
+.stats-model-chip math {
+  font-size: 1em;
+}
+.stats-model-chip-eq {
+  white-space: pre;
 }
 .llm-prompt-body {
   display: flex;

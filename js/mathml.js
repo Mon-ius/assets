@@ -116,6 +116,11 @@ const Sym = {
      tooltips so the math in the tile popups uses the same MathML path
      as the Architecture tab and the agent cards. */
   deltaI:    _wrap(_sub(_mi('δ'), _mi('i'))),                                 // δ_i
+  gI:        _wrap(_sub(_mi('g'), _mi('i'))),                                 // g_i
+  cI:        _wrap(_sub(_mi('c'), _mi('i'))),                                 // c_i
+  uI:        _wrap(_sub(_mi('u'), _mi('i'))),                                 // u_i
+  hI:        _wrap(_sub(_mi('h'), _mi('i'))),                                 // h_i
+  kExp:      _wrap(_sub(_mi('k'), _mi('i'))),                                 // k_i (experience level, chip)
   beta:      _wrap(_mi('β')),                                                 // β
   biasI:     _wrap(_sub(_mi('b'), _mi('i'))),                                 // b_i
   epsilon:   _wrap(_mi('ε')),                                                 // ε

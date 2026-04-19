@@ -1540,11 +1540,16 @@ const UI = {
     const priorMml = UI._priorMathML(tun);
     const postMml  = UI._posteriorMathML();
 
-    const chipList = [
-      `α_i = ${exp.alpha.toFixed(2)}`,
-      `σ_i = ${exp.sigma.toFixed(1)}`,
-      `ω_i = ${exp.omega.toFixed(2)}`,
-      `R${rp}`,
+    // MathML-backed chips so α_i / σ_i / ω_i / narrative traits render
+     // through the same Sym map as the formulas below — avoids the
+     // plain-text "α_i" drifting into a Latin "a_i" in the body font.
+    const chipHtml = (symHtml, valueText) =>
+      `<span class="stats-model-chip">${symHtml}<span class="stats-model-chip-eq"> = ${UI._escHtml(valueText)}</span></span>`;
+    const chipParts = [
+      chipHtml(Sym.alphaI, exp.alpha.toFixed(2)),
+      chipHtml(Sym.sigmaI, exp.sigma.toFixed(1)),
+      chipHtml(Sym.omegaI, exp.omega.toFixed(2)),
+      chipHtml(Sym.kExp,   String(rp)),
     ];
     // v5 — surface the per-agent narrative trait used by the active asset's
     // heuristic (g_i for Linear Growth, c_i for Cyclical, u_i for Random
@@ -1553,17 +1558,17 @@ const UI = {
     const traits = (agent && agent.narrativeTraits) || null;
     if (traits) {
       if (assetId === 'linearGrowth' && Number.isFinite(traits.g)) {
-        chipList.push(`g_i = ${traits.g.toFixed(2)}`);
+        chipParts.push(chipHtml(Sym.gI, traits.g.toFixed(2)));
       } else if (assetId === 'cyclicalSine' && Number.isFinite(traits.c)) {
-        chipList.push(`c_i = ${traits.c.toFixed(2)}`);
+        chipParts.push(chipHtml(Sym.cI, traits.c.toFixed(2)));
       } else if (assetId === 'randomWalk' && Number.isFinite(traits.u)) {
-        chipList.push(`u_i = ${traits.u.toFixed(2)}`);
+        chipParts.push(chipHtml(Sym.uI, traits.u.toFixed(2)));
       } else if (assetId === 'jumpCrash') {
-        if (Number.isFinite(traits.h))     chipList.push(`h_i = ${traits.h.toFixed(2)}`);
-        if (Number.isFinite(traits.delta)) chipList.push(`δ_i = ${traits.delta.toFixed(3)}`);
+        if (Number.isFinite(traits.h))     chipParts.push(chipHtml(Sym.hI,     traits.h.toFixed(2)));
+        if (Number.isFinite(traits.delta)) chipParts.push(chipHtml(Sym.deltaI, traits.delta.toFixed(3)));
       }
     }
-    const chips = chipList.map(t => `<span class="stats-model-chip">${UI._escHtml(t)}</span>`).join('');
+    const chips = chipParts.join('');
 
     const subtitleBits = [];
     if (tpl.typeLabel) subtitleBits.push(tpl.typeLabel);
