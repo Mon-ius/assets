@@ -488,22 +488,25 @@ function sampleAssetFvPath(asset, config, seed) {
     const sigma = Number.isFinite(state.sigma) ? state.sigma : 5;
     const floor = Number.isFinite(state.floor) ? state.floor : 0;
     const rng   = _assetSampleRng(seed >>> 0);
-    for (let t = 2; t <= T; t++) {
+    // Extend through fv[T+1] so drawDividend at period T reads a real
+    // η-draw terminal (its formula is d_T = FV_T − FV_{T+1}/(1+r),
+    // floored at 0); collapsing fv[T+1] to fv[T] would quietly make
+    // the last period's dividend deterministic and break the signed
+    // mispricing on Figure 2 relative to Figure 1.
+    for (let t = 2; t <= T + 1; t++) {
       const eta = normalDraw(rng, 0, sigma);
       state.fv[t] = Math.max(floor, state.fv[t - 1] + eta);
     }
-    state.fv[T + 1] = state.fv[T];
   } else if (asset.id === 'jumpCrash') {
     const drift = Number.isFinite(state.drift) ? state.drift : 0;
     const crash = Number.isFinite(state.crash) ? state.crash : 0;
     const p     = Number.isFinite(state.crashProb) ? state.crashProb : 0;
     const floor = Number.isFinite(state.floor) ? state.floor : 0;
     const rng   = _assetSampleRng(seed >>> 0);
-    for (let t = 2; t <= T; t++) {
+    for (let t = 2; t <= T + 1; t++) {
       const step = rng() < p ? crash : drift;
       state.fv[t] = Math.max(floor, state.fv[t - 1] + step);
     }
-    state.fv[T + 1] = state.fv[T];
   }
   const out = new Array(T + 2).fill(0);
   for (let p = 1; p <= T + 1; p++) {
