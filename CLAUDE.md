@@ -35,13 +35,24 @@ agents.js    ─ Agent base + Fundamentalist/Trend/Random/DLMTrader/Utility +
                 `roundsPlayed > 0`; experience is purely procedural.
 messaging.js ─ Message bus + trust tracker (only used by UtilityAgent)
 utility.js   ─ UtilityAgent belief/valuation model + UTILITY_DEFAULTS
-ai.js        ─ AIPE (Wang) paradigm only: thin wrapper around the OpenAI
-                /v1/chat/completions API. `App.start()` awaits
-                `AI.getPsychAnchors()` when paradigm === 'wang' and a key
-                is set, then writes each returned anchor to the agent's
-                `psychAnchor` so the first order reflects the LLM's prior
-                instead of `FV × (1 + bias + noise)`. This is the only
-                async boundary in the app; the key is never persisted.
+ai.js        ─ OpenAI/Anthropic/Gemini chat wrapper used by (a) the AIPE
+                (Wang) paradigm for psych-anchor elicitation and (b)
+                Plan II/III utility traders for per-tick action
+                selection. `AI.getPlanBeliefs(...)` reads
+                `market.assetType.agentTemplate` for the current round
+                (populated in `js/assets.js` from v3 §5.3/§5.9/§5.15/
+                §5.21/§5.27/§5.33) and splices an 【Asset Environment】
+                block — dividend rule, horizon, model-based FV formula,
+                common heuristic mistake — into the user prompt. The
+                system prompt carries the v3 §2 decomposition
+                `V = λ·FṼ + (1−λ)·H`; historical FV paths in the prompt
+                read through `market.fundamentalValue(p)` so they track
+                the active asset instead of the DLM staircase. When the
+                engine swaps asset at the replacement-round boundary
+                (driven by Advanced → Session Replacement Rate,
+                Pre/Post Asset & FV Correlation) the prompt swaps with
+                it; Figure 5 in the Architecture tab shows the six
+                variants side-by-side. Keys are never persisted.
 logger.js    ─ Append-only trace, snapshot, and event stores
   │
 replay.js     Build "view" objects from Market + Logger state, either live
