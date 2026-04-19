@@ -339,6 +339,169 @@ const UI = {
     return config.dividendMean * config.periods;
   },
 
+  /* ============================================================
+     Chart hover tooltip — shared infrastructure.
+     Each chart registers its render frame (plot rect + axes +
+     series) at the end of its draw; a single DOM tooltip reads
+     from the registry on mousemove and finds the nearest point.
+     ============================================================ */
+  _chartHover: {},
+  _hoverBound:  {},
+  _tooltip:     null,
+
+  _ensureTooltip() {
+    if (this._tooltip) return this._tooltip;
+    const tip = document.createElement('div');
+    tip.id = 'chart-tooltip';
+    tip.setAttribute('role', 'tooltip');
+    document.body.appendChild(tip);
+    this._tooltip = tip;
+    return tip;
+  },
+
+  _hideTooltip() {
+    if (this._tooltip) this._tooltip.classList.remove('is-visible');
+  },
+
+  /**
+   * Save a chart's per-frame hover info and wire mousemove /
+   * mouseleave listeners on first registration. Subsequent frames
+   * just overwrite the info; listeners stay attached.
+   *
+   * info = {
+   *   mode:    'series' | 'cell' | 'row',
+   *   rect:    plotRect (CSS pixels),
+   *   xMin, xMax, yMin, yMax,
+   *   xLabel,  xFmt,
+   *   // series mode:
+   *   series:  [{ name, color, points: [{x, y}], yFmt, symbol }],
+   *   // cell mode:
+   *   cells:   { cols, rows, cellW, cellH, lookup(col, row) => { label, color, value } },
+   *   // row mode:
+   *   rows:    { ids, rowH, lookup(rowIdx, xVal) => { label, items[] } | null },
+   * }
+   */
+  _registerHover(canvasKey, info) {
+    this._chartHover[canvasKey] = info;
+    if (this._hoverBound[canvasKey]) return;
+    const canvas = this.canvases[canvasKey];
+    if (!canvas) return;
+    canvas.addEventListener('mousemove', e => this._onChartHover(canvasKey, e));
+    canvas.addEventListener('mouseleave', () => this._hideTooltip());
+    this._hoverBound[canvasKey] = true;
+  },
+
+  _onChartHover(canvasKey, e) {
+    const info = this._chartHover[canvasKey];
+    const canvas = this.canvases[canvasKey];
+    if (!info || !canvas) return this._hideTooltip();
+    const cr   = canvas.getBoundingClientRect();
+    const xPx  = e.clientX - cr.left;
+    const yPx  = e.clientY - cr.top;
+    const rect = info.rect;
+    if (xPx < rect.x || xPx > rect.x + rect.w ||
+        yPx < rect.y || yPx > rect.y + rect.h) return this._hideTooltip();
+
+    let header = '';
+    let rows   = [];
+    if (info.mode === 'cell' && info.cells) {
+      const { cols, rows: nRows, cellW, cellH, lookup } = info.cells;
+      const col = Math.min(cols - 1,  Math.max(0, Math.floor((xPx - rect.x) / cellW)));
+      const row = Math.min(nRows - 1, Math.floor((yPx - rect.y) / cellH));
+      const hit = lookup(col, row);
+      if (!hit) return this._hideTooltip();
+      header = hit.header || '';
+      rows   = hit.rows   || [];
+    } else if (info.mode === 'row' && info.rows) {
+      const xVal = info.xMin + ((xPx - rect.x) / rect.w) * (info.xMax - info.xMin);
+      const { rowH, lookup } = info.rows;
+      const rowIdx = Math.floor((yPx - rect.y) / rowH);
+      const hit = lookup(rowIdx, xVal);
+      if (!hit) return this._hideTooltip();
+      header = hit.header || '';
+      rows   = hit.rows   || [];
+    } else if (info.mode === 'multi') {
+      const xVal = info.xMin + ((xPx - rect.x) / rect.w) * (info.xMax - info.xMin);
+      const buckets = info.buckets || [];
+      let best = null, bestD = Infinity;
+      for (const b of buckets) {
+        const d = Math.abs(b.x - xVal);
+        if (d < bestD) { bestD = d; best = b; }
+      }
+      if (!best || !best.ys || !best.ys.length) return this._hideTooltip();
+      const ys = best.ys.slice().sort((a, z) => a - z);
+      const q = k => {
+        const pos = (ys.length - 1) * k;
+        const lo  = Math.floor(pos), hi = Math.ceil(pos);
+        if (lo === hi) return ys[lo];
+        return ys[lo] + (ys[hi] - ys[lo]) * (pos - lo);
+      };
+      const yFmt = info.ysFmt || (y => y.toFixed(2));
+      const col  = info.color || this.theme.accent;
+      for (const s of info.baseSeries || []) {
+        if (!s.points || !s.points.length) continue;
+        let b2 = null, bD = Infinity;
+        for (const p of s.points) {
+          if (p == null || p.y == null || Number.isNaN(p.y)) continue;
+          const d = Math.abs(p.x - xVal);
+          if (d < bD) { bD = d; b2 = p; }
+        }
+        if (b2) {
+          const v2 = s.yFmt ? s.yFmt(b2.y) : b2.y.toFixed(2);
+          rows.push({ name: s.name, color: s.color, value: v2 });
+        }
+      }
+      rows.push({ name: 'P90',    color: col, value: yFmt(q(0.90)) });
+      rows.push({ name: 'P75',    color: col, value: yFmt(q(0.75)) });
+      rows.push({ name: 'median', color: col, value: yFmt(q(0.50)) });
+      rows.push({ name: 'P25',    color: col, value: yFmt(q(0.25)) });
+      rows.push({ name: 'P10',    color: col, value: yFmt(q(0.10)) });
+      rows.push({ name: 'N',      color: col, value: String(ys.length) });
+      const xTxt = info.xFmt ? info.xFmt(best.x) : String(best.x);
+      header = (info.xLabel ? info.xLabel + ': ' : '') + xTxt;
+    } else {
+      // Default: series mode — nearest x across all series.
+      const xVal = info.xMin + ((xPx - rect.x) / rect.w) * (info.xMax - info.xMin);
+      let headerX = null;
+      for (const s of info.series || []) {
+        if (!s.points || !s.points.length) continue;
+        let best = null, bestD = Infinity;
+        for (const p of s.points) {
+          if (p == null || p.y == null || Number.isNaN(p.y)) continue;
+          const d = Math.abs(p.x - xVal);
+          if (d < bestD) { bestD = d; best = p; }
+        }
+        if (!best) continue;
+        if (headerX == null) headerX = best.x;
+        const yTxt = s.yFmt ? s.yFmt(best.y)
+                   : (typeof best.y === 'number' ? best.y.toFixed(2) : String(best.y));
+        rows.push({ name: s.name, color: s.color, value: yTxt, symbol: s.symbol || '●' });
+      }
+      if (!rows.length) return this._hideTooltip();
+      const xTxt = info.xFmt ? info.xFmt(headerX) : String(headerX);
+      header = (info.xLabel ? info.xLabel + ': ' : '') + xTxt;
+    }
+
+    const tip = this._ensureTooltip();
+    const hdr = header ? `<div class="ch-tt-hdr">${header}</div>` : '';
+    const body = rows.map(r => {
+      const dot = `<span class="ch-tt-dot" style="background:${r.color}"></span>`;
+      return `<div class="ch-tt-row">${dot}<span class="ch-tt-lbl">${r.name}</span><span class="ch-tt-val">${r.value}</span></div>`;
+    }).join('');
+    tip.innerHTML = hdr + body;
+    tip.classList.add('is-visible');
+
+    // Position: prefer right+below, flip if clipped by viewport.
+    const tw = tip.offsetWidth  || 160;
+    const th = tip.offsetHeight || 40;
+    let left = e.clientX + 14;
+    let top  = e.clientY + 14;
+    if (left + tw > window.innerWidth  - 4) left = e.clientX - 14 - tw;
+    if (top  + th > window.innerHeight - 4) top  = e.clientY - 14 - th;
+    tip.style.left = Math.max(4, left) + 'px';
+    tip.style.top  = Math.max(4, top)  + 'px';
+  },
+
   /**
    * Swap Figure 1's FV formula to match the active asset. The markup in
    * index.html carries `data-sym="fvDef"` as a build-time default so the
@@ -1187,6 +1350,18 @@ const UI = {
     return 'R' + r;
   },
 
+  /** Format a raw tick as "R{r} P{p} · t={tick}" for hover tooltips. */
+  _tickHoverFmt(v, config, x) {
+    const rounds  = config.roundsPerSession || 1;
+    const T       = config.periods;
+    const K       = config.ticksPerPeriod;
+    const g       = Math.min(rounds * T, Math.max(1, Math.floor(x / K) + 1));
+    const r       = Math.min(rounds, Math.floor((g - 1) / T) + 1);
+    const p       = ((g - 1) % T) + 1;
+    const stamp   = v.session > 0 ? `R${r}_S${v.session}` : `R${r}`;
+    return `${stamp} · P${p} · t=${Math.round(x)}`;
+  },
+
   /**
    * Draw round dividers and highlight the R3→R4 replacement boundary.
    * Used by every chart that spans the full session tick range.
@@ -1327,6 +1502,22 @@ const UI = {
       { color: this.theme.accent, label: '● observed price' },
       { color: this.theme.amber,  label: '▬ fundamental value' },
     ]);
+
+    const fvSeries = [];
+    for (let g = 1; g <= sessionPeriods; g++) {
+      const lp = ((g - 1) % config.periods) + 1;
+      const lr = Math.floor((g - 1) / config.periods) + 1;
+      fvSeries.push({ x: (g - 0.5) * config.ticksPerPeriod, y: this._fvAtRound(lr, lp, config) });
+    }
+    this._registerHover('price', {
+      mode: 'series', rect, xMin, xMax, yMin, yMax,
+      xLabel: '',
+      xFmt: x => this._tickHoverFmt(v, config, x),
+      series: [
+        { name: 'Price', color: this.theme.accent, points: bridgePoints, yFmt: y => y.toFixed(2) + '¢' },
+        { name: 'FV',    color: this.theme.amber,  points: fvSeries,     yFmt: y => y.toFixed(2) + '¢' },
+      ],
+    });
   },
 
   /* -------- Bubble magnitude chart -------- */
@@ -1372,6 +1563,14 @@ const UI = {
     Viz.legendRow(ctx, rect, [
       { color: this.theme.red, label: '▬ absolute mispricing' },
     ]);
+
+    this._registerHover('bubble', {
+      mode: 'series', rect, xMin: 0, xMax: totalTicks, yMin, yMax,
+      xFmt: x => this._tickHoverFmt(v, config, x),
+      series: [
+        { name: '|P − FV|', color: this.theme.red, points: bridgePts, yFmt: y => y.toFixed(2) + '¢' },
+      ],
+    });
   },
 
   /* -------- Volume-per-period chart -------- */
@@ -1432,6 +1631,14 @@ const UI = {
     Viz.legendRow(ctx, rect, [
       { color: this.theme.green, label: '▮ shares traded' },
     ], { padY: -10 });
+
+    this._registerHover('volume', {
+      mode: 'series', rect, xMin, xMax, yMin: 0, yMax,
+      xFmt: x => this._tickHoverFmt(v, config, x),
+      series: [
+        { name: 'Volume', color: this.theme.green, points: pts, yFmt: y => y.toFixed(0) + ' shares' },
+      ],
+    });
   },
 
   /* -------- Price × period trade-density heatmap -------- */
@@ -1526,6 +1733,29 @@ const UI = {
     ctx.restore();
 
     Viz.axisLabel(ctx, rect, v.session > 0 ? 'Round R · Session ' + v.session : 'Round R', 'bottom');
+
+    this._registerHover('heatmap', {
+      mode: 'cell', rect,
+      cells: {
+        cols: nCols, rows: nRows, cellW, cellH,
+        lookup: (col, rowDrawn) => {
+          const rIdx = nRows - 1 - rowDrawn;
+          const g    = col + 1;
+          const rn   = Math.floor(col / config.periods) + 1;
+          const p    = (col % config.periods) + 1;
+          const pLo  = (rIdx      / nRows) * maxPrice;
+          const pHi  = ((rIdx + 1) / nRows) * maxPrice;
+          const stamp = v.session > 0 ? `R${rn}_S${v.session}` : `R${rn}`;
+          return {
+            header: `${stamp} · P${p}`,
+            rows: [
+              { name: 'Price bin', color: this.theme.fg2,   value: `${pLo.toFixed(0)}–${pHi.toFixed(0)}¢` },
+              { name: 'Volume',    color: this.theme.green, value: `${grid[rIdx][col] || 0} shares` },
+            ],
+          };
+        },
+      },
+    });
   },
 
   /* -------- Agent action timeline -------- */
@@ -1629,6 +1859,43 @@ const UI = {
     ctx.restore();
 
     Viz.axisLabel(ctx, rect, v.session > 0 ? 'Round R · Session ' + v.session : 'Round R', 'bottom');
+
+    const decisionLabel = {
+      hold: 'hold', crossBid: 'cross-bid', crossAsk: 'cross-ask',
+      passiveBid: 'passive bid', passiveAsk: 'passive ask',
+    };
+    this._registerHover('timeline', {
+      mode: 'row', rect, xMin: 0, xMax: totalTicks,
+      rows: {
+        ids, rowH,
+        lookup: (rowIdx, xVal) => {
+          if (rowIdx < 0 || rowIdx >= ids.length) return null;
+          const id = ids[rowIdx];
+          const tol = Math.max(1, config.ticksPerPeriod * 0.4);
+          let best = null, bestD = Infinity;
+          for (const tr of v.traces) {
+            if (tr.agentId !== id) continue;
+            const d = Math.abs(tr.timestamp - xVal);
+            if (d < bestD && d <= tol) { bestD = d; best = tr; }
+          }
+          const a    = v.agents[id];
+          const name = (a && a.name) || ('U' + id);
+          if (!best) {
+            return { header: `${name} · ${this._tickHoverFmt(v, config, xVal)}`, rows: [
+              { name: 'decision', color: this.theme.fg3, value: '—' },
+            ]};
+          }
+          return {
+            header: `${name} · ${this._tickHoverFmt(v, config, best.timestamp)}`,
+            rows: [
+              { name: 'decision', color: this._actionColor(best.decision), value: decisionLabel[best.decision] || best.decision },
+              ...(best.price != null ? [{ name: 'price', color: this.theme.fg2, value: best.price.toFixed(2) + '¢' }] : []),
+              ...(best.filled ? [{ name: 'filled', color: this.theme.accent, value: best.filled + '' }] : []),
+            ],
+          };
+        },
+      },
+    });
   },
 
   /* ============================================================
@@ -1764,6 +2031,17 @@ const UI = {
     ctx.restore();
 
     Viz.axisLabel(ctx, rect, v.session > 0 ? 'Round R · Session ' + v.session : 'Round R', 'bottom');
+
+    this._registerHover('valuation', {
+      mode: 'multi', rect, xMin: 0, xMax: totalTicks, yMin: 0, yMax,
+      xFmt: x => this._tickHoverFmt(v, config, x),
+      buckets: Viz.bucketByX(hist, 'tick', 'subjV'),
+      color:   this.theme.accent,
+      ysFmt:   y => y.toFixed(2) + '¢',
+      baseSeries: [
+        { name: 'FV', color: this.theme.amber, points: fvPoints, yFmt: y => y.toFixed(2) + '¢' },
+      ],
+    });
   },
 
   /* -------- Utility-over-time chart -------- */
@@ -1845,6 +2123,14 @@ const UI = {
     }
 
     Viz.axisLabel(ctx, rect, v.session > 0 ? 'Round R · Session ' + v.session : 'Round R', 'bottom');
+
+    this._registerHover('utility', {
+      mode: 'multi', rect, xMin: 0, xMax: totalTicks, yMin, yMax,
+      xFmt: x => this._tickHoverFmt(v, config, x),
+      buckets: Viz.bucketByX(hist, 'tick', 'utility'),
+      color:   this.theme.accent,
+      ysFmt:   y => y.toFixed(3),
+    });
   },
 
   /* -------- P&L-over-time chart (Figure 11) --------
@@ -1940,6 +2226,16 @@ const UI = {
     }
 
     Viz.axisLabel(ctx, rect, v.session > 0 ? 'Round R · Session ' + v.session : 'Round R', 'bottom');
+
+    const pnlFlat = [];
+    for (const id of ids) for (const p of byAgent[id]) pnlFlat.push({ tick: p.x, pnl: p.y });
+    this._registerHover('pnl', {
+      mode: 'multi', rect, xMin: 0, xMax: totalTicks, yMin, yMax,
+      xFmt: x => this._tickHoverFmt(v, config, x),
+      buckets: Viz.bucketByX(pnlFlat, 'tick', 'pnl'),
+      color:   this.theme.accent,
+      ysFmt:   y => (y >= 0 ? '+' : '') + y.toFixed(1) + '¢',
+    });
   },
 
   /* -------- Subjective-valuation per-agent chart (Figure 12) --------
@@ -2022,6 +2318,17 @@ const UI = {
     }
 
     Viz.axisLabel(ctx, rect, v.session > 0 ? 'Round R · Session ' + v.session : 'Round R', 'bottom');
+
+    this._registerHover('subjv', {
+      mode: 'multi', rect, xMin: 0, xMax: totalTicks, yMin: 0, yMax,
+      xFmt: x => this._tickHoverFmt(v, config, x),
+      buckets: Viz.bucketByX(hist, 'tick', 'subjV'),
+      color:   this.theme.accent,
+      ysFmt:   y => y.toFixed(2) + '¢',
+      baseSeries: [
+        { name: 'FV', color: this.theme.amber, points: fvPoints, yFmt: y => y.toFixed(2) + '¢' },
+      ],
+    });
   },
 
   /* -------- Messages timeline -------- */
@@ -2119,6 +2426,43 @@ const UI = {
     ctx.restore();
 
     Viz.axisLabel(ctx, rect, v.session > 0 ? 'Round R · Session ' + v.session : 'Round R', 'bottom');
+
+    this._registerHover('messages', {
+      mode: 'row', rect, xMin: 0, xMax: totalTicks,
+      rows: {
+        ids, rowH,
+        lookup: (rowIdx, xVal) => {
+          if (rowIdx < 0 || rowIdx >= ids.length) return null;
+          const id = ids[rowIdx];
+          const tol = Math.max(1, config.ticksPerPeriod * 0.5);
+          let best = null, bestD = Infinity;
+          for (const m of msgs) {
+            if (m.senderId !== id) continue;
+            const d = Math.abs(m.tick - xVal);
+            if (d < bestD && d <= tol) { bestD = d; best = m; }
+          }
+          const a    = v.agents[id];
+          const name = (a && a.name) || ('U' + id);
+          if (!best) {
+            return { header: `${name} · ${this._tickHoverFmt(v, config, xVal)}`, rows: [
+              { name: 'message', color: this.theme.fg3, value: '—' },
+            ]};
+          }
+          const sigColor = best.signal === 'buy' ? this.theme.green
+                         : best.signal === 'sell' ? this.theme.red
+                         : this.theme.fg2;
+          return {
+            header: `${name} · ${this._tickHoverFmt(v, config, best.tick)}`,
+            rows: [
+              { name: 'signal', color: sigColor, value: best.signal || '—' },
+              ...(best.claimedValuation != null ? [{ name: 'reported V', color: this.theme.amber, value: best.claimedValuation.toFixed(2) + '¢' }] : []),
+              ...(best.trueValuation    != null ? [{ name: 'true V',     color: this.theme.accent, value: best.trueValuation.toFixed(2) + '¢' }] : []),
+              ...(best.deceptive ? [{ name: 'deceptive', color: this.theme.red, value: '✓' }] : []),
+            ],
+          };
+        },
+      },
+    });
   },
 
   /* -------- Trust matrix heatmap -------- */
@@ -2228,6 +2572,33 @@ const UI = {
     ctx.restore();
 
     Viz.axisLabel(ctx, rect, 'sender', 'bottom');
+
+    const agents = v.agents || {};
+    const nameOf = id => (agents[id] && agents[id].name) || ('U' + id);
+    this._registerHover('trust', {
+      mode: 'cell', rect,
+      cells: {
+        cols: n, rows: n, cellW, cellH,
+        lookup: (col, row) => {
+          const rId = agentIds[row];
+          const sId = agentIds[col];
+          if (rId === sId) {
+            return { header: `${nameOf(rId)} → self`, rows: [
+              { name: '(diagonal)', color: this.theme.fg3, value: '—' },
+            ]};
+          }
+          const val = trust && trust[rId] && trust[rId][sId] != null ? trust[rId][sId] : 0.5;
+          return {
+            header: `${nameOf(sId)} → ${nameOf(rId)}`,
+            rows: [
+              { name: 'trust',    color: Viz.heatColor(val), value: val.toFixed(3) },
+              { name: 'sender',   color: this.agentColor(sId), value: nameOf(sId) },
+              { name: 'receiver', color: this.agentColor(rId), value: nameOf(rId) },
+            ],
+          };
+        },
+      },
+    });
   },
 
   /* -------- Ownership over time (stacked) -------- */
@@ -2368,6 +2739,15 @@ const UI = {
     ctx.restore();
 
     Viz.axisLabel(ctx, rect, v.session > 0 ? 'Round R · Session ' + v.session : 'Round R', 'bottom');
+
+    this._registerHover('ownership', {
+      mode: 'series', rect, xMin: 0, xMax: totalTicks, yMin: 0, yMax,
+      xFmt: x => this._tickHoverFmt(v, config, x),
+      series: series.map(s => ({
+        name: s.name, color: s.color, points: s.points,
+        yFmt: y => y.toFixed(0) + ' shares',
+      })),
+    });
   },
 
   /* -------- Extended metrics panel -------- */
