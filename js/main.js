@@ -148,6 +148,12 @@ const App = {
   // via setAsset() before engine.start() runs.
   sessionAssets: null,
 
+  // Post-replacement asset per session. The engine swaps the market's
+  // asset at the replacement-round boundary when this id differs from
+  // the session's pre-asset; when the two agree the session runs a
+  // single asset end-to-end, the legacy behaviour.
+  sessionAssetsPost: null,
+
   // Session counter for the 10-session batch. 0 = idle/pre-run,
   // 1-10 during a batch. Updated by start() at every session
   // boundary and reset to 0 by reset() or when the batch completes.
@@ -1100,21 +1106,85 @@ const App = {
       ? ASSET_TYPES_BY_ID : null;
     if (!Array.isArray(this.sessionAssets) || this.sessionAssets.length !== 10) {
       this.sessionAssets = new Array(10).fill(fallback);
-      return;
+    } else {
+      for (let i = 0; i < 10; i++) {
+        const id = this.sessionAssets[i];
+        if (!id || (known && !known[id])) this.sessionAssets[i] = fallback;
+      }
     }
-    for (let i = 0; i < 10; i++) {
-      const id = this.sessionAssets[i];
-      if (!id || (known && !known[id])) this.sessionAssets[i] = fallback;
+    // sessionAssetsPost mirrors sessionAssets: one post-replacement
+    // asset per session. Default every post slot to the matching pre
+    // slot so a first load (or a user that never splits the pair) runs
+    // a single asset for the whole session — exactly the old behaviour.
+    if (!Array.isArray(this.sessionAssetsPost) || this.sessionAssetsPost.length !== 10) {
+      this.sessionAssetsPost = this.sessionAssets.slice();
+    } else {
+      for (let i = 0; i < 10; i++) {
+        const id = this.sessionAssetsPost[i];
+        if (!id || (known && !known[id])) this.sessionAssetsPost[i] = this.sessionAssets[i];
+      }
     }
   },
 
-  /** Resolve the asset type object for a given 1-indexed session number
-   *  (1..10), falling back to the default asset for the idle state. */
+  /** Resolve the PRE-replacement asset type for a 1-indexed session
+   *  number (1..10). This is the asset that trades during rounds
+   *  1..replacementRound−1 of the session. */
   _assetForSession(session) {
     this._ensureSessionAssets();
     const idx = Math.max(0, Math.min(9, (session | 0) - 1));
     const id  = this.sessionAssets[idx];
     return (typeof getAssetType === 'function') ? getAssetType(id) : null;
+  },
+
+  /** Resolve the POST-replacement asset type for a 1-indexed session
+   *  number. Used by the engine to swap the market's asset at the
+   *  replacement-round boundary. Returns the same asset object as
+   *  _assetForSession when the user hasn't split the pair. */
+  _postAssetForSession(session) {
+    this._ensureSessionAssets();
+    const idx = Math.max(0, Math.min(9, (session | 0) - 1));
+    const id  = this.sessionAssetsPost[idx];
+    return (typeof getAssetType === 'function') ? getAssetType(id) : null;
+  },
+
+  /** Pearson correlation of two equal-length numeric arrays. Returns
+   *  NaN when either input is constant (zero variance) so the caller
+   *  can render a dash instead of a spurious 0. */
+  _pearson(xs, ys) {
+    const n = Math.min(xs.length, ys.length);
+    if (n < 2) return NaN;
+    let mx = 0, my = 0;
+    for (let i = 0; i < n; i++) { mx += xs[i]; my += ys[i]; }
+    mx /= n; my /= n;
+    let num = 0, dx = 0, dy = 0;
+    for (let i = 0; i < n; i++) {
+      const ax = xs[i] - mx, ay = ys[i] - my;
+      num += ax * ay; dx += ax * ax; dy += ay * ay;
+    }
+    if (dx <= 0 || dy <= 0) return NaN;
+    return num / Math.sqrt(dx * dy);
+  },
+
+  /** Correlation of the PRE and POST assets' expected FV paths over a
+   *  single round of the current horizon. Short-circuits to 1 when the
+   *  two asset ids match (identical paths — user's "if both the same,
+   *  it should be one" rule) so the readout doesn't collapse into NaN
+   *  for the flat-FV assets (perpetual, random walk expectation). */
+  _sessionAssetCorr(session) {
+    this._ensureSessionAssets();
+    const idx = Math.max(0, Math.min(9, (session | 0) - 1));
+    const preId  = this.sessionAssets[idx];
+    const postId = this.sessionAssetsPost[idx];
+    if (preId === postId) return 1;
+    if (typeof assetExpectedFvPath !== 'function') return NaN;
+    const T   = (this.config && this.config.periods) | 0;
+    const pre  = (typeof getAssetType === 'function') ? getAssetType(preId)  : null;
+    const post = (typeof getAssetType === 'function') ? getAssetType(postId) : null;
+    if (!pre || !post || !T) return NaN;
+    return this._pearson(
+      assetExpectedFvPath(pre,  T),
+      assetExpectedFvPath(post, T),
+    );
   },
 
   /** Convert a session-rate fraction + current N into an integer
@@ -1180,35 +1250,71 @@ const App = {
         this.reset();
       });
 
-      const assetSel = document.createElement('select');
-      assetSel.className = 'session-asset-select';
-      assetSel.dataset.session = String(s);
-      // data-tip-id points at the <template id="tpl-asset-<id>"> in
-      // index.html so hovering the closed dropdown surfaces the full
-      // specification of the currently-selected asset through the same
-      // rich-tip path used by every other Advanced-panel control.
-      assetSel.setAttribute('data-tip-id', 'asset-' + this.sessionAssets[s]);
-      for (const a of assetList) {
-        const opt = document.createElement('option');
-        opt.value = a.id;
-        opt.textContent = a.label;
-        // Native browser tooltip for the option row inside an open
-        // dropdown — a compact one-liner; the rich tip on the select
-        // itself carries the full formulaic detail.
-        if (a.description) opt.title = a.description;
-        if (a.id === this.sessionAssets[s]) opt.selected = true;
-        assetSel.appendChild(opt);
-      }
-      assetSel.addEventListener('change', () => {
-        this.sessionAssets[s] = assetSel.value;
-        assetSel.setAttribute('data-tip-id', 'asset-' + assetSel.value);
+      // Two asset selectors per session: PRE trades during rounds
+      // 1..replacementRound−1, POST takes over at the replacement
+      // boundary. When both carry the same id the session runs a
+      // single asset end-to-end (the legacy behaviour).
+      const makeSelect = (phase, currentId) => {
+        const sel = document.createElement('select');
+        sel.className = 'session-asset-select session-asset-' + phase;
+        sel.dataset.session = String(s);
+        sel.dataset.phase   = phase;
+        sel.setAttribute('data-tip-id', 'asset-' + currentId);
+        for (const a of assetList) {
+          const opt = document.createElement('option');
+          opt.value = a.id;
+          opt.textContent = a.label;
+          if (a.description) opt.title = a.description;
+          if (a.id === currentId) opt.selected = true;
+          sel.appendChild(opt);
+        }
+        return sel;
+      };
+      const preSel  = makeSelect('pre',  this.sessionAssets[s]);
+      const postSel = makeSelect('post', this.sessionAssetsPost[s]);
+      const arrow   = document.createElement('span');
+      arrow.className   = 'session-asset-arrow';
+      arrow.textContent = '→';
+      arrow.title = 'Asset swaps at the replacement-round boundary';
+      const pair = document.createElement('span');
+      pair.className = 'session-asset-pair';
+      pair.appendChild(preSel);
+      pair.appendChild(arrow);
+      pair.appendChild(postSel);
+
+      const corr = document.createElement('span');
+      corr.className = 'session-asset-corr';
+      corr.dataset.session = String(s);
+      corr.title = 'Pearson correlation of the pre and post assets\u2019 expected FV paths (ρ = 1 when both selectors pick the same asset)';
+
+      const refreshCorr = () => {
+        const r = this._sessionAssetCorr(s + 1);
+        corr.textContent = Number.isFinite(r) ? `ρ ${r.toFixed(2)}` : 'ρ —';
+        // Tint: green for positive, red for negative, muted when undefined.
+        corr.classList.toggle('corr-neg', Number.isFinite(r) && r < 0);
+        corr.classList.toggle('corr-pos', Number.isFinite(r) && r > 0);
+        corr.classList.toggle('corr-na',  !Number.isFinite(r));
+      };
+      refreshCorr();
+
+      preSel.addEventListener('change', () => {
+        this.sessionAssets[s] = preSel.value;
+        preSel.setAttribute('data-tip-id', 'asset-' + preSel.value);
+        refreshCorr();
+        this.reset();
+      });
+      postSel.addEventListener('change', () => {
+        this.sessionAssetsPost[s] = postSel.value;
+        postSel.setAttribute('data-tip-id', 'asset-' + postSel.value);
+        refreshCorr();
         this.reset();
       });
 
       row.appendChild(idx);
       row.appendChild(sl);
       row.appendChild(val);
-      row.appendChild(assetSel);
+      row.appendChild(pair);
+      row.appendChild(corr);
       grid.appendChild(row);
       this._updateSliderPct(sl);
     }
@@ -1452,6 +1558,11 @@ const App = {
     // so the initial snapshot records the right FV path.
     const activeAsset = this._assetForSession(this.currentSession || 1);
     if (activeAsset) this.market.setAsset(activeAsset);
+    // The per-session asset picker now carries a pre/post pair. The
+    // engine reads postReplacementAsset off ctx and swaps the market's
+    // active asset at the replacement-round boundary; when the two
+    // halves point at the same asset id the swap is a no-op.
+    const postAsset = this._postAssetForSession(this.currentSession || 1);
     this.logger = new Logger();
     // Message bus + trust tracker live for every run. With a mix that
     // has no utility agents they simply stay empty because no agent
@@ -1488,6 +1599,12 @@ const App = {
       replacementRound: this.replacementRound,
       // Current session number (1-10) for the batch display.
       currentSession: this.currentSession,
+      // Post-replacement asset for the active session. Engine installs
+      // it on the market right after _round4Replacement() fires. Null
+      // or identical-to-pre ⇒ keep the session's original asset for
+      // the remainder of the round schedule.
+      postReplacementAsset: (postAsset && activeAsset && postAsset.id !== activeAsset.id)
+        ? postAsset : null,
     };
     this.engine = new Engine(this.market, this.agents, this.logger, this.config, this._rng, this.ctx);
     this.engine.onTick = () => this.requestRender();

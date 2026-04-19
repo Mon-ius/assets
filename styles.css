@@ -1553,9 +1553,21 @@ body:not(.plan-ii):not(.plan-iii) .plan-llm-only { display: none !important; }
   font-variant-numeric: tabular-nums;
   color: var(--fg-1);
 }
-.session-asset-select {
+.session-asset-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   margin-left: 4px;
-  max-width: 150px;
+}
+.session-asset-arrow {
+  color: var(--fg-3);
+  font-size: 11px;
+  line-height: 1;
+  padding: 0 1px;
+  user-select: none;
+}
+.session-asset-select {
+  max-width: 110px;
   padding: 2px 4px;
   font-size: 11px;
   color: var(--fg-1);
@@ -1570,6 +1582,21 @@ body:not(.plan-ii):not(.plan-iii) .plan-llm-only { display: none !important; }
   border-color: var(--amber);
   outline: none;
 }
+.session-asset-corr {
+  min-width: 50px;
+  margin-left: 6px;
+  padding: 1px 5px;
+  font-size: 10.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--fg-2);
+  background: color-mix(in srgb, var(--bg-3) 55%, transparent);
+  border-radius: 3px;
+}
+.session-asset-corr.corr-pos { color: color-mix(in srgb, var(--amber) 80%, var(--fg-1)); }
+.session-asset-corr.corr-neg { color: color-mix(in srgb, var(--red, #c44) 80%, var(--fg-1)); }
+.session-asset-corr.corr-na  { color: var(--fg-3); }
 .dlm-treatment-opt.regulator-tile input[type=range].regulator-slider,
 .dlm-treatment-opt.scale-tile input[type=range].scale-slider {
   -webkit-appearance: none;

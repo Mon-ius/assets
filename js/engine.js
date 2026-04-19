@@ -240,6 +240,24 @@ class Engine {
         const replaceR = (this.ctx && this.ctx.replacementRound) | 0 || 4;
         if (m.round === replaceR - 1) {
           this._round4Replacement();
+          // Per-session asset pair: if the user picked a different
+          // post-replacement asset for this session, swap it onto the
+          // market at the same boundary the veterans are replaced. The
+          // subsequent resetAssetForRound() will re-init the new asset
+          // with FV_1 = 100 so the post asset starts from the canonical
+          // scale at the beginning of round `replaceR`.
+          const postAsset = this.ctx && this.ctx.postReplacementAsset;
+          if (postAsset && postAsset !== m.assetType) {
+            const fromId = m.assetType && m.assetType.id;
+            m.setAsset(postAsset);
+            this.logger.logEvent({
+              tick:  m.tick,
+              type:  'asset_swap',
+              round: m.round + 1,
+              from:  fromId,
+              to:    postAsset.id,
+            });
+          }
         }
         this._resetRound();
         m.round++;

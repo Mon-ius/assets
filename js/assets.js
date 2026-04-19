@@ -268,6 +268,49 @@ const ASSET_TYPES = [
 
 const ASSET_TYPES_BY_ID = Object.fromEntries(ASSET_TYPES.map(a => [a.id, a]));
 
+/* Expected FV path FV_1..FV_T for each asset — used by the per-session
+ * asset pair selector to compute a Pearson correlation between the
+ * "pre-replacement" and "post-replacement" assets the user picks. For
+ * the four deterministic assets this is the same path `init()` fills;
+ * for the two stochastic ones (random walk, jump/crash) it is the
+ * analytical expected path so the correlation readout is deterministic
+ * across runs and doesn't depend on RNG state. */
+function assetExpectedFvPath(asset, T) {
+  if (!asset || !(T > 0)) return [];
+  switch (asset.id) {
+    case 'linearDeclining':
+      return Array.from({ length: T }, (_, i) => 5 * (T - (i + 1) + 1));
+    case 'constantPerpetual':
+      return Array.from({ length: T }, () => ASSET_ANCHOR_FV);
+    case 'linearGrowth': {
+      const b = 0.3;
+      const sumS = (T * (T + 1)) / 2;
+      const a = (ASSET_ANCHOR_FV - b * sumS) / T;
+      // FV_t = Σ_{s=t..T} (a + b·s)
+      const out = new Array(T);
+      let tail = 0;
+      for (let s = T; s >= 1; s--) {
+        tail += a + b * s;
+        out[s - 1] = tail;
+      }
+      return out;
+    }
+    case 'cyclicalSine':
+      return Array.from({ length: T }, (_, i) =>
+        ASSET_ANCHOR_FV + 20 * Math.sin((2 * Math.PI / 10) * i));
+    case 'randomWalk':
+      // Martingale: E[FV_t] = FV_1 = 100 for every t.
+      return Array.from({ length: T }, () => ASSET_ANCHOR_FV);
+    case 'jumpCrash': {
+      // Expected per-step drift = 0.9·(+2) + 0.1·(−30) = −1.2.
+      const drift = 0.9 * 2 + 0.1 * -30;
+      return Array.from({ length: T }, (_, i) => ASSET_ANCHOR_FV + drift * i);
+    }
+    default:
+      return Array.from({ length: T }, () => ASSET_ANCHOR_FV);
+  }
+}
+
 /* Per-asset FV formula as native-MathML source. Rendered verbatim into
  * Figure 1's fig-eq on every UI render so the caption tracks the active
  * asset. The strings live here (rather than mathml.js Sym) because they
