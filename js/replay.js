@@ -68,7 +68,20 @@ const Replay = {
     const replaceR = (ctx && ctx.replacementRound | 0) || 4;
     const pre  = (ctx && ctx.preReplacementAsset)  || market.assetType;
     const post = (ctx && ctx.postReplacementAsset) || pre;
-    const fvPath = (asset) => {
+    const session = (ctx && ctx.currentSession | 0) || 0;
+    const sampleSeed = (asset, r) => {
+      // Stable, per-(asset, session, round) seed so each round of
+      // Figure 1 draws its own wandering trajectory but the curve
+      // doesn't jitter across renders within a round.
+      const id = asset && asset.id ? asset.id : 'x';
+      let h = 2166136261;
+      for (let i = 0; i < id.length; i++) {
+        h = Math.imul(h ^ id.charCodeAt(i), 16777619);
+      }
+      return ((h ^ Math.imul(session + 1, 0x9E3779B1) ^ Math.imul(r, 0x85EBCA6B)) >>> 0) || 1;
+    };
+    const isPathDependent = (asset) => asset && (asset.id === 'randomWalk' || asset.id === 'jumpCrash');
+    const deterministicPath = (asset) => {
       if (!asset) return null;
       try {
         const state = asset.init(market.config);
@@ -77,13 +90,18 @@ const Replay = {
         return arr;
       } catch (_) { return null; }
     };
-    const prePath  = fvPath(pre);
-    const postPath = fvPath(post) || prePath;
+    const pathForRound = (asset, r) => {
+      if (!asset) return null;
+      if (isPathDependent(asset) && typeof sampleAssetFvPath === 'function') {
+        return sampleAssetFvPath(asset, market.config, sampleSeed(asset, r));
+      }
+      return deterministicPath(asset);
+    };
     const fallback = Replay._fvByPeriod(market);
     const out = new Array(R + 1);
     for (let r = 1; r <= R; r++) {
-      if (r < replaceR) out[r] = prePath  || fallback;
-      else              out[r] = postPath || fallback;
+      const asset = r < replaceR ? pre : post;
+      out[r] = pathForRound(asset, r) || fallback;
     }
     return out;
   },

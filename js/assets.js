@@ -424,6 +424,60 @@ function expectedAssetFvPath(asset, config) {
   return out;
 }
 
+/* Mulberry32 identical to engine.js — duplicated here to keep assets.js
+ * free of engine dependencies; the sampled FV paths are a view-side
+ * artefact and shouldn't couple the asset registry to the engine. */
+function _assetSampleRng(seed) {
+  let s = (seed >>> 0) || 1;
+  return function rng() {
+    s = (s + 0x6D2B79F5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/* Return a length-(T+2) FV path starting at FV_1 = 100. Deterministic
+ * assets are read from `asset.init(config)` directly. Path-dependent
+ * assets (random walk, jump/crash) are sampled via a seeded RNG so
+ * Figure 1 shows a believable wandering trajectory instead of the
+ * degenerate (FV_1 = 100, FV_2..FV_T = 0) that you get from a raw init.
+ * The seed is caller-provided so the chart can make each round's curve
+ * distinct (round index salted in) while staying stable across renders. */
+function sampleAssetFvPath(asset, config, seed) {
+  if (!asset || !config || !(config.periods > 0)) return null;
+  const T = config.periods;
+  let state;
+  try { state = asset.init(config); } catch (_) { return null; }
+  if (asset.id === 'randomWalk') {
+    const sigma = Number.isFinite(state.sigma) ? state.sigma : 5;
+    const floor = Number.isFinite(state.floor) ? state.floor : 0;
+    const rng   = _assetSampleRng(seed >>> 0);
+    for (let t = 2; t <= T; t++) {
+      const eta = normalDraw(rng, 0, sigma);
+      state.fv[t] = Math.max(floor, state.fv[t - 1] + eta);
+    }
+    state.fv[T + 1] = state.fv[T];
+  } else if (asset.id === 'jumpCrash') {
+    const drift = Number.isFinite(state.drift) ? state.drift : 0;
+    const crash = Number.isFinite(state.crash) ? state.crash : 0;
+    const p     = Number.isFinite(state.crashProb) ? state.crashProb : 0;
+    const floor = Number.isFinite(state.floor) ? state.floor : 0;
+    const rng   = _assetSampleRng(seed >>> 0);
+    for (let t = 2; t <= T; t++) {
+      const step = rng() < p ? crash : drift;
+      state.fv[t] = Math.max(floor, state.fv[t - 1] + step);
+    }
+    state.fv[T + 1] = state.fv[T];
+  }
+  const out = new Array(T + 2).fill(0);
+  for (let p = 1; p <= T + 1; p++) {
+    const v = state.fv[p];
+    out[p] = Number.isFinite(v) ? v : 0;
+  }
+  return out;
+}
+
 /* Per-asset FV formula as native-MathML source. Rendered verbatim into
  * Figure 1's fig-eq on every UI render so the caption tracks the active
  * asset. The strings live here (rather than mathml.js Sym) because they
