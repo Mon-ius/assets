@@ -1485,7 +1485,34 @@ body:not(.plan-ii):not(.plan-iii) .plan-llm-only { display: none !important; }
 }
 /* Violet variant — v3 §3 experience-curve anchors (α₀, γ_α, σ₀, γ_σ).
    Sits between the amber session-structure row and the blue heuristic
-   row so the three bands of Advanced Settings read as distinct groups. */
+   row so the three bands of Advanced Settings read as distinct groups.
+   Compact padding + tight pval so the 4 tiles fit on one row. */
+.dlm-treatment-opt.scale-tile.scale-tile-violet,
+.dlm-treatment-opt.scale-tile.scale-tile-blue {
+  padding: 6px 8px;
+  min-width: 0;
+}
+.dlm-treatment-opt.scale-tile.scale-tile-violet .param-head,
+.dlm-treatment-opt.scale-tile.scale-tile-blue .param-head {
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+.dlm-treatment-opt.scale-tile.scale-tile-violet .param-head label,
+.dlm-treatment-opt.scale-tile.scale-tile-blue .param-head label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  font-size: 11px;
+}
+.dlm-treatment-opt.scale-tile.scale-tile-violet .param-head .pval,
+.dlm-treatment-opt.scale-tile.scale-tile-blue .param-head .pval {
+  min-width: 42px;
+  padding: 2px 6px;
+  font-size: 10px;
+  flex: none;
+}
 .dlm-treatment-opt.scale-tile.scale-tile-violet {
   border-color: var(--purple);
   background: color-mix(in srgb, var(--purple) 8%, var(--bg-1));
@@ -1495,6 +1522,7 @@ body:not(.plan-ii):not(.plan-iii) .plan-llm-only { display: none !important; }
 }
 .dlm-treatment-opt.scale-tile.scale-tile-violet .param-head .pval {
   background: var(--purple);
+  color: #fff;
 }
 .dlm-treatment-opt.scale-tile.scale-tile-violet input[type=range].scale-slider {
   --accent: var(--purple);
@@ -1510,6 +1538,7 @@ body:not(.plan-ii):not(.plan-iii) .plan-llm-only { display: none !important; }
 }
 .dlm-treatment-opt.scale-tile.scale-tile-blue .param-head .pval {
   background: var(--accent);
+  color: #fff;
 }
 .dlm-treatment-opt.scale-tile.scale-tile-blue input[type=range].scale-slider {
   --accent: #2563eb;
