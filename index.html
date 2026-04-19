@@ -896,79 +896,82 @@
         </a>
       </div>
       <div class="arch-svg-container arch-diagram" id="arch-fig1">
-        <svg viewBox="0 0 760 352" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Figure 1 — Agent decision pipeline">
+        <svg viewBox="0 0 760 376" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Figure 1 — Agent decision pipeline">
           <defs>
             <marker id="arch-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
               <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
             </marker>
           </defs>
 
-          <!-- Stage 1 — Asset Fundamentals -->
+          <!-- Stage 1 — Asset Fundamentals. The label enumerates the six
+               asset types, so this node is 2 lines tall (fo-multi) and the
+               stage frame is 24px taller than the rest; subsequent stages
+               are shifted down to match. -->
           <g class="arch-group g-paper">
-            <rect x="20" y="10" width="720" height="68" rx="10" ry="10"/>
+            <rect x="20" y="10" width="720" height="92" rx="10" ry="10"/>
             <text x="380" y="30" class="g-label">Asset Fundamentals</text>
           </g>
           <g class="n n-paper" transform="translate(40 38)">
-            <rect width="680" height="34" rx="6" ry="6"/>
-            <foreignObject width="680" height="34">
-              <div class="fo-node"><div class="fo-t">$\mathrm{FV}_t$ per active asset — one of six: linear declining · perpetual · linear growth · cyclical · random walk · jump/crash &nbsp;(default $T = 20$, &nbsp; $\mathrm{FV}_1 = 100$)</div></div>
+            <rect width="680" height="58" rx="6" ry="6"/>
+            <foreignObject width="680" height="58">
+              <div class="fo-node fo-multi"><div class="fo-t">$\mathrm{FV}_t$ per active asset — one of six: linear declining · perpetual · linear growth · cyclical · random walk · jump/crash &nbsp;(default $T = 20$, &nbsp; $\mathrm{FV}_1 = 100$)</div></div>
             </foreignObject>
           </g>
 
-          <path class="link" d="M 380 78 L 380 98"/>
+          <path class="link" d="M 380 102 L 380 122"/>
 
           <!-- Stage 2 — Prior Formation -->
           <g class="arch-group g-strat">
-            <rect x="20" y="98" width="720" height="68" rx="10" ry="10"/>
-            <text x="380" y="118" class="g-label">Prior Formation</text>
+            <rect x="20" y="122" width="720" height="68" rx="10" ry="10"/>
+            <text x="380" y="142" class="g-label">Prior Formation</text>
           </g>
-          <g class="n n-util" transform="translate(40 126)">
+          <g class="n n-util" transform="translate(40 150)">
             <rect width="340" height="34" rx="6" ry="6"/>
             <foreignObject width="340" height="34">
               <div class="fo-node"><div class="fo-t">$\text{prior}_t = \mathrm{FV}_t\!\cdot\!(1 + b_i + \varepsilon)$</div></div>
             </foreignObject>
           </g>
-          <g class="n n-eu" transform="translate(400 126)">
+          <g class="n n-eu" transform="translate(400 150)">
             <rect width="320" height="34" rx="6" ry="6"/>
             <foreignObject width="320" height="34">
               <div class="fo-node"><div class="fo-t">$\mathrm{EU}(\alpha) = p_{\text{fill}}\!\cdot\!U(w_1) + (1\!-\!p_{\text{fill}})\!\cdot\!U(w_0)$</div></div>
             </foreignObject>
           </g>
 
-          <path class="link" d="M 380 166 L 380 186"/>
+          <path class="link" d="M 380 190 L 380 210"/>
 
           <!-- Stage 3 — Information Aggregation -->
           <g class="arch-group g-plan">
-            <rect x="20" y="186" width="720" height="68" rx="10" ry="10"/>
-            <text x="380" y="206" class="g-label">Information Aggregation</text>
+            <rect x="20" y="210" width="720" height="68" rx="10" ry="10"/>
+            <text x="380" y="230" class="g-label">Information Aggregation</text>
           </g>
-          <g class="n n-msg" transform="translate(40 214)">
+          <g class="n n-msg" transform="translate(40 238)">
             <rect width="220" height="34" rx="6" ry="6"/>
             <foreignObject width="220" height="34">
               <div class="fo-node"><div class="fo-t">Plan I · algorithmic</div></div>
             </foreignObject>
           </g>
-          <g class="n n-wang" transform="translate(275 214)">
+          <g class="n n-wang" transform="translate(275 238)">
             <rect width="220" height="34" rx="6" ry="6"/>
             <foreignObject width="220" height="34">
               <div class="fo-node"><div class="fo-t">Plan II · LLM + forms</div></div>
             </foreignObject>
           </g>
-          <g class="n n-wang" transform="translate(510 214)">
+          <g class="n n-wang" transform="translate(510 238)">
             <rect width="210" height="34" rx="6" ry="6"/>
             <foreignObject width="210" height="34">
               <div class="fo-node"><div class="fo-t">Plan III · LLM + label</div></div>
             </foreignObject>
           </g>
 
-          <path class="link" d="M 380 254 L 380 274"/>
+          <path class="link" d="M 380 278 L 380 298"/>
 
           <!-- Stage 4 — Price Discovery -->
           <g class="arch-group g-market">
-            <rect x="20" y="274" width="720" height="68" rx="10" ry="10"/>
-            <text x="380" y="294" class="g-label">Price Discovery</text>
+            <rect x="20" y="298" width="720" height="68" rx="10" ry="10"/>
+            <text x="380" y="318" class="g-label">Price Discovery</text>
           </g>
-          <g class="n n-book" transform="translate(40 302)">
+          <g class="n n-book" transform="translate(40 326)">
             <rect width="680" height="34" rx="6" ry="6"/>
             <foreignObject width="680" height="34">
               <div class="fo-node"><div class="fo-t">CDA: $\text{bid} \geq \text{ask} \Rightarrow$ trade &nbsp;|&nbsp; $R^2 \;\cdot\; \mathrm{ND} \;\cdot\; A \;\cdot\; \mathrm{TO}$</div></div>

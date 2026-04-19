@@ -564,7 +564,17 @@ const UI = {
       const freshBadge = a.replacementFresh
         ? '<span class="dlm-badge dlm-badge-fresh">R4 replacement</span>'
         : '';
-      const badgeRow = `<div class="dlm-badges">${endowBadge}${expBadge}${freshBadge}</div>`;
+      // Bounded-Rationality status chip — shown on utility agents whenever
+      // Plan II/III is active, so the user can see at a glance whether the
+      // LLM is trading with the Cognitive Constraints addendum (red, ON)
+      // or the unconstrained prompt (grey, OFF). The flag flows from
+      // App.tunables → engine snapshot → view; plan routes the same way.
+      const isLLMPlan = isUtil && (v.plan === 'II' || v.plan === 'III');
+      const brOn      = !!(v.tunables && v.tunables.applyBoundedRationality);
+      const brBadge   = isLLMPlan
+        ? `<span class="dlm-badge dlm-badge-br dlm-badge-br-${brOn ? 'on' : 'off'}" title="Bounded Rationality toggle in AI endpoint panel">BR · ${brOn ? 'ON' : 'OFF'}</span>`
+        : '';
+      const badgeRow = `<div class="dlm-badges">${endowBadge}${expBadge}${freshBadge}${brBadge}</div>`;
       // Live-updating numeric values plus the agent's exact welfare
       // functional. Every utility agent now evaluates the same
       // universal CRRA form; what differs is the per-agent ρ drawn

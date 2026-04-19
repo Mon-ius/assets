@@ -2260,6 +2260,20 @@ body.n-small .agents-grid { max-height: none; overflow-y: visible; padding-right
   background: var(--red-bg);
   border-color: color-mix(in srgb, var(--red) 30%, transparent);
 }
+/* Bounded-Rationality chip on Plan II / III utility-agent cards.
+   Mirrors the red Regulator accent when ON (cognitive cap active),
+   neutral grey when OFF (unconstrained prompt). */
+.agent-card .dlm-badge-br-on {
+  color: var(--red);
+  background: var(--red-bg);
+  border-color: color-mix(in srgb, var(--red) 40%, transparent);
+  font-weight: 600;
+}
+.agent-card .dlm-badge-br-off {
+  color: var(--fg-2);
+  background: var(--bg-2);
+  border-color: var(--border);
+}
 
 /* Flip-card wrapper — click to flip between agent metrics (front)
    and LLM prompt (back). Only agents with Plan II/III data get the
@@ -3325,6 +3339,12 @@ body.n-small .agents-flip-inner { min-height: 0; }
   color: var(--nc);
   letter-spacing: 0.01em;
   white-space: nowrap;
+}
+/* Multi-line node — overrides the default single-line clipping for
+   long labels (e.g. Stage 1 of Figure 1 listing all six asset types). */
+.arch-diagram foreignObject .fo-node.fo-multi .fo-t {
+  white-space: normal;
+  line-height: 1.35;
 }
 .arch-diagram foreignObject .fo-s {
   font: 10px/1.4 var(--font-ui);
