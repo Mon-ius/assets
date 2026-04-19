@@ -35,6 +35,232 @@ const UI = {
     return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   },
 
+  /* ------------------------------------------------------------------
+   * v5 Agent-model MathML builders
+   *
+   * Build the Step-1 FṼ, Step-2 H, Step-3 prior/posterior formulas for
+   * the "Agent model" panel on the View Stats back face, using the
+   * primitives exposed by mathml.js so every symbol stays consistent
+   * with the rest of the UI. Each _*MathML() returns a single inline
+   * <math>…</math> fragment ready to drop into innerHTML.
+   * ------------------------------------------------------------------ */
+
+  // Shared MathML fragments — rebuilt lazily so a missing window.Mml
+  // (e.g. mathml.js not yet loaded) degrades to an empty string.
+  _mmlFvTilde()  { const M = window.Mml; return M.sub(M.tilde(M.row(M.mi('F'), M.mi('V'))), M.row(M.mi('i'), M.mo(','), M.mi('t'))); },
+  _mmlH()        { const M = window.Mml; return M.sub(M.mi('H'), M.row(M.mi('i'), M.mo(','), M.mi('t'))); },
+  _mmlPrior()    { const M = window.Mml; return M.sub(M.mi('prior'), M.row(M.mi('i'), M.mo(','), M.mi('t'))); },
+  _mmlVHat()     { const M = window.Mml; return M.sub(M.hat(M.mi('V')), M.row(M.mi('i'), M.mo(','), M.mi('t'))); },
+  _mmlAlpha()    { const M = window.Mml; return M.sub(M.mi('α'), M.mi('i')); },
+  _mmlOmega()    { const M = window.Mml; return M.sub(M.mi('ω'), M.mi('i')); },
+  _mmlKt()       { const M = window.Mml; return M.sub(M.mi('k'), M.mi('t')); },
+  _mmlTrend()    {
+    const M = window.Mml;
+    return M.row(
+      M.subsup(M.mi('p'), M.row(M.mi('t'), M.mo('−'), M.mn('1')), M.row(M.mi('l'), M.mi('a'), M.mi('s'), M.mi('t'))),
+      M.mo('−'),
+      M.subsup(M.mi('p'), M.row(M.mi('t'), M.mo('−'), M.mn('2')), M.row(M.mi('l'), M.mi('a'), M.mi('s'), M.mi('t'))),
+    );
+  },
+  _mmlDObs()     { const M = window.Mml; return M.subsup(M.bar(M.mi('d')), M.mi('t'), M.row(M.mi('o'), M.mi('b'), M.mi('s'))); },  // d̄_t^{obs}
+  _mmlAt()       { const M = window.Mml; return M.sub(M.mi('A'), M.mi('t')); },
+  _mmlMBar()     { const M = window.Mml; return M.sub(M.bar(M.mi('m')), M.mi('t')); },
+  _mmlEdFv()     {
+    const M = window.Mml;
+    return M.row(
+      M.sub(M.tilde(M.mi('E')), M.mi('i')),
+      M.mo('['), M.mo('Δ'), M.mi('F'), M.mi('V'), M.mo(']'),
+    );
+  },
+
+  // Step 1 — model-based fundamental value FṼ_{i,t}, per v5 §5.{4,10,16,22,28,34}.
+  // When Complex Dividends is ON the simulator switches every agent onto
+  // the bounded-rationality μ̂-path (§ Parameters panel), regardless of
+  // asset; show that form instead.
+  _fvMathML(assetId, tun) {
+    const M = window.Mml;
+    if (!M) return '';
+    const FV = UI._mmlFvTilde();
+    const T  = M.mi('T'); const t = M.mi('t'); const r = M.mi('r');
+
+    if (tun && tun.applyComplexDividends) {
+      // FṼ_{i,t} = μ̂_i · (T − t + 1),  μ̂_i = x̄_{n_i} · (1 + ξ_i),  σ_n = 0.35/√(n+1)
+      return M.wrap(M.row(
+        FV, M.mo('='),
+        M.sub(M.hat(M.mi('μ')), M.mi('i')), M.mo('·'),
+        M.mo('('), T, M.mo('−'), t, M.mo('+'), M.mn('1'), M.mo(')'), M.mo(','),
+        M.sub(M.hat(M.mi('μ')), M.mi('i')), M.mo('='),
+        M.sub(M.bar(M.mi('x')), M.row(M.mi('n'), M.mi('i'))),
+        M.mo('·'), M.mo('('), M.mn('1'), M.mo('+'), M.sub(M.mi('ξ'), M.mi('i')), M.mo(')'), M.mo(','),
+        M.sub(M.mi('σ'), M.mi('n')), M.mo('='),
+        M.frac(M.mn('0.35'), M.sqrt(M.row(M.mi('n'), M.mo('+'), M.mn('1')))),
+      ));
+    }
+
+    const kt = UI._mmlKt();
+    switch (assetId) {
+      case 'linearDeclining':
+        // FṼ_{i,t} = 5·k_t  (undiscounted first-version)
+        return M.wrap(M.row(FV, M.mo('='), M.mn('5'), M.mo('·'), kt));
+      case 'constantPerpetual':
+        // FṼ_{i,t} = 5 / 0.05 = 100
+        return M.wrap(M.row(FV, M.mo('='), M.frac(M.mn('5'), M.mn('0.05')), M.mo('='), M.mn('100')));
+      case 'linearGrowth':
+        // FṼ_{i,t} = (2 + 0.3·t) / r
+        return M.wrap(M.row(
+          FV, M.mo('='),
+          M.frac(M.row(M.mn('2'), M.mo('+'), M.mn('0.3'), M.mo('·'), t), r),
+        ));
+      case 'cyclicalSine': {
+        // FṼ_{i,t} = Σ_{s=t..T} [5 + 2·sin(2π(s−1)/10)] / (1+r)^{s−t+1}
+        const s = M.mi('s');
+        const num = M.row(
+          M.mn('5'), M.mo('+'), M.mn('2'), M.mo('·'),
+          M.mi('sin'), M.mo('('),
+          M.frac(M.row(M.mn('2'), M.mi('π'), M.mo('('), s, M.mo('−'), M.mn('1'), M.mo(')')), M.mn('10')),
+          M.mo(')'),
+        );
+        const den = M.sup(
+          M.row(M.mo('('), M.mn('1'), M.mo('+'), r, M.mo(')')),
+          M.row(s, M.mo('−'), t, M.mo('+'), M.mn('1')),
+        );
+        return M.wrap(M.row(
+          FV, M.mo('='),
+          M.subsup(M.mo('Σ'), M.row(s, M.mo('='), t), T),
+          M.frac(num, den),
+        ));
+      }
+      case 'randomWalk':
+        // FṼ_{i,t} = 100
+        return M.wrap(M.row(FV, M.mo('='), M.mn('100')));
+      case 'jumpCrash':
+        // FṼ_{i,t} = 100 − 1.2·k_t
+        return M.wrap(M.row(FV, M.mo('='), M.mn('100'), M.mo('−'), M.mn('1.2'), M.mo('·'), kt));
+      default:
+        return M.wrap(FV);
+    }
+  },
+
+  // Step 2 — heuristic H_{i,t} per v5 §5.{5,11,17,23,29,35}.
+  _heuristicMathML(assetId) {
+    const M = window.Mml;
+    if (!M) return '';
+    const b1 = M.sub(M.mi('β'), M.row(M.mn('1'), M.mi('i')));
+    const b2 = M.sub(M.mi('β'), M.row(M.mn('2'), M.mi('i')));
+    const b3 = M.sub(M.mi('β'), M.row(M.mn('3'), M.mi('i')));
+    const b4 = M.sub(M.mi('β'), M.row(M.mn('4'), M.mi('i')));
+    const H  = UI._mmlH();
+    const T  = M.mi('T');
+    const kt = UI._mmlKt();
+    const trend = M.row(M.mo('('), UI._mmlTrend(), M.mo(')'));
+    const dObs  = UI._mmlDObs();
+    const At    = UI._mmlAt();
+    const dObsAt = M.row(M.mo('('), dObs, M.mo('·'), At, M.mo(')'));
+
+    const gI = M.sub(M.mi('g'), M.mi('i'));
+    const cI = M.sub(M.mi('c'), M.mi('i'));
+    const uI = M.sub(M.mi('u'), M.mi('i'));
+    const hI = M.sub(M.mi('h'), M.mi('i'));
+    const lambdaC = M.sub(M.mi('λ'), M.mi('c'));
+    const maxTrendPos = M.row(M.mi('max'), M.mo('('), UI._mmlTrend(), M.mo(','), M.mn('0'), M.mo(')'));
+    const signTrend   = M.row(M.mi('sign'), M.mo('('), UI._mmlTrend(), M.mo(')'));
+
+    switch (assetId) {
+      case 'linearDeclining':
+        // H = β1·(5T) + β2·Δp + β3·(d̄·A_t)
+        return M.wrap(M.row(
+          H, M.mo('='),
+          b1, M.mo('·'), M.mo('('), M.mn('5'), T, M.mo(')'),
+          M.mo('+'), b2, M.mo('·'), trend,
+          M.mo('+'), b3, M.mo('·'), dObsAt,
+        ));
+      case 'constantPerpetual':
+        // H = β1·100 + β2·Δp + β3·(d̄/0.05)
+        return M.wrap(M.row(
+          H, M.mo('='),
+          b1, M.mo('·'), M.mn('100'),
+          M.mo('+'), b2, M.mo('·'), trend,
+          M.mo('+'), b3, M.mo('·'), M.frac(dObs, M.mn('0.05')),
+        ));
+      case 'linearGrowth':
+        // H = β1·FṼ + β2·Δp + β3·(d̄·A_t) + β4·(g_i + max(Δp, 0))
+        return M.wrap(M.row(
+          H, M.mo('='),
+          b1, M.mo('·'), UI._mmlFvTilde(),
+          M.mo('+'), b2, M.mo('·'), trend,
+          M.mo('+'), b3, M.mo('·'), dObsAt,
+          M.mo('+'), b4, M.mo('·'), M.mo('('), gI, M.mo('+'), maxTrendPos, M.mo(')'),
+        ));
+      case 'cyclicalSine':
+        // H = β1·100 + β2·Δp + β3·(d̄·A_t) + β4·(c_i + λ_c·sign(Δp))
+        return M.wrap(M.row(
+          H, M.mo('='),
+          b1, M.mo('·'), M.mn('100'),
+          M.mo('+'), b2, M.mo('·'), trend,
+          M.mo('+'), b3, M.mo('·'), dObsAt,
+          M.mo('+'), b4, M.mo('·'), M.mo('('), cI, M.mo('+'), lambdaC, M.mo('·'), signTrend, M.mo(')'),
+        ));
+      case 'randomWalk':
+        // H = β1·100 + β2·Δp + β4·u_i  (no DividendSignal term)
+        return M.wrap(M.row(
+          H, M.mo('='),
+          b1, M.mo('·'), M.mn('100'),
+          M.mo('+'), b2, M.mo('·'), trend,
+          M.mo('+'), b4, M.mo('·'), uI,
+        ));
+      case 'jumpCrash': {
+        // H = β1·100 + β2·Δp + β3·(100 + k_t·Ẽ_i[ΔFV]) + β4·(h_i + max(Δp, 0))
+        const dsig = M.row(
+          M.mo('('), M.mn('100'), M.mo('+'),
+          kt, M.mo('·'), UI._mmlEdFv(),
+          M.mo(')'),
+        );
+        return M.wrap(M.row(
+          H, M.mo('='),
+          b1, M.mo('·'), M.mn('100'),
+          M.mo('+'), b2, M.mo('·'), trend,
+          M.mo('+'), b3, M.mo('·'), dsig,
+          M.mo('+'), b4, M.mo('·'), M.mo('('), hI, M.mo('+'), maxTrendPos, M.mo(')'),
+        ));
+      }
+      default:
+        return M.wrap(H);
+    }
+  },
+
+  // Step 3 — prior = [ α_i·FṼ + (1 − α_i)·H ]  · (1 + bias_i)?  + ε_i?
+  _priorMathML(tun) {
+    const M = window.Mml;
+    if (!M) return '';
+    const alpha = UI._mmlAlpha();
+    const bracket = M.row(
+      M.mo('['),
+      alpha, M.mo('·'), UI._mmlFvTilde(),
+      M.mo('+'), M.mo('('), M.mn('1'), M.mo('−'), alpha, M.mo(')'), M.mo('·'), UI._mmlH(),
+      M.mo(']'),
+    );
+    const parts = [UI._mmlPrior(), M.mo('='), bracket];
+    if (tun && tun.applyBias) {
+      parts.push(M.mo('·'), M.mo('('), M.mn('1'), M.mo('+'), M.sub(M.mi('bias'), M.mi('i')), M.mo(')'));
+    }
+    if (tun && tun.applyNoise) {
+      parts.push(M.mo('+'), M.sub(M.mi('ε'), M.mi('i')));
+    }
+    return M.wrap(M.row(...parts));
+  },
+
+  // Step 3 — posterior = ω_i · prior + (1 − ω_i) · m̄_t
+  _posteriorMathML() {
+    const M = window.Mml;
+    if (!M) return '';
+    const omega = UI._mmlOmega();
+    return M.wrap(M.row(
+      UI._mmlVHat(), M.mo('='),
+      omega, M.mo('·'), UI._mmlPrior(),
+      M.mo('+'), M.mo('('), M.mn('1'), M.mo('−'), omega, M.mo(')'), M.mo('·'), UI._mmlMBar(),
+    ));
+  },
+
   /**
    * _blendExperience — apply the post-replacement experience-transfer
    * blend from the Hidden Constants spec:
@@ -1309,29 +1535,10 @@ const UI = {
       ? experienceFactors(rp)
       : { k: rp, alpha: 0.4, sigma: 15, omega: 0.6 };
 
-    const betas = (typeof HEURISTIC_BETAS !== 'undefined')
-      ? HEURISTIC_BETAS
-      : { anchor: 0.5, trend: 0.2, dividend: 0.2, narrative: 0.1 };
-
-    const fvStep = tun.applyComplexDividends
-      ? 'FṼ_{i,t} = μ̂_i · (T − t + 1),  μ̂_i = x̄_n · (1 + ξ),  ξ ~ U[−σ_n, +σ_n],  σ_n = 0.35/√(n+1)  (bounded-rationality path; Complex Dividends ON)'
-      : tpl.fvFormula;
-
-    const heurGeneric =
-      `H_{i,t} = ${betas.anchor.toFixed(2)}·Anchor ` +
-      `+ ${betas.trend.toFixed(2)}·Trend ` +
-      `+ ${betas.dividend.toFixed(2)}·DividendSignal ` +
-      `+ ${betas.narrative.toFixed(2)}·Narrative`;
-    // v5 — prefer the asset-specific heuristic formula from §5.{5,11,17,23,29,35}
-    // so each card shows the exact expression that applies to this asset.
-    const heurStep = tpl.heuristicFormula
-      ? `${heurGeneric}  —  ${tpl.heuristicFormula}`
-      : heurGeneric;
-
-    const biasTerm  = tun.applyBias  ? ' · (1 + bias_i)' : '';
-    const noiseTerm = tun.applyNoise ? ' + ε_i' : '';
-    const priorStep = `prior_{i,t} = [ α_i·FṼ_{i,t} + (1 − α_i)·H_{i,t} ]${biasTerm}${noiseTerm}`;
-    const postStep  = 'V̂_{i,t} = ω_i · prior_{i,t} + (1 − ω_i) · m̄_t';
+    const fvMml   = UI._fvMathML(assetId, tun);
+    const heurMml = UI._heuristicMathML(assetId);
+    const priorMml = UI._priorMathML(tun);
+    const postMml  = UI._posteriorMathML();
 
     const chipList = [
       `α_i = ${exp.alpha.toFixed(2)}`,
@@ -1370,14 +1577,13 @@ const UI = {
       </div>
       <div class="stats-model-steps">
         <span class="stats-model-label">Step 1 · model FṼ</span>
-        <span class="stats-model-value">${UI._escHtml(fvStep)}</span>
+        <span class="stats-model-value">${fvMml}</span>
         <span class="stats-model-label">Step 2 · heuristic H</span>
-        <span class="stats-model-value">${UI._escHtml(heurStep)}</span>
+        <span class="stats-model-value">${heurMml}</span>
         <span class="stats-model-label">Step 3 · prior</span>
-        <span class="stats-model-value">${UI._escHtml(priorStep)}</span>
+        <span class="stats-model-value">${priorMml}</span>
         <span class="stats-model-label">Step 3 · posterior</span>
-        <span class="stats-model-value">${UI._escHtml(postStep)}</span>
-        ${tpl.heuristic ? `<div class="stats-model-note">Common heuristic mistake: ${UI._escHtml(tpl.heuristic)}</div>` : ''}
+        <span class="stats-model-value">${postMml}</span>
       </div>
     `;
   },

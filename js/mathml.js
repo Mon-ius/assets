@@ -419,3 +419,17 @@ if (typeof document !== 'undefined') {
 
 window.Sym = Sym;
 window.hydrateSymbols = hydrateSymbols;
+
+/* Expose the element builders so other modules (ui.js) can assemble
+ * asset-specific MathML on the fly without re-implementing the
+ * <mi>/<mn>/<mo>/<mrow>/<msub>/<msup>/<msubsup>/<mover>/<mfrac>/<msqrt>
+ * grammar. Keeps the native-MathML, no-dependency promise: every new
+ * formula still routes through the same primitives as Sym above. */
+window.Mml = {
+  mi: _mi, mn: _mn, mo: _mo,
+  row: _row,
+  sub: _sub, sup: _sup, subsup: _subsup,
+  hat: _hat, tilde: _tilde, bar: _bar,
+  sqrt: _sqrt, frac: _frac, abs: _abs,
+  wrap: _wrap,
+};
