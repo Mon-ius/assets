@@ -125,6 +125,7 @@ const Sym = {
   xBarN:     _wrap(_sub(_bar(_mi('x')), _row(_mi('n'), _mi('i')))),           // x̄_{n_i}
   muHatI:    _wrap(_sub(_hat(_mi('μ')), _mi('i'))),                           // μ̂_i
   fvHatIt:   _wrap(_sub(_hat(_row(_mi('F'), _mi('V'))), _it)),                // FV̂_{i,t}
+  fvTildeIt: _wrap(_sub(_tilde(_row(_mi('F'), _mi('V'))), _it)),              // FṼ_{i,t}
   priorBias: _wrap(_row(                                                      // FV_t · (1 + δ_i · β)
     _sub(_row(_mi('F'), _mi('V')), _mi('t')), _mo('·'),
     _mo('('), _mn('1'), _mo('+'),
@@ -211,6 +212,15 @@ const Sym = {
   omegaZero:  _wrap(_sub(_mi('ω'), _mn('0'))),                                  // ω_0
   gammaAlpha: _wrap(_sub(_mi('γ'), _mi('α'))),                                  // γ_α
   gammaSigma: _wrap(_sub(_mi('γ'), _mi('σ'))),                                  // γ_σ
+  /* Heuristic mix weights (v3 §4) — per-term weights in the four-term
+     decomposition H_{i,t} = β₁·Anchor + β₂·Trend + β₃·DividendSignal
+     + β₄·Narrative. Surfaced in Advanced Settings so the anchor-vs-
+     trend balance is tunable per session. */
+  betaOne:    _wrap(_sub(_mi('β'), _mn('1'))),                                  // β_1
+  betaTwo:    _wrap(_sub(_mi('β'), _mn('2'))),                                  // β_2
+  betaThree:  _wrap(_sub(_mi('β'), _mn('3'))),                                  // β_3
+  betaFour:   _wrap(_sub(_mi('β'), _mn('4'))),                                  // β_4
+  hIt:        _wrap(_sub(_mi('H'), _it)),                                       // H_{i,t}
   alphaIDef:  _wrap(_row(                                                       // α_i = min{1, α_0 + γ_α · k_i}
     _sub(_mi('α'), _mi('i')), _mo('='),
     _mi('min'), _mo('{'), _mn('1'), _mo(','),

@@ -277,6 +277,84 @@
               <div class="session-rate-grid" id="session-rate-grid"></div>
             </div>
           </div>
+
+          <!-- Experience-curve anchors + growth rates (v3 §3).
+               Violet tiles so the experience row reads visually as a
+               distinct group from the amber session-structure row
+               above and the blue heuristic-β row below. Each tile
+               carries a data-tip-id pointing at a rich hover template
+               so mousing over surfaces the full formula + intuition. -->
+          <div class="param-row dlm-treatment-row" id="adv-experience-row">
+            <div class="dlm-treatment-opt scale-tile scale-tile-violet" data-tip-id="advAlphaZero">
+              <div class="param-head">
+                <label for="p-exp-alpha0">Model reliance anchor <span data-sym="alphaZero"></span></label>
+                <span class="pval" id="v-exp-alpha0">0.40</span>
+              </div>
+              <input type="range" id="p-exp-alpha0" class="scale-slider" min="0" max="1" step="0.01" value="0.40">
+            </div>
+            <div class="dlm-treatment-opt scale-tile scale-tile-violet" data-tip-id="advGammaAlpha">
+              <div class="param-head">
+                <label for="p-exp-gammaAlpha">Experience growth <span data-sym="gammaAlpha"></span></label>
+                <span class="pval" id="v-exp-gammaAlpha">0.15</span>
+              </div>
+              <input type="range" id="p-exp-gammaAlpha" class="scale-slider" min="0" max="0.5" step="0.01" value="0.15">
+            </div>
+            <div class="dlm-treatment-opt scale-tile scale-tile-violet" data-tip-id="advSigmaZero">
+              <div class="param-head">
+                <label for="p-exp-sigma0">Noise anchor <span data-sym="sigmaZero"></span></label>
+                <span class="pval" id="v-exp-sigma0">15.0</span>
+              </div>
+              <input type="range" id="p-exp-sigma0" class="scale-slider" min="0" max="40" step="0.5" value="15">
+            </div>
+            <div class="dlm-treatment-opt scale-tile scale-tile-violet" data-tip-id="advGammaSigma">
+              <div class="param-head">
+                <label for="p-exp-gammaSigma">Noise decay <span data-sym="gammaSigma"></span></label>
+                <span class="pval" id="v-exp-gammaSigma">0.30</span>
+              </div>
+              <input type="range" id="p-exp-gammaSigma" class="scale-slider" min="0" max="1" step="0.01" value="0.30">
+            </div>
+          </div>
+
+          <!-- Heuristic-mix weights β_1..β_4 (v3 §4).
+               Blue-accent tiles for the four-term decomposition
+               H_{i,t} = β_1·Anchor + β_2·Trend + β_3·DividendSignal
+                        + β_4·Narrative.  The Σβ chip at the end of
+               the row is purely informational — defaults sum to 1
+               and turn red when the user drags them off-spec. -->
+          <div class="param-row dlm-treatment-row" id="adv-beta-row">
+            <div class="dlm-treatment-opt scale-tile scale-tile-blue" data-tip-id="advBetaAnchor">
+              <div class="param-head">
+                <label for="p-beta-anchor">Anchor <span data-sym="betaOne"></span></label>
+                <span class="pval" id="v-beta-anchor">0.50</span>
+              </div>
+              <input type="range" id="p-beta-anchor" class="scale-slider" min="0" max="1" step="0.01" value="0.50">
+            </div>
+            <div class="dlm-treatment-opt scale-tile scale-tile-blue" data-tip-id="advBetaTrend">
+              <div class="param-head">
+                <label for="p-beta-trend">Trend <span data-sym="betaTwo"></span></label>
+                <span class="pval" id="v-beta-trend">0.20</span>
+              </div>
+              <input type="range" id="p-beta-trend" class="scale-slider" min="0" max="1" step="0.01" value="0.20">
+            </div>
+            <div class="dlm-treatment-opt scale-tile scale-tile-blue" data-tip-id="advBetaDividend">
+              <div class="param-head">
+                <label for="p-beta-dividend">Dividend <span data-sym="betaThree"></span></label>
+                <span class="pval" id="v-beta-dividend">0.20</span>
+              </div>
+              <input type="range" id="p-beta-dividend" class="scale-slider" min="0" max="1" step="0.01" value="0.20">
+            </div>
+            <div class="dlm-treatment-opt scale-tile scale-tile-blue" data-tip-id="advBetaNarrative">
+              <div class="param-head">
+                <label for="p-beta-narrative">Narrative <span data-sym="betaFour"></span></label>
+                <span class="pval" id="v-beta-narrative">0.10</span>
+              </div>
+              <input type="range" id="p-beta-narrative" class="scale-slider" min="0" max="1" step="0.01" value="0.10">
+            </div>
+          </div>
+          <div class="param-row beta-sum-row">
+            <span class="beta-sum-chip" id="v-beta-sum">Σβ = 1.00</span>
+          </div>
+
           <div class="param-row dlm-treatment-row">
             <label class="dlm-treatment-opt" data-tip-id="advBias">
               <span>Prior Bias</span>
@@ -443,19 +521,9 @@
         <dd class="const-note">Applied as $b_i = \delta_i \cdot \beta$ with $\beta = 0.15$; sign set by the per-slot bias direction $\delta_i \in \{-1, 0, +1\}$ (see Architecture Figure 2). Drives the biased U-agent slots in the default strategy cube (U2, U4, U5). Not in DLM 2005; chosen large enough to perturb the market without dominating the risk-preference split.<span class="const-src">agents.js — UTILITY_DEFAULTS.biasAmount</span></dd>
       </div>
       <div class="const-item">
-        <dt>novice model reliance <span data-sym="alphaZero"></span> <span class="const-val">= 0.40</span></dt>
-        <dd class="const-label">Anchor for the per-agent α<sub>i</sub> at experience k<sub>i</sub> = 0</dd>
-        <dd class="const-note">First of three experience-indexed modelling parameters from v3 §3. The rule is <span data-sym="alphaIDef"></span>, where <span data-sym="kI"></span> ≡ <code>agent.roundsPlayed</code> (integer rounds the agent has actually played in this session) and <span data-sym="gammaAlpha"></span> = 0.15 is the per-round growth. <span data-sym="alphaI"></span> is the weight an agent places on its model-based (FV-anchored) valuation relative to its own heuristic reading of recent prices: at the inexperienced anchor <span data-sym="alphaZero"></span> = 0.40 a novice trusts the model 40%, and after roughly four rounds the min-cap clips <span data-sym="alphaI"></span> at 1. Why 0.40: it reproduces the v3 calibration in which k<sub>i</sub> = 0 agents are bubble-prone and k<sub>i</sub> ≥ 4 agents converge to rational anchoring. Not in DLM 2005, which has no belief-update model. <strong>Asset-swap blend:</strong> from round <em>r</em> onward (after the round-<em>r</em>&minus;1 replacement) experienced traders read <span data-sym="alphaI"></span> as α<sub>new</sub> = |corr| · α<sub>trained</sub> + (1 − |corr|) · <span data-sym="alphaZero"></span>, where |corr| is the Pearson correlation of the pre- and post-asset r<sub>0</sub> FV paths from the session-row selector. Fully correlated assets (|corr| = 1) preserve training; uncorrelated ones (|corr| = 0) reset experienced agents to <span data-sym="alphaZero"></span>.<span class="const-src">utility.js — EXPERIENCE_ALPHA_0, EXPERIENCE_GAMMA_ALPHA · ui.js — UI._blendExperience</span></dd>
-      </div>
-      <div class="const-item">
-        <dt>novice valuation noise <span data-sym="sigmaZero"></span> <span class="const-val">= 15</span></dt>
-        <dd class="const-label">Anchor for the per-agent σ<sub>i</sub> at experience k<sub>i</sub> = 0</dd>
-        <dd class="const-note">Second experience-indexed parameter. The rule is <span data-sym="sigmaIDef"></span>, with <span data-sym="gammaSigma"></span> = 0.30 decay per round. <span data-sym="sigmaI"></span> is the standard deviation (in cents) of the i.i.d. draw an agent adds to its subjective valuation each period to model computational imprecision; a novice at <span data-sym="sigmaZero"></span> = 15 produces ±15¢ spread around the model anchor (on an asset with FV<sub>1</sub> = 100 that is the same ±15% band the Advanced → Prior Noise toggle emulates at k<sub>i</sub> = 0). Experience contracts this exponentially — by k<sub>i</sub> = 3 the noise is ≈ 6¢ and by k<sub>i</sub> = 10 it is &lt; 1¢. This is the "experience kills the bubble" channel from DLM 2005 restated as a computational-precision decay; DLM itself specifies no noise model. <strong>Asset-swap blend:</strong> for round ≥ <em>r</em> the displayed <span data-sym="sigmaI"></span> is σ<sub>new</sub> = |corr| · σ<sub>trained</sub> + (1 − |corr|) · <span data-sym="sigmaZero"></span>, so swapping into an uncorrelated post-asset widens the noise band back up toward 15¢ even for veteran traders.<span class="const-src">utility.js — EXPERIENCE_SIGMA_0, EXPERIENCE_GAMMA_SIGMA · ui.js — UI._blendExperience</span></dd>
-      </div>
-      <div class="const-item">
         <dt>novice self-weight <span data-sym="omegaZero"></span> <span class="const-val">= 0.60</span></dt>
         <dd class="const-label">Anchor for the per-agent ω<sub>i</sub> at experience k<sub>i</sub> = 0</dd>
-        <dd class="const-note">Third experience-indexed parameter. The rule is <span data-sym="omegaIDef"></span>, so <span data-sym="omegaI"></span> saturates at 0.9 once k<sub>i</sub> ≥ 3: k<sub>i</sub> = 0 ⇒ 0.60, k<sub>i</sub> = 1 ⇒ 0.70, k<sub>i</sub> = 2 ⇒ 0.80, k<sub>i</sub> ≥ 3 ⇒ 0.90. <span data-sym="omegaI"></span> is the convex weight on the agent's <em>own</em> prior when it blends peer opinion into its posterior: V<sup>post</sup><sub>i,t</sub> = <span data-sym="omegaI"></span>·V<sup>prior</sup><sub>i,t</sub> + (1 − <span data-sym="omegaI"></span>)·m̄<sub>t</sub> (v3 §2). At the novice anchor <span data-sym="omegaZero"></span> = 0.60 a fresh agent leans 40% toward the market aggregate m̄<sub>t</sub>; veterans with k<sub>i</sub> ≥ 3 absorb only 10% of peer belief, matching the DLM observation that experienced subjects anchor to fundamentals and ignore the crowd. Not in DLM 2005 (which has no messaging layer at all); chosen so the novice weight matches the legacy naive-prior-weight above (also 0.60) for continuity with Plan I. <strong>Asset-swap blend:</strong> from round <em>r</em> on, ω<sub>new</sub> = |corr| · ω<sub>trained</sub> + (1 − |corr|) · <span data-sym="omegaZero"></span>, so a veteran handed an uncorrelated post-asset drops back to the 0.60 crowd-trust of a novice and regains confidence only as the pre-round r<sub>0</sub> simulation shows the two assets share dynamics.<span class="const-src">utility.js — EXPERIENCE_OMEGA_0, EXPERIENCE_OMEGA_STEP, EXPERIENCE_OMEGA_KMAX · ui.js — UI._blendExperience</span></dd>
+        <dd class="const-note">Third experience-indexed parameter, and the one anchor of the triple (<span data-sym="alphaZero"></span>, <span data-sym="sigmaZero"></span>, <span data-sym="omegaZero"></span>) that is <em>not</em> exposed as an Advanced-Settings slider — it is held fixed so the experience-transfer blend has a stable novice baseline across sessions. The two tunable anchors (<span data-sym="alphaZero"></span>, <span data-sym="sigmaZero"></span>) and their growth rates (<span data-sym="gammaAlpha"></span>, <span data-sym="gammaSigma"></span>) live under <em>Advanced settings → Experience anchors & growth rates</em>; this row documents the remaining fixed piece. The rule is <span data-sym="omegaIDef"></span>, so <span data-sym="omegaI"></span> saturates at 0.9 once k<sub>i</sub> ≥ 3: k<sub>i</sub> = 0 ⇒ 0.60, k<sub>i</sub> = 1 ⇒ 0.70, k<sub>i</sub> = 2 ⇒ 0.80, k<sub>i</sub> ≥ 3 ⇒ 0.90. <span data-sym="omegaI"></span> is the convex weight on the agent's <em>own</em> prior when it blends peer opinion into its posterior: V<sup>post</sup><sub>i,t</sub> = <span data-sym="omegaI"></span>·V<sup>prior</sup><sub>i,t</sub> + (1 − <span data-sym="omegaI"></span>)·m̄<sub>t</sub> (v3 §2). Not in DLM 2005 (which has no messaging layer at all); chosen so the novice weight matches the legacy naive-prior-weight above (also 0.60) for continuity with Plan I. <strong>Asset-swap blend:</strong> from round <em>r</em> on, ω<sub>new</sub> = |corr| · ω<sub>trained</sub> + (1 − |corr|) · <span data-sym="omegaZero"></span>, so a veteran handed an uncorrelated post-asset drops back to the 0.60 crowd-trust of a novice and regains confidence only as the pre-round r<sub>0</sub> simulation shows the two assets share dynamics.<span class="const-src">utility.js — ExperienceConfig.omega0, omegaStep, omegaKmax · ui.js — UI._blendExperience</span></dd>
       </div>
           </dl>
         </div>
@@ -2302,6 +2370,44 @@ Action Rules
   <p>Regulator (Plan II / III only). The slider value <span data-sym="theta"></span> is the bubble-ratio threshold <span data-sym="bubbleRatioRaw"></span> at which the regulator fires its one-shot warning. <span data-sym="theta"></span> = 0 disables it.</p>
   <p>When <span data-sym="theta"></span> &gt; 0 the engine monitors the ratio at every period boundary; the first time it crosses <span data-sym="theta"></span> within a round it injects a <code>REGULATOR WARNING</code> block into every Utility agent's LLM prompt for the rest of that round (cleared at the next <code>round_start</code>).</p>
   <p>Plan I has no LLM channel, so the toggle is recorded in the snapshot but agent behavior is unchanged.</p>
+</template>
+<template id="tpl-advAlphaZero">
+  <p><strong>Model reliance anchor</strong> <span data-sym="alphaZero"></span> — the weight a fully-inexperienced agent (<span data-sym="kI"></span> = 0) places on the model-based valuation <span data-sym="fvTildeIt"></span> relative to its own heuristic reading <span data-sym="hIt"></span> in the v3 §2 prior $V_{i,t}^{\text{prior}} = [\alpha_i\!\cdot\!\widetilde{\mathrm{FV}}_{i,t} + (1-\alpha_i)\!\cdot\!H_{i,t}]\,(1 + b_i) + \varepsilon_i$.</p>
+  <p>Live rule <span data-sym="alphaIDef"></span>: at the default <span data-sym="alphaZero"></span> = 0.40 a novice trusts the model 40% and the heuristic 60%; after <span data-sym="gammaAlpha"></span><sup>-1</sup>(1 − <span data-sym="alphaZero"></span>) ≈ 4 rounds the <code>min</code>-cap clips <span data-sym="alphaI"></span> at 1 and experienced traders are pure model-followers.</p>
+  <p>Dragging <span data-sym="alphaZero"></span> rightward makes even green agents more model-anchored (bubble-prone less), leftward makes them more heuristic-driven (bubble-prone more). The post-replacement asset-swap blend <span data-sym="alphaZero"></span> ← |corr| · <span data-sym="alphaZero"></span><sub>trained</sub> + (1 − |corr|) · <span data-sym="alphaZero"></span> reads off the anchor you set here.</p>
+</template>
+<template id="tpl-advGammaAlpha">
+  <p><strong>Experience growth rate</strong> <span data-sym="gammaAlpha"></span> — how fast <span data-sym="alphaI"></span> ramps per round of experience. Rule <span data-sym="alphaIDef"></span>.</p>
+  <p>At the default <span data-sym="gammaAlpha"></span> = 0.15 the step from <span data-sym="alphaZero"></span> = 0.40 to the saturation value 1.00 takes 4 rounds, matching DLM 2005's observation that experience kills the bubble by round 4. Larger <span data-sym="gammaAlpha"></span> collapses the novice-veteran gap (everyone converges faster); smaller values stretch it out so bubble-prone behavior persists deeper into the session.</p>
+  <p>Set <span data-sym="gammaAlpha"></span> = 0 to lock every agent at its novice <span data-sym="alphaZero"></span> for the whole batch — useful for testing whether the replacement channel alone generates any bubble attenuation.</p>
+</template>
+<template id="tpl-advSigmaZero">
+  <p><strong>Novice valuation noise</strong> <span data-sym="sigmaZero"></span> — the standard deviation (in cents) of the Gaussian draw an inexperienced agent adds to its subjective valuation each period: <span data-sym="epsilon"></span> ~ <span data-sym="normalDist"></span> with <span data-sym="sigmaIDef"></span>.</p>
+  <p>At the default <span data-sym="sigmaZero"></span> = 15 a novice's prior jitters ±15¢ around the model anchor (≈ ±15% on an asset with <span data-sym="fv"></span><sub>1</sub> = 100). Experience contracts this exponentially — at <span data-sym="kI"></span> = 3 the noise is ≈ 6¢ and at <span data-sym="kI"></span> = 10 it falls below 1¢.</p>
+  <p>This is the "experience kills the bubble" channel restated as computational-precision decay. Advanced → Prior Noise must be ON for the noise to actually feed <code>updateBelief</code>; toggling it OFF zeros every <span data-sym="epsilon"></span> regardless of the <span data-sym="sigmaZero"></span> value set here.</p>
+</template>
+<template id="tpl-advGammaSigma">
+  <p><strong>Noise decay rate</strong> <span data-sym="gammaSigma"></span> — the exponential decay rate of <span data-sym="sigmaI"></span> per round of experience. Rule <span data-sym="sigmaIDef"></span>.</p>
+  <p>At the default <span data-sym="gammaSigma"></span> = 0.30 the half-life is ln(2)/0.30 ≈ 2.3 rounds: <span data-sym="kI"></span> = 2 agents are at ≈55% of the novice noise, <span data-sym="kI"></span> = 4 agents at ≈30%. Setting <span data-sym="gammaSigma"></span> = 0 freezes every agent at <span data-sym="sigmaZero"></span> (no experience-driven precision gain); high values (≥ 0.7) collapse experienced agents to near-zero noise in a single round.</p>
+  <p>Combine with a lowered <span data-sym="gammaAlpha"></span> to study "precise but heuristic" cohorts where traders sharpen their computation before they start trusting the model.</p>
+</template>
+<template id="tpl-advBetaAnchor">
+  <p><strong>Anchor weight</strong> <span data-sym="betaOne"></span> in the heuristic mix <span data-sym="hIt"></span> = <span data-sym="betaOne"></span>·Anchor + <span data-sym="betaTwo"></span>·Trend + <span data-sym="betaThree"></span>·DividendSignal + <span data-sym="betaFour"></span>·Narrative (v3 §4).</p>
+  <p>The Anchor term reads off the asset's current <span data-sym="fv"></span><sub>t</sub> — so a pure-anchor heuristic (<span data-sym="betaOne"></span> = 1, others = 0) collapses <span data-sym="hIt"></span> to <span data-sym="fv"></span><sub>t</sub> and the prior becomes a pure <span data-sym="fvTildeIt"></span> / <span data-sym="fv"></span> blend. At the default <span data-sym="betaOne"></span> = 0.50 it dominates the heuristic mix.</p>
+  <p>Dragging <span data-sym="betaOne"></span> rightward makes the heuristic branch model-anchored (bubble-attenuating); leftward hands weight to the trend / dividend / narrative terms and lets price momentum, recent draws, or regime stories drive the heuristic instead.</p>
+</template>
+<template id="tpl-advBetaTrend">
+  <p><strong>Trend weight</strong> <span data-sym="betaTwo"></span> in the heuristic mix <span data-sym="hIt"></span>. The Trend term tracks the first difference of recent prices (v3 §4.2) and is omitted at t = 1 because there is no previous period to difference against (§6.3).</p>
+  <p>Default <span data-sym="betaTwo"></span> = 0.20. Raising it makes heuristic traders chase momentum — a classic bubble amplifier. <span data-sym="betaTwo"></span> = 0 kills the momentum channel entirely, leaving the heuristic reading a mix of level and fundamentals.</p>
+</template>
+<template id="tpl-advBetaDividend">
+  <p><strong>Dividend-signal weight</strong> <span data-sym="betaThree"></span> in the heuristic mix <span data-sym="hIt"></span>. The DividendSignal term reads off the running mean of observed dividends (v3 §4.3), acting as a coarse empirical proxy for the asset's cash-flow rate.</p>
+  <p>Default <span data-sym="betaThree"></span> = 0.20. Up-weighting it makes heuristic agents lean on empirical dividend history (slower but more grounded); down-weighting cuts the link to realised cash flows and leaves the heuristic purely price-driven.</p>
+</template>
+<template id="tpl-advBetaNarrative">
+  <p><strong>Narrative weight</strong> <span data-sym="betaFour"></span> in the heuristic mix <span data-sym="hIt"></span>. The Narrative term encodes per-asset regime priors (v3 §4.4) — e.g. a "this asset is in a growth regime" or "this asset is in a crash regime" tilt, asset-specific by construction.</p>
+  <p>Default <span data-sym="betaFour"></span> = 0.10, the smallest of the four <span data-sym="betaOne"></span>..<span data-sym="betaFour"></span> by design. Raising it lets asset-specific priors bias the heuristic branch (useful for studying narrative-driven bubbles); lowering it collapses the heuristic toward the anchor / trend / dividend trio.</p>
+  <p>The four weights do not have to sum to 1 — the Σβ chip at the end of the β-row shows the current total so you can tell at a glance when the mix has drifted off the v3 §6.2 spec (which fixes Σβ = 1 at 0.5 / 0.2 / 0.2 / 0.1).</p>
 </template>
 <template id="tpl-advBoundedRationality">
   <p><strong>Bounded Rationality</strong> (Plan II / III only). Caps the LLM trader's cognitive budget so it trades like a human subject instead of a textbook optimiser.</p>

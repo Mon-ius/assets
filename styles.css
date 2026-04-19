@@ -1483,6 +1483,63 @@ body:not(.plan-ii):not(.plan-iii) .plan-llm-only { display: none !important; }
 .dlm-treatment-opt.scale-tile.scale-tile-amber input[type=range].scale-slider::-moz-range-progress {
   background: transparent;
 }
+/* Violet variant — v3 §3 experience-curve anchors (α₀, γ_α, σ₀, γ_σ).
+   Sits between the amber session-structure row and the blue heuristic
+   row so the three bands of Advanced Settings read as distinct groups. */
+.dlm-treatment-opt.scale-tile.scale-tile-violet {
+  border-color: var(--purple);
+  background: color-mix(in srgb, var(--purple) 8%, var(--bg-1));
+}
+.dlm-treatment-opt.scale-tile.scale-tile-violet:hover {
+  border-color: var(--purple);
+}
+.dlm-treatment-opt.scale-tile.scale-tile-violet .param-head .pval {
+  background: var(--purple);
+}
+.dlm-treatment-opt.scale-tile.scale-tile-violet input[type=range].scale-slider {
+  --accent: var(--purple);
+  --accent-light: color-mix(in srgb, var(--purple) 22%, transparent);
+}
+/* Blue variant — v3 §4 heuristic-mix weights β₁..β₄. */
+.dlm-treatment-opt.scale-tile.scale-tile-blue {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-1));
+}
+.dlm-treatment-opt.scale-tile.scale-tile-blue:hover {
+  border-color: var(--accent);
+}
+.dlm-treatment-opt.scale-tile.scale-tile-blue .param-head .pval {
+  background: var(--accent);
+}
+.dlm-treatment-opt.scale-tile.scale-tile-blue input[type=range].scale-slider {
+  --accent: #2563eb;
+  --accent-light: color-mix(in srgb, #2563eb 22%, transparent);
+}
+/* Σβ readout. Sits flush-right under the β row; turns red/amber when
+   the four weights drift off the unit-sum default so the user has a
+   visible reminder that H_{i,t} is no longer a convex combination. */
+.param-row.beta-sum-row {
+  justify-content: flex-end;
+  margin-top: -2px;
+}
+.beta-sum-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-family: var(--mono, ui-monospace, Menlo, monospace);
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-2);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+}
+.beta-sum-chip.beta-sum-off {
+  color: #fff;
+  background: var(--amber);
+  border-color: var(--amber);
+}
 /* Per-session rate grid — 10 compact rows nested inside the
    scale-tile-amber host. Each row carries {idx, slider, pct readout,
    asset dropdown}, so a single-column layout gives every row room for

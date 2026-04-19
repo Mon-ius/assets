@@ -134,28 +134,38 @@ function markPrice(market) {
    experienceFactors() below for the single call site used by the UI
    and (eventually) by the belief-revision code. */
 
-const EXPERIENCE_ALPHA_0       = 0.40;  // anchor for model reliance
-const EXPERIENCE_GAMMA_ALPHA   = 0.15;  // per-round growth of α_i
-const EXPERIENCE_SIGMA_0       = 15;    // anchor for valuation noise
-const EXPERIENCE_GAMMA_SIGMA   = 0.30;  // per-round decay rate of σ_i
-const EXPERIENCE_OMEGA_0       = 0.60;  // anchor for self-weight ω_i
-const EXPERIENCE_OMEGA_STEP    = 0.10;  // per-round increment of ω_i
-const EXPERIENCE_OMEGA_KMAX    = 3;     // saturation horizon for ω_i
+/* Experience anchors + growth rates as a mutable config object so the
+ * Advanced Settings sliders (α_0, γ_α, σ_0, γ_σ) can live-edit what
+ * `experienceFactors()` reads without threading a ctx argument through
+ * the six call sites (agents.js, ui.js × 3, utility.js × 2). ω_0 and
+ * the saturation horizon stay fixed — the UI exposes the four terms
+ * that materially drive the v3 §3 experience curve. Main.js keeps this
+ * object in lock-step with App.tunables on every rebuild. */
+const ExperienceConfig = {
+  alpha0:     0.40,  // anchor for model reliance
+  gammaAlpha: 0.15,  // per-round growth of α_i
+  sigma0:     15,    // anchor for valuation noise
+  gammaSigma: 0.30,  // per-round decay rate of σ_i
+  omega0:     0.60,  // anchor for self-weight ω_i (not slider-backed)
+  omegaStep:  0.10,  // per-round increment of ω_i
+  omegaKmax:  3,     // saturation horizon for ω_i
+};
 
 /**
  * experienceFactors — return the per-agent (α_i, σ_i, ω_i) triple
  * implied by an integer experience level k. Safe for any finite k ≥ 0;
  * non-finite or negative inputs are clamped to 0 so a fresh replacement
- * agent always reports the novice triple (0.40, 15, 0.60).
+ * agent always reports the novice triple (α_0, σ_0, ω_0) from the
+ * current ExperienceConfig.
  */
 function experienceFactors(k) {
   const ki = Math.max(0, Number.isFinite(k) ? Math.floor(k) : 0);
+  const c  = ExperienceConfig;
   return {
     k:     ki,
-    alpha: Math.min(1, EXPERIENCE_ALPHA_0 + EXPERIENCE_GAMMA_ALPHA * ki),
-    sigma: EXPERIENCE_SIGMA_0 * Math.exp(-EXPERIENCE_GAMMA_SIGMA * ki),
-    omega: EXPERIENCE_OMEGA_0
-         + EXPERIENCE_OMEGA_STEP * Math.min(EXPERIENCE_OMEGA_KMAX, ki),
+    alpha: Math.min(1, c.alpha0 + c.gammaAlpha * ki),
+    sigma: c.sigma0 * Math.exp(-c.gammaSigma * ki),
+    omega: c.omega0 + c.omegaStep * Math.min(c.omegaKmax, ki),
   };
 }
 

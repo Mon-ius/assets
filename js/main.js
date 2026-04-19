@@ -116,6 +116,28 @@ const App = {
     // further back than a human subject's working memory. Plan I is
     // unaffected — the toggle is a pure prompt-level constraint.
     applyBoundedRationality: false,
+    // Experience-curve anchors (v3 §3). Live-tunable via Advanced
+    // Settings sliders; main.js copies them into ExperienceConfig on
+    // every rebuild so utility.experienceFactors() picks up the new
+    // values before the engine ticks. α_0/σ_0/ω_0 are the novice
+    // anchors at k_i = 0; γ_α and γ_σ are the per-round growth/decay
+    // rates. ω_0 is intentionally omitted from the slider row to
+    // keep the experience-transfer novice baseline stable across
+    // sessions; edit it via ExperienceConfig directly if needed.
+    expAlpha0:      0.40,
+    expGammaAlpha:  0.15,
+    expSigma0:      15,
+    expGammaSigma:  0.30,
+    // Heuristic-mix weights (v3 §4). Live-tunable via Advanced
+    // Settings sliders; main.js copies them into HEURISTIC_BETAS on
+    // every rebuild so utility.heuristicValue() picks them up.
+    // Defaults from v3 §6.2 sum to 1; the sliders allow arbitrary
+    // non-negative values and the sum is displayed on the row so
+    // the user can tell when they are off-spec.
+    betaAnchor:     0.50,
+    betaTrend:      0.20,
+    betaDividend:   0.20,
+    betaNarrative:  0.10,
   },
 
   // Research plan — 'I' | 'II' | 'III'. Plan I is the algorithm-only
@@ -425,6 +447,20 @@ const App = {
     'p-risk-loving': { target: 'riskMix.loving',  out: 'v-risk-loving',  fmt: v => v + '%', int: true },
     'p-risk-neutral':{ target: 'riskMix.neutral', out: 'v-risk-neutral', fmt: v => v + '%', int: true },
     'p-risk-averse': { target: 'riskMix.averse',  out: 'v-risk-averse',  fmt: v => v + '%', int: true },
+    // Experience anchors + growth rates (v3 §3). Slider steps are chosen
+    // so the readout is stable and the UI doesn't churn: two decimals for
+    // the [0, 1]-ish weights, one decimal for σ_0.
+    'p-exp-alpha0':     { target: 'tunables.expAlpha0',     out: 'v-exp-alpha0',     fmt: v => v.toFixed(2) },
+    'p-exp-gammaAlpha': { target: 'tunables.expGammaAlpha', out: 'v-exp-gammaAlpha', fmt: v => v.toFixed(2) },
+    'p-exp-sigma0':     { target: 'tunables.expSigma0',     out: 'v-exp-sigma0',     fmt: v => v.toFixed(1) },
+    'p-exp-gammaSigma': { target: 'tunables.expGammaSigma', out: 'v-exp-gammaSigma', fmt: v => v.toFixed(2) },
+    // Heuristic-mix weights β_1..β_4 (v3 §4). Allowed to drift off the
+    // Σ = 1 spec so researchers can study, e.g., pure-anchor or pure-
+    // trend heuristics without manually rebalancing the other weights.
+    'p-beta-anchor':    { target: 'tunables.betaAnchor',    out: 'v-beta-anchor',    fmt: v => v.toFixed(2) },
+    'p-beta-trend':     { target: 'tunables.betaTrend',     out: 'v-beta-trend',     fmt: v => v.toFixed(2) },
+    'p-beta-dividend':  { target: 'tunables.betaDividend',  out: 'v-beta-dividend',  fmt: v => v.toFixed(2) },
+    'p-beta-narrative': { target: 'tunables.betaNarrative', out: 'v-beta-narrative', fmt: v => v.toFixed(2) },
   },
 
   _wireParamsPanel() {
@@ -453,6 +489,20 @@ const App = {
         this._updateSliderPct(e.target);
         if (spec.target.startsWith('riskMix.')) this._constrainRiskMix(inputId);
         if (spec.target.startsWith('mix.'))     this._constrainMix();
+        // Experience + heuristic-β sliders: mirror the new value into
+        // ExperienceConfig / HEURISTIC_BETAS mid-drag so the live
+        // engine ticks and the Σβ readout pick up changes before the
+        // slider is released (release still triggers a full rebuild).
+        if (spec.target === 'tunables.expAlpha0'
+         || spec.target === 'tunables.expGammaAlpha'
+         || spec.target === 'tunables.expSigma0'
+         || spec.target === 'tunables.expGammaSigma'
+         || spec.target === 'tunables.betaAnchor'
+         || spec.target === 'tunables.betaTrend'
+         || spec.target === 'tunables.betaDividend'
+         || spec.target === 'tunables.betaNarrative') {
+          this._syncTunableConfigs();
+        }
       });
       input.addEventListener('change', () => {
         // Structural edits (population mix counts, risk-share shares,
@@ -1525,6 +1575,44 @@ const App = {
    * property on one range input. The CSS track uses this as a
    * linear-gradient stop so the filled portion follows the thumb.
    */
+  /**
+   * Copy the Advanced-Settings experience/heuristic tunables into the
+   * module-scoped config objects that utility.js reads. Called from
+   * rebuild() (so every soft-param change propagates before the engine
+   * spins up) and also from the slider `input` handler for the
+   * experience + β_i rows so the running engine picks up drags in
+   * real time rather than waiting for release.  Both targets are
+   * plain objects whose identity is preserved by reference, so
+   * downstream consumers that cached them (e.g. ctx.heuristicBetas
+   * in Engine's ctx) see the new values automatically.
+   */
+  _syncTunableConfigs() {
+    if (typeof ExperienceConfig !== 'undefined') {
+      ExperienceConfig.alpha0     = this.tunables.expAlpha0;
+      ExperienceConfig.gammaAlpha = this.tunables.expGammaAlpha;
+      ExperienceConfig.sigma0     = this.tunables.expSigma0;
+      ExperienceConfig.gammaSigma = this.tunables.expGammaSigma;
+    }
+    if (typeof HEURISTIC_BETAS !== 'undefined') {
+      HEURISTIC_BETAS.anchor    = this.tunables.betaAnchor;
+      HEURISTIC_BETAS.trend     = this.tunables.betaTrend;
+      HEURISTIC_BETAS.dividend  = this.tunables.betaDividend;
+      HEURISTIC_BETAS.narrative = this.tunables.betaNarrative;
+    }
+    // Keep the Σβ readout honest even mid-drag. The readout lives
+    // outside the per-slider pval so the user can see whether the
+    // four-term mix still sums to 1 as defaults, or has drifted.
+    const sumEl = document.getElementById('v-beta-sum');
+    if (sumEl) {
+      const s = (this.tunables.betaAnchor || 0)
+              + (this.tunables.betaTrend || 0)
+              + (this.tunables.betaDividend || 0)
+              + (this.tunables.betaNarrative || 0);
+      sumEl.textContent = 'Σβ = ' + s.toFixed(2);
+      sumEl.classList.toggle('beta-sum-off', Math.abs(s - 1) > 0.005);
+    }
+  },
+
   _updateSliderPct(el) {
     if (!el) return;
     const min = Number(el.min) || 0;
@@ -1611,6 +1699,15 @@ const App = {
     if (this.engine) this.engine.pause();
     Order.nextId = 1;
     Trade.nextId = 1;
+
+    // Fold the Advanced Settings experience/heuristic sliders into the
+    // module-scoped config objects that utility.js reads. Both objects
+    // are mutable by design so we can pick up live edits without
+    // threading a ctx argument through every experienceFactors() /
+    // heuristicValue() call site (ui.js × 3, agents.js × 1, utility.js
+    // × 2).  Done before the engine/agents are reconstructed so the
+    // first tick of the new session uses the freshly-set values.
+    this._syncTunableConfigs();
 
     // Nothing is folded from tunables into config here any more:
     // periods, dividendMean, and ticksPerPeriod are all fixed
