@@ -1274,7 +1274,13 @@ body:not(.plan-iii) .plan-iii-only { display: none !important; }
 }
 .dlm-treatment-row {
   display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
   gap: 10px;
+}
+.dlm-treatment-row > .dlm-treatment-opt {
+  flex: 1 1 0;
+  min-width: 0;
 }
 /* Trade-settings session-mix summary — reports the computed treatment
    size used in each of the 10 batch sessions. Layout is a flex-wrap row
