@@ -123,9 +123,10 @@ function markPrice(market) {
    parameters depend on k_i and shape how confidently that agent anchors
    to its own model vs. the crowd:
 
-       α_i = min{1, α_0 + γ_α · k_i}          (model confidence — v3 §2
-                                               "level of trust in the
-                                               model-based valuation")
+       α_i = min{1, α_0 + γ_α · k_i}          (fundamental weight —
+                                               v3 §2; weight placed on
+                                               the model-based valuation
+                                               FṼ in the prior)
        σ_i = σ_0 · e^{−γ_σ · k_i}             (valuation noise)
        ω_i = 0.6 + 0.1 · min(3, k_i)          (self-vs-crowd blend)
 
@@ -144,7 +145,7 @@ function markPrice(market) {
  * that materially drive the v3 §3 experience curve. Main.js keeps this
  * object in lock-step with App.tunables on every rebuild. */
 const ExperienceConfig = {
-  alpha0:     0.40,  // novice level of confidence in model-based valuation (v3 §2)
+  alpha0:     0.40,  // novice fundamental weight on model-based valuation (v3 §2)
   gammaAlpha: 0.15,  // per-round growth of α_i
   sigma0:     15,    // anchor for valuation noise
   gammaSigma: 0.30,  // per-round decay rate of σ_i
