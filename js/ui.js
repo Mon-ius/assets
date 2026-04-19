@@ -112,22 +112,16 @@ const UI = {
           M.frac(M.row(M.mn('2'), M.mo('+'), M.mn('0.3'), M.mo('·'), t), r),
         ));
       case 'cyclicalSine': {
-        // FṼ_{i,t} = Σ_{s=t..T} [5 + 2·sin(2π(s−1)/10)] / (1+r)^{s−t+1}
-        const s = M.mi('s');
+        // FṼ_{i,t} = (5 + 2·sin(2π(t−1)/10)) / r   (v6 §5.22 Gordon perpetuity)
         const num = M.row(
           M.mn('5'), M.mo('+'), M.mn('2'), M.mo('·'),
           M.mi('sin'), M.mo('('),
-          M.frac(M.row(M.mn('2'), M.mi('π'), M.mo('('), s, M.mo('−'), M.mn('1'), M.mo(')')), M.mn('10')),
+          M.frac(M.row(M.mn('2'), M.mi('π'), M.mo('('), t, M.mo('−'), M.mn('1'), M.mo(')')), M.mn('10')),
           M.mo(')'),
-        );
-        const den = M.sup(
-          M.row(M.mo('('), M.mn('1'), M.mo('+'), r, M.mo(')')),
-          M.row(s, M.mo('−'), t, M.mo('+'), M.mn('1')),
         );
         return M.wrap(M.row(
           FV, M.mo('='),
-          M.subsup(M.mo('Σ'), M.row(s, M.mo('='), t), T),
-          M.frac(num, den),
+          M.frac(M.row(M.mo('('), num, M.mo(')')), r),
         ));
       }
       case 'randomWalk':

@@ -218,48 +218,41 @@ const ASSET_LINEAR_GROWTH = {
 };
 
 /**
- * Asset 4 — Cyclical. FV_t = 100 + 20·sin(2π/10·(t−1)),
- * period 10, amplitude 20, mean 100. Dividend tracks the same cycle
- * with smaller amplitude.
+ * Asset 4 — Cyclical (v6 §5.22). Perpetual cyclical asset — no explicit
+ * terminal date, so the agent's model-based FV is the Gordon-perpetuity
+ * form on the current-period expected dividend:
+ *     μ̂_{i,t} = 5 + 2·sin(2π(t−1)/10)
+ *     FṼ_{i,t} = μ̂_{i,t} / r,   r = 0.05
+ * Simulator's public FV path uses the same closed form (period 10,
+ * amplitude 40, mean 100 — range [60, 140]) so a rational (α=1) trader
+ * is exactly right. Dividend tracks the same cycle with smaller amplitude.
  */
 const ASSET_CYCLICAL_SINE = {
   id:          'cyclicalSine',
   label:       'Cyclical',
   shortLabel:  'CY',
-  description: 'Sinusoidal FV — 100 + 20·sin(2π(t−1)/10).',
+  description: 'Cyclical perpetuity — FV = (5 + 2·sin(2π(t−1)/10))/r.',
   init(config) {
     const T = config.periods;
     const r = ASSET_DISCOUNT_RATE;
     const fv = new Array(T + 2).fill(0);
-    for (let t = 1; t <= T; t++) {
-      fv[t] = ASSET_ANCHOR_FV + 20 * Math.sin((2 * Math.PI / 10) * (t - 1));
+    // v6 §5.22 — Gordon perpetuity on the sinusoidal expected dividend.
+    // FV_t = (5 + 2·sin(2π(t−1)/10))/r — at r=0.05 the path oscillates
+    // between 60 and 140 around a long-run mean of 100 with period 10.
+    for (let t = 1; t <= T + 1; t++) {
+      const mu = 5 + 2 * Math.sin((2 * Math.PI / 10) * (t - 1));
+      fv[t] = mu / r;
     }
-    fv[T + 1] = fv[T];
-    // v4 §5.22 — agent's discounted tail sum over the sinusoidal μ̂.
-    // Pre-computed once here so modelBasedFV is O(1) at runtime.
-    //   FṼ_{i,t} = Σ_{s=t..T} [5 + 2·sin(2π(s−1)/10)] / (1+r)^{s−t+1}
-    const modelFV = new Array(T + 2).fill(0);
-    for (let t = 1; t <= T; t++) {
-      let v = 0;
-      for (let s = t; s <= T; s++) {
-        const mu = 5 + 2 * Math.sin((2 * Math.PI / 10) * (s - 1));
-        v += mu / Math.pow(1 + r, s - t + 1);
-      }
-      modelFV[t] = v;
-    }
-    return { fv, modelFV, expectedDividend: 5, terminalValue: fv[T] };
+    return { fv, expectedDividend: 5, terminalValue: fv[T] };
   },
   fundamentalValue(period, state) {
     return state.fv[period] != null ? state.fv[period] : ASSET_ANCHOR_FV;
   },
-  // v4 §5.22 — distinct from the 100+20·sin path above, which is the
-  // simulator's heuristic FV for Figure 1. The agent's model-based
-  // value is the discounted tail sum of expected dividends.
+  // v6 §5.22 — same closed form as `fundamentalValue` above: the agent's
+  // model-based value is the Gordon perpetuity on the current-period
+  // expected dividend, so a rational (α=1) trader is exactly right.
   modelBasedFV(period, state /*, config */) {
-    if (state && state.modelFV && state.modelFV[period] != null) {
-      return Math.max(0, state.modelFV[period]);
-    }
-    return ASSET_ANCHOR_FV;
+    return state.fv[period] != null ? Math.max(0, state.fv[period]) : ASSET_ANCHOR_FV;
   },
   // v5 §5.23 — Anchor = 100. DividendSignal = d̄_obs·A_t. Narrative =
   //   c_i + λ_c·sign(Trend), with λ_c = 4 (mistake a short trend for
@@ -486,7 +479,7 @@ const ASSET_AGENT_TEMPLATES = {
     extras: [
       'You know a cycle exists, but may not know exactly which phase you are in.',
     ],
-    fvFormula: 'v5 §5.22 — if agent understands the cycle rule, μ̂_{i,s} = 5 + 2·sin(2π·(s−1)/10), then  FṼ_{i,t} = Σ_{s=t..T} [5 + 2·sin(2π·(s−1)/10)] / (1+r)^{s−t+1}  — discounted tail-sum of the sinusoidal expected dividend at r = 0.05.',
+    fvFormula: 'v6 §5.22 — perpetual cyclical asset (no explicit terminal date, payoffs extend indefinitely). Agent infers μ̂_{i,t} = 5 + 2·sin(2π·(t−1)/10) and applies the Gordon perpetuity:  FṼ_{i,t} = (5 + 2·sin(2π·(t−1)/10)) / r  at r = 0.05. Path oscillates between 60 and 140 around a mean of 100, period 10.',
     heuristicFormula: 'v5 §5.23 — H_{i,t} = β₁·100 + β₂·(p_{t−1}^{last} − p_{t−2}^{last}) + β₃·(d̄_obs · A_t) + β₄·(c_i + λ_c·sign(Trend));  c_i ~ N(0, 5²) is the per-agent cycle bias;  λ_c = 4 (mistake a short trend for the whole cycle).',
     heuristic: 'Naive agents mistake the rising half of the cycle for a durable trend and the falling half for a crash; phase confusion is the dominant error.',
   },
@@ -708,11 +701,17 @@ const ASSET_FV_FORMULAS = {
     + '</mfrac>'
     + '</mrow>',
   ),
-  // FV_t = 100 + 20·sin(2π(t−1)/10)  (v3 §5.19 specifies the path directly)
+  // FV_t = (5 + 2·sin(2π(t−1)/10)) / r   (v6 §5.22 — Gordon perpetuity
+  // on the sinusoidal expected dividend; at r = 0.05 the path oscillates
+  // between 60 and 140 around a mean of 100, period 10)
   cyclicalSine: _assetMath(
     '<mrow>'
-    + _mFv + '<mo>=</mo><mn>100</mn><mo>+</mo><mn>20</mn><mo>·</mo><mi>sin</mi>'
-    + '<mo>(</mo>' + _mSinArg + '<mo>)</mo>'
+    + _mFv + '<mo>=</mo>'
+    + '<mfrac>'
+    + '<mrow><mo>(</mo><mn>5</mn><mo>+</mo><mn>2</mn><mo>·</mo><mi>sin</mi>'
+    + '<mo>(</mo>' + _mSinArg + '<mo>)</mo><mo>)</mo></mrow>'
+    + '<mi>r</mi>'
+    + '</mfrac>'
     + '</mrow>',
   ),
   // FV_{t+1} = max(20, FV_t + η_t)   (v3 §5.25)

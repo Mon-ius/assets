@@ -1593,8 +1593,9 @@ Action: &lt;BUY_NOW / SELL_NOW / BID_1 / BID_3 / ASK_1 / ASK_3 / HOLD&gt;</pre>
     Each realisation fluctuates around this mean (Gaussian, σ = 1).
 - Environmental notes:
     - You know a cycle exists, but may not know exactly which phase you are in.
+    - No explicit terminal date — future payoffs may extend indefinitely.
 - Model-based valuation rule (what a rational agent would derive from the public rule):
-    Model-based FV at period t: FV_t = 100 + 20·sin(2π · (t−1) / 10). The FV oscillates between 80 and 120 around a mean of 100.
+    Model-based FV at period t (v6 §5.22, Gordon perpetuity): FV_t = (5 + 2·sin(2π · (t−1) / 10)) / r with r = 0.05. The path oscillates between 60 and 140 around a mean of 100, period 10.
 - Common heuristic mistake in this environment:
     Naive agents mistake the rising half of the cycle for a durable trend and the falling half for a crash; phase confusion is the dominant error.</pre>
 
@@ -2466,9 +2467,9 @@ Action Rules
   <p><em>Use case.</em> A genuinely rising FV environment: the agent's model-based anchor tracks the rising dividend one-for-one, so overpricing now isolates the effect of the narrative trait <code>g<sub>i</sub></code> (growth optimism) plus one-sided momentum, cleanly separated from anchor error.</p>
 </template>
 <template id="tpl-asset-cyclicalSine">
-  <p><strong>Cyclical</strong> — wave-shaped FV around a flat mean, probing whether agents can track a non-monotone fundamental.</p>
-  <p>Fundamental value: <code>FV<sub>t</sub> = 100 + 20 · sin(2π (t − 1) / 10)</code>. Period 10, amplitude 20, long-run mean 100. FV<sub>1</sub> = 100 on every round.</p>
-  <p>Dividend: <code>d<sub>t</sub> ~ N(5 + 2 · sin(2π (t − 1) / 10), 1)</code>, clamped to be non-negative. The dividend phase is aligned with FV so the observable cash flow carries the same cycle.</p>
+  <p><strong>Cyclical</strong> — wave-shaped FV around a flat mean, probing whether agents can track a non-monotone fundamental (v6 §5.22).</p>
+  <p>Dividend: <code>d<sub>t</sub> ~ N(5 + 2 · sin(2π (t − 1) / 10), 1)</code>, clamped to be non-negative. Cycle length 10 periods, mean 5, amplitude 2.</p>
+  <p>Fundamental value is the Gordon perpetuity on the current-period expected dividend, <code>FV<sub>t</sub> = (5 + 2 · sin(2π (t − 1) / 10)) / r</code> at <code>r = 0.05</code>. The path oscillates between 60 and 140 around a long-run mean of 100 — this is a perpetual cyclical asset with no explicit terminal date, so future payoffs may extend indefinitely.</p>
   <p><em>Use case.</em> Seasonal / cyclical value benchmark. Measures whether trading rules trained on monotone FV transfer to oscillatory environments.</p>
 </template>
 <template id="tpl-asset-randomWalk">
@@ -2485,14 +2486,14 @@ Action Rules
 </template>
 
 <script data-cfasync="false" src="js/messaging.js?v=21"></script>
-<script data-cfasync="false" src="js/assets.js?v=30"></script>
+<script data-cfasync="false" src="js/assets.js?v=31"></script>
 <script data-cfasync="false" src="js/market.js?v=23"></script>
-<script data-cfasync="false" src="js/agents.js?v=22"></script>
+<script data-cfasync="false" src="js/agents.js?v=23"></script>
 <script data-cfasync="false" src="js/logger.js?v=21"></script>
 <script data-cfasync="false" src="js/viz.js?v=21"></script>
 <script data-cfasync="false" src="js/ai.js?v=21"></script>
 <script data-cfasync="false" src="js/engine.js?v=23"></script>
-<script data-cfasync="false" src="js/ui.js?v=32"></script>
+<script data-cfasync="false" src="js/ui.js?v=33"></script>
 <script data-cfasync="false" src="js/replay.js?v=24"></script>
 <script data-cfasync="false" src="js/main.js?v=30"></script>
 </body>
