@@ -1165,26 +1165,34 @@ const App = {
     return num / Math.sqrt(dx * dy);
   },
 
-  /** Correlation of the PRE and POST assets' expected FV paths over a
-   *  single round of the current horizon. Short-circuits to 1 when the
-   *  two asset ids match (identical paths — user's "if both the same,
-   *  it should be one" rule) so the readout doesn't collapse into NaN
-   *  for the flat-FV assets (perpetual, random walk expectation). */
+  /** Correlation of the PRE and POST assets' FV paths sampled from a
+   *  single pre-round r₀ simulation (one round, T periods) per asset.
+   *  Deterministic assets trivially reproduce their `init()` path; for
+   *  stochastic assets (random walk, jump/crash) a seeded RNG draws
+   *  one representative trajectory so the readout is reproducible.
+   *  Short-circuits to 1 when the two asset ids match (user's "if both
+   *  the same, it should be one" rule) so the chip doesn't collapse to
+   *  NaN for flat-FV assets (perpetual) where variance is zero. */
   _sessionAssetCorr(session) {
     this._ensureSessionAssets();
     const idx = Math.max(0, Math.min(9, (session | 0) - 1));
     const preId  = this.sessionAssets[idx];
     const postId = this.sessionAssetsPost[idx];
     if (preId === postId) return 1;
-    if (typeof assetExpectedFvPath !== 'function') return NaN;
+    if (typeof simulateAssetFvPath !== 'function' || typeof makeRNG !== 'function') return NaN;
     const T   = (this.config && this.config.periods) | 0;
     const pre  = (typeof getAssetType === 'function') ? getAssetType(preId)  : null;
     const post = (typeof getAssetType === 'function') ? getAssetType(postId) : null;
     if (!pre || !post || !T) return NaN;
-    return this._pearson(
-      assetExpectedFvPath(pre,  T),
-      assetExpectedFvPath(post, T),
-    );
+    // Stable per-session seed — identical on every render, so the corr
+    // chip doesn't jitter when the user re-opens the panel. Mixing the
+    // session index in keeps each row's r₀ sample independent.
+    const baseSeed = 0xC0FFEE ^ ((idx + 1) * 0x9E3779B1);
+    const rngPre   = makeRNG(baseSeed >>> 0);
+    const rngPost  = makeRNG((baseSeed ^ 0xA5A5A5A5) >>> 0);
+    const pathPre  = simulateAssetFvPath(pre,  this.config, rngPre);
+    const pathPost = simulateAssetFvPath(post, this.config, rngPost);
+    return this._pearson(pathPre, pathPost);
   },
 
   /** Convert a session-rate fraction + current N into an integer
