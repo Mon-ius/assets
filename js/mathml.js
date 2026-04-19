@@ -177,6 +177,26 @@ const Sym = {
   smallR:    _wrap(_mi('r')),                                                 // r
   volT:      _wrap(_sub(_mi('V'), _mi('t'))),                                 // V_t
 
+  /* Per-asset FV-formula vocabulary (Figure 1 footer note). The
+     formula displayed in Figure 1 swaps per active asset; these
+     symbols appear in one or more of the six per-asset FV formulas
+     defined in js/assets.js (ASSET_FV_FORMULAS). */
+  periodS:   _wrap(_mi('s')),                                                 // s
+  fvNext:    _wrap(_sub(_row(_mi('F'), _mi('V')), _row(_mi('t'), _mo('+'), _mn('1')))),  // FV_{t+1}
+  edT:       _wrap(_row(_mi('E'), _mo('['), _sub(_mi('d'), _mi('t')), _mo(']'))),        // E[d_t]
+  edS:       _wrap(_row(_mi('E'), _mo('['), _sub(_mi('d'), _mi('s')), _mo(']'))),        // E[d_s]
+  kT:        _wrap(_sub(_mi('k'), _mi('t'))),                                  // k_t
+  aCoef:     _wrap(_mi('a')),                                                  // a
+  bCoef:     _wrap(_mi('b')),                                                  // b
+  etaT:      _wrap(_sub(_mi('η'), _mi('t'))),                                  // η_t
+  sigma:     _wrap(_mi('σ')),                                                  // σ
+  muJ:       _wrap(_sub(_mi('μ'), _mi('j'))),                                  // μ_j
+  normalDist: _wrap(_row(
+    _mi('N'), _mo('('), _mn('0'), _mo(','),
+    _sup(_mi('σ'), _mn('2')), _mo(')'),
+  )),                                                                          // N(0, σ²)
+  maxOp:     _wrap(_mi('max')),                                                // max(·,·)
+
   /* Utility functionals — compact form used by slider labels and the
      agent-card subtitle where horizontal space is tight. */
   uLoving:   _wrap(_row(

@@ -523,17 +523,26 @@
       <span class="fig-num">Figure 1</span>
       <h2 class="fig-title">Transaction Price Trajectory versus Risk-Neutral Fundamental Value</h2>
     </header>
-    <div class="fig-eq"><span id="fig1-fv-formula" data-sym="fvDef"></span> <em>risk-neutral fundamental value at the start of period t</em></div>
+    <div class="fig-eq"><span id="fig1-fv-formula" data-sym="fvDef"></span> <em>fundamental value at the start of period t for the active asset (swaps to match the per-session asset selector)</em></div>
     <canvas id="chart-price"></canvas>
     <figcaption class="fig-caption">
-      <p>Tick-level transaction prices <span data-sym="price"></span> (accent line, one dot per executed trade) plotted against the deterministic step function <span data-sym="fv"></span> (amber dashes). Alternating vertical bands delimit the ten trading periods. In the Dufwenberg, Lindqvist &amp; Moore (2005) design a rational market should track the step line exactly; persistent excursions above it are the bubble and the crash toward <span data-sym="fvT"></span> = <span data-sym="muD"></span> in the final period is the collapse.</p>
+      <p>Tick-level transaction prices <span data-sym="price"></span> (accent line, one dot per executed trade) plotted against the active asset's fundamental-value path <span data-sym="fv"></span> (amber dashes). Alternating vertical bands delimit the trading periods of each round. Under the Dufwenberg, Lindqvist &amp; Moore (2005) linear-declining asset a rational market should track the step line exactly; persistent excursions above it are the bubble and the crash toward <span data-sym="fvT"></span> = <span data-sym="muD"></span> in the final period is the collapse. The other five assets (constant perpetuity, linear growth, cyclical, random walk, jump/crash) replace the staircase with their own FV path — the formula above updates accordingly.</p>
       <div class="fig-note">
-        <h4 class="fig-note-title">Note</h4>
+        <h4 class="fig-note-title">Note — symbols appearing in the per-asset FV formulas</h4>
         <dl class="fig-note-list">
-          <dt><span data-sym="price"></span></dt><dd>observed transaction price at tick <em>t</em></dd>
-          <dt><span data-sym="fv"></span></dt><dd>theoretical fundamental value at the start of period <em>t</em></dd>
-          <dt><span data-sym="muD"></span></dt><dd>expected per-period dividend (drawn uniformly from {0, 2<span data-sym="muD"></span>})</dd>
-          <dt><span data-sym="bigT"></span></dt><dd>terminal period of the finite-life asset</dd>
+          <dt><span data-sym="fv"></span></dt><dd>fundamental value at the start of period <em>t</em> (value a rational, risk-neutral holder assigns to one share)</dd>
+          <dt><span data-sym="fvNext"></span></dt><dd>fundamental value one period ahead — path-based assets (random walk, jump/crash) specify <span data-sym="fvNext"></span> as a function of <span data-sym="fv"></span></dd>
+          <dt><span data-sym="price"></span></dt><dd>observed transaction price at tick <em>t</em> — drawn as individual trade dots on the chart</dd>
+          <dt><span data-sym="periodT"></span>, <span data-sym="periodS"></span></dt><dd>period indices, 1 &le; <em>t</em>, <em>s</em> &le; <span data-sym="bigT"></span>; <em>s</em> is the summation index over future periods</dd>
+          <dt><span data-sym="bigT"></span></dt><dd>terminal period of the round (default <span data-sym="bigT"></span> = 20 so that FV<sub>1</sub> = 100 for every asset)</dd>
+          <dt><span data-sym="kT"></span></dt><dd>remaining periods through terminal, <span data-sym="kT"></span> = <span data-sym="bigT"></span> &minus; <em>t</em> + 1 — used by the linear-declining asset</dd>
+          <dt><span data-sym="edT"></span>, <span data-sym="edS"></span></dt><dd>expected dividend paid at the end of period <em>t</em> (or <em>s</em>) — the per-share cash flow under the asset's public rule</dd>
+          <dt><span data-sym="muD"></span></dt><dd>mean dividend for the linear-declining asset, <span data-sym="muD"></span> = <span data-sym="edT"></span> = 5¢ (drawn uniformly from {0, 10¢})</dd>
+          <dt><span data-sym="smallR"></span></dt><dd>risk-free discount rate (default 0.05) used by the perpetuity and linear-growth assets</dd>
+          <dt><span data-sym="aCoef"></span>, <span data-sym="bCoef"></span></dt><dd>intercept and slope in the linear-growth dividend schedule <span data-sym="edS"></span> = <span data-sym="aCoef"></span> + <span data-sym="bCoef"></span>&middot;<em>s</em> (defaults <span data-sym="aCoef"></span> = 2, <span data-sym="bCoef"></span> = 0.3)</dd>
+          <dt><span data-sym="etaT"></span></dt><dd>i.i.d. Gaussian innovation driving the random-walk asset, <span data-sym="etaT"></span> &sim; <span data-sym="normalDist"></span> with <span data-sym="sigma"></span> = 5</dd>
+          <dt><span data-sym="muJ"></span></dt><dd>binary jump magnitude for the jump/crash asset: +2 with probability 0.9 (calm) and &minus;30 with probability 0.1 (crash)</dd>
+          <dt><span data-sym="maxOp"></span>(&middot;, &middot;)</dt><dd>floor operator that clips the path-based assets above a positive minimum so FV never becomes non-positive</dd>
         </dl>
       </div>
     </figcaption>
