@@ -1567,7 +1567,8 @@ body:not(.plan-ii):not(.plan-iii) .plan-llm-only { display: none !important; }
   user-select: none;
 }
 .session-asset-select {
-  max-width: 110px;
+  flex: 0 0 150px;
+  width: 150px;
   padding: 2px 4px;
   font-size: 11px;
   color: var(--fg-1);
@@ -1576,6 +1577,15 @@ body:not(.plan-ii):not(.plan-iii) .plan-llm-only { display: none !important; }
   border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
+  /* Keep the longest labels from getting chopped mid-word in the
+     closed select. Browsers with ellipsis support on <select>
+     (Chromium, Safari) render a clean "Linear Declini…" instead of a
+     hard cut; browsers without still show the full label at 150px
+     which fits every label in the registry. The option list in the
+     dropdown is unaffected either way. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .session-asset-select:hover,
 .session-asset-select:focus {
