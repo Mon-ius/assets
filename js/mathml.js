@@ -318,7 +318,8 @@ const Sym = {
   lieGap:    _wrap(_abs(_row(_sub(_tilde(_mi('V')), _it), _mo('−'), _sub(_hat(_mi('V')), _it)))),  // |Ṽ−V̂|
 
   /* Compound equations used in figure eq strips */
-  absMispricing: _wrap(_abs(_row(_sub(_mi('P'), _mi('t')), _mo('−'), _sub(_row(_mi('F'), _mi('V')), _mi('t'))))),  // |P_t − FV_t|
+  mispricing:    _wrap(_row(_sub(_mi('P'), _mi('t')), _mo('−'), _sub(_row(_mi('F'), _mi('V')), _mi('t')))),        // P_t − FV_t  (signed)
+  absMispricing: _wrap(_abs(_row(_sub(_mi('P'), _mi('t')), _mo('−'), _sub(_row(_mi('F'), _mi('V')), _mi('t'))))),  // |P_t − FV_t|  (kept for ND metric)
   volDef:    _wrap(_row(                                                      // V_t = Σ_{trades ∈ t} q
     _sub(_mi('V'), _mi('t')), _mo('='),
     _sub(_mo('Σ'), _row(_mi('trades'), _mo('∈'), _mi('t'))),

@@ -600,16 +600,16 @@
   <section class="panel panel-chart figure chart-bubble">
     <header class="fig-head">
       <span class="fig-num">Figure 2</span>
-      <h2 class="fig-title">Mispricing Magnitude and Price-to-Fundamental Ratio</h2>
+      <h2 class="fig-title">Signed Mispricing and Price-to-Fundamental Ratio</h2>
     </header>
-    <div class="fig-eq"><span data-sym="absMispricing"></span> · <span data-sym="rhoDef"></span> <em>absolute and relative mispricing</em></div>
+    <div class="fig-eq"><span data-sym="mispricing"></span> · <span data-sym="rhoDef"></span> <em>signed and relative mispricing</em></div>
     <canvas id="chart-bubble"></canvas>
     <figcaption class="fig-caption">
-      <p>Absolute departure of the observed price from the theoretical fundamental value, filled as a red area. In Lopez-Lira (2025) the same information is expressed as the price-to-fundamental ratio <span data-sym="rhoT"></span>: values above one mark an overvaluation regime, values below one mark an undervaluation regime, and <span data-sym="rhoT"></span> ≈ 1 is consistent with rational pricing. The Experiment Metrics panel reports the normalized-deviation and amplitude statistics derived from this series.</p>
+      <p>Signed departure of the observed price from the theoretical fundamental value, drawn on a symmetric axis around a dashed zero baseline: positive (premium) fills blue, negative (discount) fills red. In Lopez-Lira (2025) the same information is expressed as the price-to-fundamental ratio <span data-sym="rhoT"></span>: values above one mark an overvaluation regime, values below one mark an undervaluation regime, and <span data-sym="rhoT"></span> ≈ 1 is consistent with rational pricing. The Experiment Metrics panel reports the normalized-deviation and amplitude statistics derived from this series (those metrics retain the absolute-value wrapper <span data-sym="absMispricing"></span> because they aggregate magnitudes).</p>
       <div class="fig-note">
         <h4 class="fig-note-title">Note</h4>
         <dl class="fig-note-list">
-          <dt><span data-sym="absMispricing"></span></dt><dd>absolute mispricing at tick <em>t</em></dd>
+          <dt><span data-sym="mispricing"></span></dt><dd>signed mispricing at tick <em>t</em>, sign preserves premium vs. discount</dd>
           <dt><span data-sym="rhoT"></span></dt><dd>price-to-fundamental ratio (Lopez-Lira 2025)</dd>
         </dl>
       </div>
@@ -1691,7 +1691,7 @@ Action Rules
       </div>
       <div class="plot-desc">
         <div class="plot-icon" style="background:var(--red);">2</div>
-        <div class="plot-info"><h4>Mispricing Magnitude</h4><p>Absolute departure $|p_t - \mathrm{FV}_t|$ filled as a red area; equivalent to Lopez-Lira's price-to-fundamental ratio $\rho_t$.</p></div>
+        <div class="plot-info"><h4>Signed Mispricing</h4><p>Signed departure $p_t - \mathrm{FV}_t$ on a symmetric axis around zero: premium fills blue above the baseline, discount fills red below. Equivalent to Lopez-Lira's price-to-fundamental ratio $\rho_t$ with sign preserved.</p></div>
       </div>
       <div class="plot-desc">
         <div class="plot-icon" style="background:var(--green);">3</div>
