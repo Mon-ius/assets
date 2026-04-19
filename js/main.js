@@ -1599,18 +1599,6 @@ const App = {
       HEURISTIC_BETAS.dividend  = this.tunables.betaDividend;
       HEURISTIC_BETAS.narrative = this.tunables.betaNarrative;
     }
-    // Keep the Σβ readout honest even mid-drag. The readout lives
-    // outside the per-slider pval so the user can see whether the
-    // four-term mix still sums to 1 as defaults, or has drifted.
-    const sumEl = document.getElementById('v-beta-sum');
-    if (sumEl) {
-      const s = (this.tunables.betaAnchor || 0)
-              + (this.tunables.betaTrend || 0)
-              + (this.tunables.betaDividend || 0)
-              + (this.tunables.betaNarrative || 0);
-      sumEl.textContent = 'Σβ = ' + s.toFixed(2);
-      sumEl.classList.toggle('beta-sum-off', Math.abs(s - 1) > 0.005);
-    }
   },
 
   _updateSliderPct(el) {

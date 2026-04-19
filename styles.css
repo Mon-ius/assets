@@ -1550,30 +1550,6 @@ body:not(.plan-ii):not(.plan-iii) .plan-llm-only { display: none !important; }
   --accent: var(--green);
   --accent-light: color-mix(in srgb, var(--green) 22%, transparent);
 }
-/* Σβ readout. Lives inline at the right corner of the β row so the
-   total sits next to the four tiles that feed it; turns amber when
-   the weights drift off the unit-sum default. */
-.beta-sum-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-family: var(--mono, ui-monospace, Menlo, monospace);
-  font-variant-numeric: tabular-nums;
-  color: var(--green);
-  background: color-mix(in srgb, var(--green) 12%, var(--bg-1));
-  border: 1px solid var(--green);
-  flex: none;
-  align-self: stretch;
-  white-space: nowrap;
-}
-.beta-sum-chip.beta-sum-off {
-  color: #fff;
-  background: var(--amber);
-  border-color: var(--amber);
-}
 /* Per-session rate grid — 10 compact rows nested inside the
    scale-tile-amber host. Each row carries {idx, slider, pct readout,
    asset dropdown}, so a single-column layout gives every row room for
