@@ -1413,12 +1413,20 @@ Reason: &lt;Explain in 3-6 sentences why this action maximizes your utility&gt;
 Action: &lt;BUY_NOW / SELL_NOW / BID_1 / BID_3 / ASK_1 / ASK_3 / HOLD&gt;</pre>
         </div>
 
-        <div class="arch-def-card card-wang">
-          <h4>【Asset Environment】 · six per-asset variants</h4>
-          <p class="role">The only block that changes when the round's active asset changes (v3 §5.3 / §5.9 / §5.15 / §5.21 / §5.27 / §5.33)</p>
-          <p class="body">Every other section of $\pi^{\mathrm{II}}_{\text{usr}}$ is identical across assets. The per-asset template lives on <code>asset.agentTemplate</code> in <code>js/assets.js</code>; <code>ai.getPlanBeliefs</code> reads <code>market.assetType.agentTemplate</code> for the current round and splices these six blocks in one at a time.</p>
+        <div class="arch-def-card card-wang asset-booklet" data-active="linearDeclining">
+          <h4>【Asset Environment】 · per-asset booklet</h4>
+          <p class="role">Click an asset to see the exact block <code>AI.getPlanBeliefs</code> splices into the user prompt above when the current round's active asset is that type. The rest of the prompt is identical across assets; only this block and the FV numbers (current FV, history paths) change when the engine swaps asset at the replacement-round boundary.</p>
+          <div class="asset-tabbar" role="tablist" aria-label="Asset environment variants">
+            <button type="button" class="asset-tab is-active" role="tab" aria-selected="true"  data-asset="linearDeclining">LD · Linear Declining</button>
+            <button type="button" class="asset-tab"           role="tab" aria-selected="false" data-asset="constantPerpetual">CP · Perpetual</button>
+            <button type="button" class="asset-tab"           role="tab" aria-selected="false" data-asset="linearGrowth">LG · Linear Growth</button>
+            <button type="button" class="asset-tab"           role="tab" aria-selected="false" data-asset="cyclicalSine">CY · Cyclical</button>
+            <button type="button" class="asset-tab"           role="tab" aria-selected="false" data-asset="randomWalk">RW · Random Walk</button>
+            <button type="button" class="asset-tab"           role="tab" aria-selected="false" data-asset="jumpCrash">JC · Jump / Crash</button>
+          </div>
 
-          <pre class="prompt-sample">── Linear Declining (id = linearDeclining) ───────────────────────────
+          <pre class="prompt-sample asset-variant is-active" data-asset="linearDeclining" role="tabpanel">【Asset Environment】
+- Asset name: Linear Declining (DLM)
 - Asset type: Gradually depleting asset
 - Horizon: Total remaining periods: 20. After period 20 the asset expires — no further payoffs and no residual value.
 - Per-period dividend rule:
@@ -1427,10 +1435,13 @@ Action: &lt;BUY_NOW / SELL_NOW / BID_1 / BID_3 / ASK_1 / ASK_3 / HOLD&gt;</pre>
     Expected per-period dividend E[d_t] = 5.
 - Environmental notes:
     - No terminal value — K_t = 0.
-- Model-based valuation rule: FV_t = 5 × (T − t + 1). Undiscounted tail sum of expected dividends.
-- Common heuristic mistake: anchor to the initial total value 5T and fail to internalise the declining path.
+- Model-based valuation rule (what a rational agent would derive from the public rule):
+    Model-based FV at period t: FV_t = 5 × (T − t + 1) = E[d] × remaining periods. Undiscounted tail sum of expected dividends.
+- Common heuristic mistake in this environment:
+    Naive agents anchor to the initial total value 5T and fail to internalise the declining path; they also over-weight the last observed price as a trend signal.</pre>
 
-── Perpetual (id = constantPerpetual) ────────────────────────────────
+          <pre class="prompt-sample asset-variant" data-asset="constantPerpetual" role="tabpanel" hidden>【Asset Environment】
+- Asset name: Perpetual
 - Asset type: Long-lived stable-yield asset
 - Horizon: The yield environment is long-run stable — the asset does not deplete and has no terminal period.
 - Per-period dividend rule:
@@ -1439,19 +1450,27 @@ Action: &lt;BUY_NOW / SELL_NOW / BID_1 / BID_3 / ASK_1 / ASK_3 / HOLD&gt;</pre>
     Expected per-period dividend E[d_t] = 5.
 - Environmental notes:
     - Capital opportunity cost / discount rate r = 5% per period.
-- Model-based valuation rule: FV_t = E[d] / r = 5 / 0.05 = 100 (constant over t).
-- Common heuristic mistake: treat the perpetual as finite-horizon and drift toward a declining mental model.
+- Model-based valuation rule (what a rational agent would derive from the public rule):
+    Model-based FV at every period: FV_t = E[d] / r = 5 / 0.05 = 100 (constant over t).
+- Common heuristic mistake in this environment:
+    Naive agents treat the perpetual as if it were finite-horizon and drift toward a declining mental model; peer messages about "price going up" can push them away from the flat 100 anchor.</pre>
 
-── Linear Growth (id = linearGrowth) ─────────────────────────────────
+          <pre class="prompt-sample asset-variant" data-asset="linearGrowth" role="tabpanel" hidden>【Asset Environment】
+- Asset name: Linear Growth
 - Asset type: Growth-type asset
 - Horizon: The project's earning power improves over time for the full 20-period horizon. No residual value after period 20.
 - Per-period dividend rule:
     Expected dividend at period s: E[d_s] ≈ 2 + 0.3·s
     Each realisation fluctuates around this mean (Gaussian, σ = 1).
-- Model-based valuation rule: FV_t = Σ_{s=t..T} (2 + 0.3·s). Monotonically declining as t advances because fewer future rungs remain.
-- Common heuristic mistake: extrapolate the rising dividend into rising prices and forget that the tail shrinks.
+- Environmental notes:
+    - Undiscounted simulator convention — use the tail-sum form below.
+- Model-based valuation rule (what a rational agent would derive from the public rule):
+    Model-based FV at period t: FV_t = Σ_{s=t..T} E[d_s] = Σ_{s=t..T} (2 + 0.3·s). Monotonically declining as t advances because fewer future rungs remain.
+- Common heuristic mistake in this environment:
+    Naive agents extrapolate the rising dividend into rising prices and forget that the tail of remaining periods shrinks, over-paying late in the round.</pre>
 
-── Cyclical (id = cyclicalSine) ──────────────────────────────────────
+          <pre class="prompt-sample asset-variant" data-asset="cyclicalSine" role="tabpanel" hidden>【Asset Environment】
+- Asset name: Cyclical
 - Asset type: Cyclical asset
 - Horizon: The asset is driven by a business-cycle pattern. Cycle length ≈ 10 periods. 20 periods total.
 - Per-period dividend rule:
@@ -1459,33 +1478,41 @@ Action: &lt;BUY_NOW / SELL_NOW / BID_1 / BID_3 / ASK_1 / ASK_3 / HOLD&gt;</pre>
     Each realisation fluctuates around this mean (Gaussian, σ = 1).
 - Environmental notes:
     - You know a cycle exists, but may not know exactly which phase you are in.
-- Model-based valuation rule: FV_t = 100 + 20·sin(2π · (t−1) / 10). Oscillates 80–120 around 100.
-- Common heuristic mistake: phase confusion — mistake the rising half for a trend and the falling half for a crash.
+- Model-based valuation rule (what a rational agent would derive from the public rule):
+    Model-based FV at period t: FV_t = 100 + 20·sin(2π · (t−1) / 10). The FV oscillates between 80 and 120 around a mean of 100.
+- Common heuristic mistake in this environment:
+    Naive agents mistake the rising half of the cycle for a durable trend and the falling half for a crash; phase confusion is the dominant error.</pre>
 
-── Random Walk Fundamental (id = randomWalk) ─────────────────────────
+          <pre class="prompt-sample asset-variant" data-asset="randomWalk" role="tabpanel" hidden>【Asset Environment】
+- Asset name: Random Walk Fundamental
 - Asset type: Stochastically drifting asset
-- Horizon: No fixed upward trend, downward trend, or cycle. Persistent random shocks for 20 periods.
+- Horizon: No fixed upward trend, downward trend, or cycle. The value environment is subject to persistent random shocks for 20 periods.
 - Per-period dividend rule:
-    FV_{t+1} = max(20, FV_t + η_t), with η_t ~ Normal(0, σ = 5).
+    FV_{t+1} = max(20, FV_t + η_t), with η_t ~ Normal(0, σ=5).
     Dividend at period t is backed out from the FV path: d_t = FV_t − FV_{t+1}/(1+r), floored at 0.
 - Environmental notes:
     - Current environment starts at FV_1 = 100. Future FV may rise or fall symmetrically.
-- Model-based valuation rule: martingale — E[FV_{t+k} | FV_t] = FV_t for all k ≥ 0 (floored at 20).
-- Common heuristic mistake: over-extrapolate recent moves — treat a short up-run as a trend rather than as memoryless.
+- Model-based valuation rule (what a rational agent would derive from the public rule):
+    Model-based FV is a martingale: E[FV_{t+k} | FV_t] = FV_t for all k ≥ 0. Your best point estimate of future FV is today's FV_t (floored at 20).
+- Common heuristic mistake in this environment:
+    Naive agents over-extrapolate recent moves — they treat a short up-run as a trend and a short down-run as a crash, instead of treating FV as memoryless.</pre>
 
-── Jump / Crash (id = jumpCrash) ─────────────────────────────────────
+          <pre class="prompt-sample asset-variant" data-asset="jumpCrash" role="tabpanel" hidden>【Asset Environment】
+- Asset name: Jump / Crash
 - Asset type: Asset with rare-disaster (crash) risk
 - Horizon: 20 periods. Calm phases are briefly positive; a small chance each period wipes out many calm periods at once.
 - Per-period dividend rule:
     FV moves each period by one of two jumps:
     - 90% probability: +2 (calm drift up)
     - 10% probability: −30 (rare crash)
-    Dividend at period t is backed out: d_t = FV_t − FV_{t+1}/(1+r), floored at 0.
+    Dividend at period t is backed out from the FV path: d_t = FV_t − FV_{t+1}/(1+r), floored at 0.
 - Environmental notes:
-    - Current environment starts at FV_1 = 100. Floor at 5.
-    - Expected per-period drift E[ΔFV] = 0.9·(+2) + 0.1·(−30) = −1.2.
-- Model-based valuation rule: E[FV_{t+k} | FV_t] ≈ max(5, FV_t + k·(−1.2)).
-- Common heuristic mistake: under-weight the 10% crash branch after a long calm run.</pre>
+    - Current environment starts at FV_1 = 100. Floor at 5 (FV cannot fall below 5).
+    - Expected per-period drift E[ΔFV] = 0.9·(+2) + 0.1·(−30) = −1.2 — slightly negative on average.
+- Model-based valuation rule (what a rational agent would derive from the public rule):
+    Model-based FV at period t using the stated probabilities: E[FV_{t+k} | FV_t] ≈ max(5, FV_t + k·(−1.2)). A correctly-calibrated agent anchors to this drift; an over-optimistic one discounts the crash probability.
+- Common heuristic mistake in this environment:
+    Naive agents under-weight the 10% crash branch after a long calm run, treating +2 as the norm and getting caught when the crash hits.</pre>
         </div>
 
         <div class="arch-def-card card-ll">

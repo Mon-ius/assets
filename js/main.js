@@ -716,6 +716,13 @@ const App = {
     // Slides tab wiring — prev/next, fullscreen, reading-mode, keyboard.
     this._wireSlides();
 
+    // Architecture tab / Figure 5 — per-asset prompt booklet. Each
+    // .asset-booklet carries a .asset-tabbar with one button per asset
+    // id; clicking swaps which .asset-variant <pre> block is visible
+    // so the reader can page through the six【Asset Environment】
+    // variants that Plan II/III ships to the LLM.
+    this._wireAssetBooklets();
+
     // Initial KaTeX pass — covers formulas baked into the default
     // (Experiment) pane. Each tab switch above will re-render its
     // own pane on demand.
@@ -739,6 +746,39 @@ const App = {
         throwOnError: false,
       });
     } catch (_) { /* ignored — math left as source */ }
+  },
+
+  /**
+   * Wire the per-asset prompt booklet used by Figure 5 in the
+   * Architecture tab. Each `.asset-booklet` contains a row of
+   * `.asset-tab` buttons and a matching set of `.asset-variant`
+   * `<pre>` blocks, linked by `data-asset`. Clicking a button shows
+   * that variant and hides the rest, so the reader can page through
+   * the six【Asset Environment】splices without a 400-line stacked
+   * dump of every variant.
+   */
+  _wireAssetBooklets() {
+    document.querySelectorAll('.asset-booklet').forEach(booklet => {
+      const tabs     = booklet.querySelectorAll('.asset-tab');
+      const variants = booklet.querySelectorAll('.asset-variant');
+      tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          const id = tab.dataset.asset;
+          booklet.dataset.active = id;
+          tabs.forEach(t => {
+            const on = t === tab;
+            t.classList.toggle('is-active', on);
+            t.setAttribute('aria-selected', on ? 'true' : 'false');
+          });
+          variants.forEach(v => {
+            const on = v.dataset.asset === id;
+            v.classList.toggle('is-active', on);
+            if (on) v.removeAttribute('hidden');
+            else    v.setAttribute('hidden', '');
+          });
+        });
+      });
+    });
   },
 
   /* -------- Slides -------- */

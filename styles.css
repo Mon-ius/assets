@@ -3462,6 +3462,36 @@ body.n-small .agents-flip-inner { min-height: 0; }
   }
 }
 
+/* Booklet tab strip for Figure 5: one button per asset variant, clicking
+   swaps which .asset-variant <pre> block is visible. */
+.asset-booklet .asset-tabbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 12px;
+}
+.asset-booklet .asset-tab {
+  padding: 6px 10px;
+  font: 11.5px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--fg-2);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color .12s, background .12s, border-color .12s;
+}
+.asset-booklet .asset-tab:hover {
+  color: var(--fg-0);
+  border-color: var(--pink);
+}
+.asset-booklet .asset-tab.is-active {
+  color: var(--fg-0);
+  background: color-mix(in srgb, var(--pink) 18%, var(--bg-2));
+  border-color: var(--pink);
+}
+.asset-booklet .asset-variant { display: none; }
+.asset-booklet .asset-variant.is-active { display: block; }
+
 /* ---------- Glossary tab ---------- */
 /*
  * Reference section for every abbreviation, symbol, figure, and source
