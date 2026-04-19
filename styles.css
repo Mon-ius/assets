@@ -1489,22 +1489,22 @@ body:not(.plan-ii):not(.plan-iii) .plan-llm-only { display: none !important; }
 .dlm-treatment-opt.scale-tile.scale-tile-amber input[type=range].scale-slider::-moz-range-progress {
   background: transparent;
 }
-/* Violet variant — v3 §3 experience-curve anchors (α₀, γ_α, σ₀, γ_σ).
-   Sits between the amber session-structure row and the blue heuristic
-   row so the three bands of Advanced Settings read as distinct groups.
-   Compact padding + tight pval so the 4 tiles fit on one row. */
-.dlm-treatment-opt.scale-tile.scale-tile-violet,
+/* Pink variant — v3 §3 experience-curve anchors (α₀, σ₀, ω₀, γ_α, γ_σ).
+   Switched from purple to pink so the row doesn't blend into the
+   larger purple container background behind the Advanced panel.
+   Compact padding + tight pval so the 5 tiles fit on one row. */
+.dlm-treatment-opt.scale-tile.scale-tile-pink,
 .dlm-treatment-opt.scale-tile.scale-tile-green {
   padding: 6px 8px;
   min-width: 0;
 }
-.dlm-treatment-opt.scale-tile.scale-tile-violet .param-head,
+.dlm-treatment-opt.scale-tile.scale-tile-pink .param-head,
 .dlm-treatment-opt.scale-tile.scale-tile-green .param-head {
   gap: 6px;
   width: 100%;
   min-width: 0;
 }
-.dlm-treatment-opt.scale-tile.scale-tile-violet .param-head label,
+.dlm-treatment-opt.scale-tile.scale-tile-pink .param-head label,
 .dlm-treatment-opt.scale-tile.scale-tile-green .param-head label {
   white-space: nowrap;
   overflow: hidden;
@@ -1512,27 +1512,27 @@ body:not(.plan-ii):not(.plan-iii) .plan-llm-only { display: none !important; }
   min-width: 0;
   font-size: 11px;
 }
-.dlm-treatment-opt.scale-tile.scale-tile-violet .param-head .pval,
+.dlm-treatment-opt.scale-tile.scale-tile-pink .param-head .pval,
 .dlm-treatment-opt.scale-tile.scale-tile-green .param-head .pval {
   min-width: 42px;
   padding: 2px 6px;
   font-size: 10px;
   flex: none;
 }
-.dlm-treatment-opt.scale-tile.scale-tile-violet {
-  border-color: var(--purple);
-  background: color-mix(in srgb, var(--purple) 8%, var(--bg-1));
+.dlm-treatment-opt.scale-tile.scale-tile-pink {
+  border-color: var(--pink);
+  background: color-mix(in srgb, var(--pink) 8%, var(--bg-1));
 }
-.dlm-treatment-opt.scale-tile.scale-tile-violet:hover {
-  border-color: var(--purple);
+.dlm-treatment-opt.scale-tile.scale-tile-pink:hover {
+  border-color: var(--pink);
 }
-.dlm-treatment-opt.scale-tile.scale-tile-violet .param-head .pval {
-  background: var(--purple);
+.dlm-treatment-opt.scale-tile.scale-tile-pink .param-head .pval {
+  background: var(--pink);
   color: #fff;
 }
-.dlm-treatment-opt.scale-tile.scale-tile-violet input[type=range].scale-slider {
-  --accent: var(--purple);
-  --accent-light: color-mix(in srgb, var(--purple) 22%, transparent);
+.dlm-treatment-opt.scale-tile.scale-tile-pink input[type=range].scale-slider {
+  --accent: var(--pink);
+  --accent-light: color-mix(in srgb, var(--pink) 22%, transparent);
 }
 /* Green variant — v3 §4 heuristic-mix weights β₁..β₄. */
 .dlm-treatment-opt.scale-tile.scale-tile-green {
