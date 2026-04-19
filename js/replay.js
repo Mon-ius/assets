@@ -45,6 +45,49 @@ const Replay = {
     return out;
   },
 
+  /**
+   * Build a per-round × per-period FV matrix so the session chart can
+   * draw the pre-asset's FV curve for rounds before the replacement
+   * boundary and the post-asset's curve for rounds after, even when
+   * the market's live `assetType` has already been swapped to the
+   * post asset. The pre / post / replacement-round fields live on
+   * `ctx`; when the session uses a single asset (ctx.postReplacementAsset
+   * is null) every round falls back to the live market's curve.
+   *
+   * Output shape: `out[round][period]` with 1-based indices, length
+   * `R + 1` for rounds and `T + 2` for periods (matching the scalar
+   * `_fvByPeriod` convention so consumers can index symmetrically).
+   * For path-dependent assets (random-walk, jump/crash) the returned
+   * values are the canonical reset-each-round reference shape from a
+   * fresh state — the chart overlay is a shape guide, not a replay of
+   * the realised path.
+   */
+  _fvByRoundPeriod(market, ctx) {
+    const T = market.config.periods;
+    const R = market.config.roundsPerSession || 1;
+    const replaceR = (ctx && ctx.replacementRound | 0) || 4;
+    const pre  = (ctx && ctx.preReplacementAsset)  || market.assetType;
+    const post = (ctx && ctx.postReplacementAsset) || pre;
+    const fvPath = (asset) => {
+      if (!asset) return null;
+      try {
+        const state = asset.init(market.config);
+        const arr = new Array(T + 2).fill(0);
+        for (let p = 1; p <= T + 1; p++) arr[p] = asset.fundamentalValue(p, state);
+        return arr;
+      } catch (_) { return null; }
+    };
+    const prePath  = fvPath(pre);
+    const postPath = fvPath(post) || prePath;
+    const fallback = Replay._fvByPeriod(market);
+    const out = new Array(R + 1);
+    for (let r = 1; r <= R; r++) {
+      if (r < replaceR) out[r] = prePath  || fallback;
+      else              out[r] = postPath || fallback;
+    }
+    return out;
+  },
+
   buildLiveView(market, logger, agents, ctx = {}) {
     const agentState = {};
     for (const [id, a] of Object.entries(agents)) {
@@ -83,6 +126,7 @@ const Replay = {
       lastPrice:      market.lastPrice,
       fv:             market.fundamentalValue(),
       fvByPeriod:     Replay._fvByPeriod(market),
+      fvByRoundPeriod: Replay._fvByRoundPeriod(market, ctx),
       assetId:        market.assetType ? market.assetType.id : null,
       assetLabel:     market.assetType ? market.assetType.label : null,
       plan:           (ctx && ctx.plan) || 'I',
@@ -124,6 +168,7 @@ const Replay = {
         lastPrice:           null,
         fv:                  market.fundamentalValue(1),
         fvByPeriod:          Replay._fvByPeriod(market),
+        fvByRoundPeriod:     Replay._fvByRoundPeriod(market, ctx),
         assetId:             market.assetType ? market.assetType.id : null,
         assetLabel:          market.assetType ? market.assetType.label : null,
         plan:                (ctx && ctx.plan) || 'I',
@@ -156,6 +201,7 @@ const Replay = {
       // will show the right shape for deterministic assets and the
       // latest-known shape for stochastic ones.
       fvByPeriod:           Replay._fvByPeriod(market),
+      fvByRoundPeriod:      Replay._fvByRoundPeriod(market, ctx),
       assetId:              market.assetType ? market.assetType.id : null,
       assetLabel:           market.assetType ? market.assetType.label : null,
       plan:                 snap.plan || (ctx && ctx.plan) || 'I',

@@ -302,19 +302,40 @@ const UI = {
   },
 
   /**
+   * Per-round FV lookup — draws from the view's `fvByRoundPeriod`
+   * matrix so rounds before the replacement boundary show the
+   * pre-asset's FV curve and rounds after show the post-asset's,
+   * even once the engine has swapped assets on the live market.
+   * Falls back to `_fvAt(p, config)` when the matrix is missing.
+   */
+  _fvAtRound(round, p, config) {
+    const v = this._lastView;
+    const m = v && v.fvByRoundPeriod;
+    const row = Array.isArray(m) ? m[round] : null;
+    if (row && Number.isFinite(row[p])) return row[p];
+    return this._fvAt(p, config);
+  },
+
+  /**
    * Peak fundamental value of the active asset — Math.max over
    * fvByPeriod, falling back to the legacy DLM peak (dividendMean × T)
    * when a view lacks the array. Used as an anchor for chart y-scales
    * so path-dependent assets don't get clipped.
    */
   _fvPeak(v, config) {
-    if (v && Array.isArray(v.fvByPeriod)) {
-      let peak = -Infinity;
+    let peak = -Infinity;
+    if (v && Array.isArray(v.fvByRoundPeriod)) {
+      for (const row of v.fvByRoundPeriod) {
+        if (!Array.isArray(row)) continue;
+        for (const x of row) if (Number.isFinite(x) && x > peak) peak = x;
+      }
+    }
+    if (!Number.isFinite(peak) && v && Array.isArray(v.fvByPeriod)) {
       for (const x of v.fvByPeriod) {
         if (Number.isFinite(x) && x > peak) peak = x;
       }
-      if (Number.isFinite(peak) && peak > 0) return peak;
     }
+    if (Number.isFinite(peak) && peak > 0) return peak;
     return config.dividendMean * config.periods;
   },
 
@@ -920,7 +941,8 @@ const UI = {
     const sessionPeriods = (config.roundsPerSession || 1) * config.periods;
     for (let g = 1; g <= sessionPeriods; g++) {
       const localP = ((g - 1) % config.periods) + 1;
-      const fv     = UI._fvAt(localP, config);
+      const localR = Math.floor((g - 1) / config.periods) + 1;
+      const fv     = UI._fvAtRound(localR, localP, config);
       fvPoints.push({ x: (g - 1) * config.ticksPerPeriod, y: fv });
       fvPoints.push({ x:  g      * config.ticksPerPeriod, y: fv });
     }
@@ -1267,7 +1289,8 @@ const UI = {
     const fvPoints = [];
     for (let g = 1; g <= sessionPeriods; g++) {
       const localP = ((g - 1) % config.periods) + 1;
-      const fv     = UI._fvAt(localP, config);
+      const localR = Math.floor((g - 1) / config.periods) + 1;
+      const fv     = UI._fvAtRound(localR, localP, config);
       fvPoints.push({ x: (g - 1) * config.ticksPerPeriod, y: fv });
       fvPoints.push({ x:  g      * config.ticksPerPeriod, y: fv });
     }
@@ -1656,7 +1679,8 @@ const UI = {
     const fvPoints = [];
     for (let g = 1; g <= sessionPeriodsVal; g++) {
       const localP = ((g - 1) % config.periods) + 1;
-      const fv     = UI._fvAt(localP, config);
+      const localR = Math.floor((g - 1) / config.periods) + 1;
+      const fv     = UI._fvAtRound(localR, localP, config);
       fvPoints.push({ x: (g - 1) * config.ticksPerPeriod, y: fv });
       fvPoints.push({ x:  g      * config.ticksPerPeriod, y: fv });
     }
@@ -1957,7 +1981,8 @@ const UI = {
     const fvPoints = [];
     for (let g = 1; g <= sessionPeriods; g++) {
       const localP = ((g - 1) % config.periods) + 1;
-      const fv     = UI._fvAt(localP, config);
+      const localR = Math.floor((g - 1) / config.periods) + 1;
+      const fv     = UI._fvAtRound(localR, localP, config);
       fvPoints.push({ x: (g - 1) * config.ticksPerPeriod, y: fv });
       fvPoints.push({ x:  g      * config.ticksPerPeriod, y: fv });
     }

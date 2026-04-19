@@ -1681,6 +1681,14 @@ const App = {
       replacementRound: this.replacementRound,
       // Current session number (1-10) for the batch display.
       currentSession: this.currentSession,
+      // Pre-replacement asset for the active session — the one the
+      // market starts with. Kept on ctx so the FV overlay in Figure 1
+      // (and the stats-card subjV chart) can continue drawing the
+      // pre-asset's FV curve for rounds 1..replacementRound−1 *after*
+      // the engine has swapped in the post asset; without this the
+      // market's live assetType is the only reference and the chart
+      // would redraw history with the post-asset shape.
+      preReplacementAsset: activeAsset || null,
       // Post-replacement asset for the active session. Engine installs
       // it on the market right after _round4Replacement() fires. Null
       // or identical-to-pre ⇒ keep the session's original asset for
