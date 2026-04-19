@@ -1287,7 +1287,7 @@
       <div class="arch-fig-header">
         <figcaption><span class="fig-num">Figure 5</span> — Sample Prompt · Per-Asset Plan II/III LLM Trader</figcaption>
       </div>
-      <p class="arch-desc">Plan II/III build one system prompt shared across all six asset environments (v3 §2: $V = \lambda\cdot\widetilde{\mathrm{FV}} + (1-\lambda)\cdot H$ with $H = \beta_1\cdot\text{Anchor} + \beta_2\cdot\text{Trend} + \beta_3\cdot\text{DividendSignal} + \beta_4\cdot\text{Narrative}$) and one user prompt whose 【Asset Environment】 block is spliced in from the round's active asset — the one the engine installed via the Advanced → <em>Session Replacement Rate, Pre/Post Asset &amp; FV Correlation</em> grid. When the engine swaps asset at the round-4 replacement boundary the user prompt swaps with it: dividend rule, horizon, model-based FV formula, and the canonical heuristic mistake all change together. A second conditional addendum (<em>Bounded Rationality</em>, toggled in the AI endpoint panel) is concatenated onto the system prompt and caps the LLM's cognitive budget so it trades like a human subject instead of a textbook optimiser. The sample below is the exact prompt <code>AI.getPlanBeliefs</code> generates for <code>agent_2</code> (risk-neutral, Plan II) at round 3, period 3, with <code>roundsPlayed = 2</code>, trading the linear-declining (DLM) asset; the fourth card shows the 【Asset Environment】 variant for each of the six asset types.</p>
+      <p class="arch-desc">Plan II/III build one system prompt shared across all six asset environments (v3 §2: $V = \lambda\cdot\widetilde{\mathrm{FV}} + (1-\lambda)\cdot H$ with $H = \beta_1\cdot\text{Anchor} + \beta_2\cdot\text{Trend} + \beta_3\cdot\text{DividendSignal} + \beta_4\cdot\text{Narrative}$) and one user prompt whose 【Asset Environment】 block is spliced in from the round's active asset — the one the engine installed via the Advanced → <em>Session Replacement Rate, Pre/Post Asset &amp; FV Correlation</em> grid. When the engine swaps asset at the round-4 replacement boundary the user prompt swaps with it: dividend rule, horizon, model-based FV formula, and the canonical heuristic mistake all change together. A second conditional addendum — <em>Bounded Rationality</em>, toggled in the AI endpoint panel — is concatenated onto the system prompt at the very bottom of this tab; see the red card below the figure. The sample below is the exact prompt <code>AI.getPlanBeliefs</code> generates for <code>agent_2</code> (risk-neutral, Plan II) at round 3, period 3, with <code>roundsPlayed = 2</code>, trading the linear-declining (DLM) asset; the third card shows the 【Asset Environment】 variant for each of the six asset types.</p>
 
       <div class="arch-defs">
         <div class="arch-def-card card-wang">
@@ -1311,58 +1311,6 @@ Important Rules:
 5. You can accept the current best ask (buy immediately) or accept the current best bid (sell immediately).
 6. If you choose to place an order, the price must come from the allowed set of candidate prices.
 7. Your output must strictly conform to the specified format.</pre>
-        </div>
-
-        <div class="arch-def-card card-wang">
-          <h4>Bounded-Rationality Addendum · appended when the AI endpoint panel's <em>Bounded Rationality</em> toggle is ON</h4>
-          <p class="role">Concatenated onto the end of the system prompt above, unchanged across agents. Caps the LLM's cognitive budget so it trades like a human subject instead of a textbook optimiser: $K=3$ reasoning steps · $N=5$ attention slots · $T=3$ periods of price memory · perceived FV = true FV + $\varepsilon$, $\varepsilon \sim \mathcal{N}(0, \sigma^2)$ with $\sigma = 10\text{¢}$ · execution noise $p = 0.10$ · one heuristic from {trend-following, mean-reversion, anchoring, randomized preference}. When the toggle is ON the user prompt's price paths (current round and remembered past rounds) are also truncated to the last $T$ periods — the LLM literally cannot see further back than working memory.</p>
-          <pre class="prompt-sample">====================
-Cognitive Constraints (Bounded Rationality)
-====================
-1. You can only perform up to K = 3 reasoning steps.
-2. You are NOT allowed to compute the exact fundamental value using the full dividend model.
-3. If reasoning becomes complex, you must fall back on heuristics — do not try to solve the whole problem analytically.
-
-====================
-Belief Formation
-====================
-- Your perceived fundamental value is noisy:
-    perceived_value = true_value + ε,   ε ~ Normal(0, σ²)
-  with σ = 10 cents. Treat FV numbers in the prompt as noisy signals, not ground truth.
-
-====================
-Attention Constraint
-====================
-- You can only consider up to N = 5 pieces of information when choosing your action. Pick the most decision-relevant ones and ignore the rest.
-
-====================
-Memory Constraint
-====================
-- You can only remember the last T = 3 periods of prices. The user prompt already truncates price paths to this window — do not try to infer older prices.
-
-====================
-Decision Heuristic
-====================
-You must commit to ONE of the following heuristics for this decision and name it in your Reason:
-  - Trend-following
-  - Mean-reversion
-  - Anchoring to past trades
-  - Randomized preference
-
-====================
-Execution Noise
-====================
-- With probability p = 0.10 a boundedly rational trader takes a suboptimal action. Factor this into your confidence, do not claim certainty.
-
-====================
-Action Rules
-====================
-1. You must select exactly one action.
-2. No vague answers.
-3. No "depends".
-4. Immediate execution is preferred.
-5. Orders must use allowed prices.
-6. Output must follow the specified format.</pre>
         </div>
 
         <div class="arch-def-card card-wang">
@@ -1590,6 +1538,74 @@ Action: &lt;BUY_NOW / SELL_NOW / BID_1 / BID_3 / ASK_1 / ASK_3 / HOLD&gt;</pre>
           <p class="role">Two orthogonal axes of variation</p>
           <p class="body"><strong>By experience (<code>roundsPlayed</code>).</strong> The 【Your Past Experience】 block scales with <code>roundsPlayed</code> — one entry per round the agent has lived through. A fresh R4-⅓/R4-⅔ replacement (<code>roundsPlayed = 0</code>) sees no history block at all; in its place the prompt contains a single declarative sentence: <em>"This is your first round in this market. You have never traded this asset before and have no memory of prior rounds — you only see the rules, the fundamental value, and whatever trading has happened so far in the current round."</em> Nothing else changes. The rule-based experience labels that used to appear in 【Your Type】 and 【Role-Specific Guidance】 are gone — the LLM decides how to weight fundamentals versus recent prices from its own observed history, not from an instruction telling it to do so.</p>
           <p class="body"><strong>By asset.</strong> The 【Asset Environment】 block is the only section that changes when the engine swaps asset at the replacement-round boundary; the FV-path numbers in the history block also re-read through <code>market.fundamentalValue(p)</code>, so a round traded on Linear Growth reports a Σ-tail FV path, Cyclical reports a sinusoidal one, and so on. Plan III differs from Plan II only by omitting the explicit $U(w; \rho_i)$ formula from 【Your Type】; the six asset variants and the experience block are identical across Plans II and III.</p>
+        </div>
+      </div>
+    </figure>
+
+    <!-- ════════════════════════════════════════════════════
+         Bounded-Rationality Addendum — standalone closing
+         card at the bottom of the Architecture tab. Painted
+         red (card-metric) to mark it as a cognitive-cap / hard
+         constraint, visually distinct from the pink Figure 5
+         prompt cards.
+         ════════════════════════════════════════════════════ -->
+    <figure class="arch-figure arch-figure-br">
+      <div class="arch-fig-header">
+        <figcaption><span class="fig-num">Addendum</span> — Bounded-Rationality System-Prompt Block</figcaption>
+      </div>
+      <p class="arch-desc">Concatenated onto the end of the Figure 5 system prompt when the <em>Bounded Rationality</em> toggle in the AI endpoint panel is ON. Caps the LLM's cognitive budget so it trades like a human subject rather than a textbook optimiser: $K=3$ reasoning steps · $N=5$ attention slots · $T=3$ periods of price memory · perceived FV = true FV + $\varepsilon$, $\varepsilon \sim \mathcal{N}(0, \sigma^2)$ with $\sigma = 10\text{¢}$ · execution noise $p = 0.10$ · one heuristic from {trend-following, mean-reversion, anchoring, randomized preference}. When the toggle is ON the user prompt's price paths (current round and remembered past rounds) are also truncated to the last $T$ periods — the LLM literally cannot see further back than a human's working memory. Plan I is unaffected: no LLM channel.</p>
+
+      <div class="arch-defs">
+        <div class="arch-def-card card-metric">
+          <h4>Bounded-Rationality Addendum · appended to $\pi^{\mathrm{II}}_{\text{sys}}$ / $\pi^{\mathrm{III}}_{\text{sys}}$</h4>
+          <p class="role">Identical across agents, plans, and asset types — a pure cognitive cap spliced in only when the toggle is active</p>
+          <pre class="prompt-sample">====================
+Cognitive Constraints (Bounded Rationality)
+====================
+1. You can only perform up to K = 3 reasoning steps.
+2. You are NOT allowed to compute the exact fundamental value using the full dividend model.
+3. If reasoning becomes complex, you must fall back on heuristics — do not try to solve the whole problem analytically.
+
+====================
+Belief Formation
+====================
+- Your perceived fundamental value is noisy:
+    perceived_value = true_value + ε,   ε ~ Normal(0, σ²)
+  with σ = 10 cents. Treat FV numbers in the prompt as noisy signals, not ground truth.
+
+====================
+Attention Constraint
+====================
+- You can only consider up to N = 5 pieces of information when choosing your action. Pick the most decision-relevant ones and ignore the rest.
+
+====================
+Memory Constraint
+====================
+- You can only remember the last T = 3 periods of prices. The user prompt already truncates price paths to this window — do not try to infer older prices.
+
+====================
+Decision Heuristic
+====================
+You must commit to ONE of the following heuristics for this decision and name it in your Reason:
+  - Trend-following
+  - Mean-reversion
+  - Anchoring to past trades
+  - Randomized preference
+
+====================
+Execution Noise
+====================
+- With probability p = 0.10 a boundedly rational trader takes a suboptimal action. Factor this into your confidence, do not claim certainty.
+
+====================
+Action Rules
+====================
+1. You must select exactly one action.
+2. No vague answers.
+3. No "depends".
+4. Immediate execution is preferred.
+5. Orders must use allowed prices.
+6. Output must follow the specified format.</pre>
         </div>
       </div>
     </figure>
