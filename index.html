@@ -292,19 +292,26 @@
               </div>
               <input type="range" id="p-exp-alpha0" class="scale-slider" min="0" max="1" step="0.01" value="0.40">
             </div>
-            <div class="dlm-treatment-opt scale-tile scale-tile-violet" data-tip-id="advGammaAlpha">
-              <div class="param-head">
-                <label for="p-exp-gammaAlpha"><span data-sym="gammaAlpha"></span> growth</label>
-                <span class="pval" id="v-exp-gammaAlpha">0.15</span>
-              </div>
-              <input type="range" id="p-exp-gammaAlpha" class="scale-slider" min="0" max="0.5" step="0.01" value="0.15">
-            </div>
             <div class="dlm-treatment-opt scale-tile scale-tile-violet" data-tip-id="advSigmaZero">
               <div class="param-head">
                 <label for="p-exp-sigma0"><span data-sym="sigmaZero"></span> noise</label>
                 <span class="pval" id="v-exp-sigma0">15.0</span>
               </div>
               <input type="range" id="p-exp-sigma0" class="scale-slider" min="0" max="40" step="0.5" value="15">
+            </div>
+            <div class="dlm-treatment-opt scale-tile scale-tile-violet" data-tip-id="advOmegaZero">
+              <div class="param-head">
+                <label for="p-exp-omega0"><span data-sym="omegaZero"></span> weight</label>
+                <span class="pval" id="v-exp-omega0">0.60</span>
+              </div>
+              <input type="range" id="p-exp-omega0" class="scale-slider" min="0" max="1" step="0.01" value="0.60">
+            </div>
+            <div class="dlm-treatment-opt scale-tile scale-tile-violet" data-tip-id="advGammaAlpha">
+              <div class="param-head">
+                <label for="p-exp-gammaAlpha"><span data-sym="gammaAlpha"></span> growth</label>
+                <span class="pval" id="v-exp-gammaAlpha">0.15</span>
+              </div>
+              <input type="range" id="p-exp-gammaAlpha" class="scale-slider" min="0" max="0.5" step="0.01" value="0.15">
             </div>
             <div class="dlm-treatment-opt scale-tile scale-tile-violet" data-tip-id="advGammaSigma">
               <div class="param-head">
@@ -349,6 +356,13 @@
                 <span class="pval" id="v-beta-narrative">0.10</span>
               </div>
               <input type="range" id="p-beta-narrative" class="scale-slider" min="0" max="1" step="0.01" value="0.10">
+            </div>
+            <div class="dlm-treatment-opt scale-tile scale-tile-green beta-sum-tile" data-tip-id="advBetaSum">
+              <div class="param-head">
+                <label>Σβ total</label>
+                <span class="pval" id="v-beta-sum">1.00</span>
+              </div>
+              <div class="beta-sum-note">target = 1.00</div>
             </div>
           </div>
 
@@ -518,9 +532,9 @@
         <dd class="const-note">Applied as $b_i = \delta_i \cdot \beta$ with $\beta = 0.15$; sign set by the per-slot bias direction $\delta_i \in \{-1, 0, +1\}$ (see Architecture Figure 2). Drives the biased U-agent slots in the default strategy cube (U2, U4, U5). Not in DLM 2005; chosen large enough to perturb the market without dominating the risk-preference split.<span class="const-src">agents.js — UTILITY_DEFAULTS.biasAmount</span></dd>
       </div>
       <div class="const-item">
-        <dt>novice self-weight <span data-sym="omegaZero"></span> <span class="const-val">= 0.60</span></dt>
-        <dd class="const-label">Anchor for the per-agent ω<sub>i</sub> at experience k<sub>i</sub> = 0</dd>
-        <dd class="const-note">Third experience-indexed parameter, and the one anchor of the triple (<span data-sym="alphaZero"></span>, <span data-sym="sigmaZero"></span>, <span data-sym="omegaZero"></span>) that is <em>not</em> exposed as an Advanced-Settings slider — it is held fixed so the experience-transfer blend has a stable novice baseline across sessions. The two tunable anchors (<span data-sym="alphaZero"></span>, <span data-sym="sigmaZero"></span>) and their growth rates (<span data-sym="gammaAlpha"></span>, <span data-sym="gammaSigma"></span>) live under <em>Advanced settings → Experience anchors & growth rates</em>; this row documents the remaining fixed piece. The rule is <span data-sym="omegaIDef"></span>, so <span data-sym="omegaI"></span> saturates at 0.9 once k<sub>i</sub> ≥ 3: k<sub>i</sub> = 0 ⇒ 0.60, k<sub>i</sub> = 1 ⇒ 0.70, k<sub>i</sub> = 2 ⇒ 0.80, k<sub>i</sub> ≥ 3 ⇒ 0.90. <span data-sym="omegaI"></span> is the convex weight on the agent's <em>own</em> prior when it blends peer opinion into its posterior: V<sup>post</sup><sub>i,t</sub> = <span data-sym="omegaI"></span>·V<sup>prior</sup><sub>i,t</sub> + (1 − <span data-sym="omegaI"></span>)·m̄<sub>t</sub> (v3 §2). Not in DLM 2005 (which has no messaging layer at all); chosen so the novice weight matches the legacy naive-prior-weight above (also 0.60) for continuity with Plan I. <strong>Asset-swap blend:</strong> from round <em>r</em> on, ω<sub>new</sub> = |corr| · ω<sub>trained</sub> + (1 − |corr|) · <span data-sym="omegaZero"></span>, so a veteran handed an uncorrelated post-asset drops back to the 0.60 crowd-trust of a novice and regains confidence only as the pre-round r<sub>0</sub> simulation shows the two assets share dynamics.<span class="const-src">utility.js — ExperienceConfig.omega0, omegaStep, omegaKmax · ui.js — UI._blendExperience</span></dd>
+        <dt>self-weight step <span class="const-val">Δ<sub>ω</sub> = 0.10, k<sub>max</sub> = 3</span></dt>
+        <dd class="const-label">Per-round increment and saturation horizon for ω<sub>i</sub></dd>
+        <dd class="const-note">The anchor <span data-sym="omegaZero"></span> has been promoted to <em>Advanced settings → Experience anchors</em> alongside <span data-sym="alphaZero"></span> / <span data-sym="sigmaZero"></span> / <span data-sym="gammaAlpha"></span> / <span data-sym="gammaSigma"></span>; only the step size Δ<sub>ω</sub> = 0.10 and saturation horizon k<sub>max</sub> = 3 stay fixed here so the ramp <span data-sym="omegaIDef"></span> walks 0.60 → 0.70 → 0.80 → 0.90 for k<sub>i</sub> ∈ {0, 1, 2, ≥3} and saturates at 0.90 regardless of the anchor. <span data-sym="omegaI"></span> is the convex weight on the agent's own prior when it blends peer opinion: V<sup>post</sup><sub>i,t</sub> = <span data-sym="omegaI"></span>·V<sup>prior</sup><sub>i,t</sub> + (1 − <span data-sym="omegaI"></span>)·m̄<sub>t</sub>. Asset-swap blend from round <em>r</em> on: ω<sub>new</sub> = |corr|·ω<sub>trained</sub> + (1 − |corr|)·<span data-sym="omegaZero"></span>.<span class="const-src">utility.js — ExperienceConfig.omegaStep, omegaKmax · ui.js — UI._blendExperience</span></dd>
       </div>
           </dl>
         </div>
@@ -2405,6 +2419,15 @@ Action Rules
   <p><strong>Narrative weight</strong> <span data-sym="betaFour"></span> in the heuristic mix <span data-sym="hIt"></span>. The Narrative term encodes per-asset regime priors (v3 §4.4) — e.g. a "this asset is in a growth regime" or "this asset is in a crash regime" tilt, asset-specific by construction.</p>
   <p>Default <span data-sym="betaFour"></span> = 0.10, the smallest of the four <span data-sym="betaOne"></span>..<span data-sym="betaFour"></span> by design. Raising it lets asset-specific priors bias the heuristic branch (useful for studying narrative-driven bubbles); lowering it collapses the heuristic toward the anchor / trend / dividend trio.</p>
   <p>The four weights do not have to sum to 1 — the Σβ chip at the end of the β-row shows the current total so you can tell at a glance when the mix has drifted off the v3 §6.2 spec (which fixes Σβ = 1 at 0.5 / 0.2 / 0.2 / 0.1).</p>
+</template>
+<template id="tpl-advOmegaZero">
+  <p><strong>Novice self-weight anchor</strong> <span data-sym="omegaZero"></span> — in the replacement-round experience-transfer blend $V_{\text{post}} = \omega_i \cdot V_{\text{self}} + (1 - \omega_i) \cdot V_{\text{peer}}$, this is the weight a fully-inexperienced agent (<span data-sym="kI"></span> = 0) places on its own judgement instead of its peer network's.</p>
+  <p>Live rule <span data-sym="omegaI"></span> = <span data-sym="omegaZero"></span> + Δ<sub>ω</sub> · min(<span data-sym="kI"></span>, k<sub>max</sub>). At the default <span data-sym="omegaZero"></span> = 0.60 a novice leans 60/40 on its own read; veterans saturate higher (Δ<sub>ω</sub> = 0.10, k<sub>max</sub> = 3 is hardcoded in <code>ExperienceConfig</code>).</p>
+  <p>Drop <span data-sym="omegaZero"></span> toward 0 to make green replacements herd on their peers (stronger social learning, faster convergence). Push it toward 1 to make them anchor stubbornly on their own v3 §2 prior.</p>
+</template>
+<template id="tpl-advBetaSum">
+  <p><strong>Σβ total</strong> — live sum of the four heuristic weights <span data-sym="betaOne"></span> + <span data-sym="betaTwo"></span> + <span data-sym="betaThree"></span> + <span data-sym="betaFour"></span>. The v3 §6.2 spec fixes this at 1.00 (0.50 / 0.20 / 0.20 / 0.10) so that <span data-sym="hIt"></span> is a convex combination of the four terms.</p>
+  <p>The tile glows amber when the total drifts off 1.00 so researchers running non-convex mixes (e.g. pure-anchor, inflated trend) can tell at a glance that the heuristic is no longer unit-normalised.</p>
 </template>
 <template id="tpl-advBoundedRationality">
   <p><strong>Bounded Rationality</strong> (Plan II / III only). Caps the LLM trader's cognitive budget so it trades like a human subject instead of a textbook optimiser.</p>

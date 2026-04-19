@@ -128,6 +128,7 @@ const App = {
     expGammaAlpha:  0.15,
     expSigma0:      15,
     expGammaSigma:  0.30,
+    expOmega0:      0.60,
     // Heuristic-mix weights (v3 §4). Live-tunable via Advanced
     // Settings sliders; main.js copies them into HEURISTIC_BETAS on
     // every rebuild so utility.heuristicValue() picks them up.
@@ -451,8 +452,9 @@ const App = {
     // so the readout is stable and the UI doesn't churn: two decimals for
     // the [0, 1]-ish weights, one decimal for σ_0.
     'p-exp-alpha0':     { target: 'tunables.expAlpha0',     out: 'v-exp-alpha0',     fmt: v => v.toFixed(2) },
-    'p-exp-gammaAlpha': { target: 'tunables.expGammaAlpha', out: 'v-exp-gammaAlpha', fmt: v => v.toFixed(2) },
     'p-exp-sigma0':     { target: 'tunables.expSigma0',     out: 'v-exp-sigma0',     fmt: v => v.toFixed(1) },
+    'p-exp-omega0':     { target: 'tunables.expOmega0',     out: 'v-exp-omega0',     fmt: v => v.toFixed(2) },
+    'p-exp-gammaAlpha': { target: 'tunables.expGammaAlpha', out: 'v-exp-gammaAlpha', fmt: v => v.toFixed(2) },
     'p-exp-gammaSigma': { target: 'tunables.expGammaSigma', out: 'v-exp-gammaSigma', fmt: v => v.toFixed(2) },
     // Heuristic-mix weights β_1..β_4 (v3 §4). Allowed to drift off the
     // Σ = 1 spec so researchers can study, e.g., pure-anchor or pure-
@@ -497,11 +499,13 @@ const App = {
          || spec.target === 'tunables.expGammaAlpha'
          || spec.target === 'tunables.expSigma0'
          || spec.target === 'tunables.expGammaSigma'
+         || spec.target === 'tunables.expOmega0'
          || spec.target === 'tunables.betaAnchor'
          || spec.target === 'tunables.betaTrend'
          || spec.target === 'tunables.betaDividend'
          || spec.target === 'tunables.betaNarrative') {
           this._syncTunableConfigs();
+          this._updateBetaSum();
         }
       });
       input.addEventListener('change', () => {
@@ -675,6 +679,8 @@ const App = {
     // Prime the custom --pct on every slider so the filled portion of
     // the track matches the initial value before any interaction.
     this._updateAllSliderPcts();
+    // Prime the Σβ tile so it reflects the current tunables on load.
+    this._updateBetaSum();
     // Keep the paper-constants round card synced with the current
     // (R, r) pair in case defaults differ from the static HTML.
     this._syncRoundsUi();
@@ -1592,6 +1598,7 @@ const App = {
       ExperienceConfig.gammaAlpha = this.tunables.expGammaAlpha;
       ExperienceConfig.sigma0     = this.tunables.expSigma0;
       ExperienceConfig.gammaSigma = this.tunables.expGammaSigma;
+      ExperienceConfig.omega0     = this.tunables.expOmega0;
     }
     if (typeof HEURISTIC_BETAS !== 'undefined') {
       HEURISTIC_BETAS.anchor    = this.tunables.betaAnchor;
@@ -1599,6 +1606,24 @@ const App = {
       HEURISTIC_BETAS.dividend  = this.tunables.betaDividend;
       HEURISTIC_BETAS.narrative = this.tunables.betaNarrative;
     }
+  },
+
+  /**
+   * Refresh the Σβ tile in the green heuristic row. Lives inside the
+   * row as a fifth tile so the green block mirrors the five-tile
+   * violet row above it. Switches to .beta-sum-off when the four
+   * weights drift off the unit-sum default.
+   */
+  _updateBetaSum() {
+    const el = document.getElementById('v-beta-sum');
+    if (!el) return;
+    const s = (this.tunables.betaAnchor || 0)
+            + (this.tunables.betaTrend || 0)
+            + (this.tunables.betaDividend || 0)
+            + (this.tunables.betaNarrative || 0);
+    el.textContent = s.toFixed(2);
+    const host = el.closest('.dlm-treatment-opt');
+    if (host) host.classList.toggle('beta-sum-off', Math.abs(s - 1) > 0.005);
   },
 
   _updateSliderPct(el) {
@@ -1696,6 +1721,7 @@ const App = {
     // × 2).  Done before the engine/agents are reconstructed so the
     // first tick of the new session uses the freshly-set values.
     this._syncTunableConfigs();
+    this._updateBetaSum();
 
     // Nothing is folded from tunables into config here any more:
     // periods, dividendMean, and ticksPerPeriod are all fixed

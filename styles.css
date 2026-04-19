@@ -1550,6 +1550,34 @@ body:not(.plan-ii):not(.plan-iii) .plan-llm-only { display: none !important; }
   --accent: var(--green);
   --accent-light: color-mix(in srgb, var(--green) 22%, transparent);
 }
+/* Σβ total tile — read-only green tile sitting as the 5th slot in the
+   heuristic row so the green block mirrors the violet 5-tile shape.
+   Swaps the slider for a small "target" caption; flips amber when the
+   four weights above no longer sum to 1.00. */
+.dlm-treatment-opt.scale-tile.scale-tile-green.beta-sum-tile {
+  cursor: default;
+}
+.beta-sum-tile .beta-sum-note {
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+.dlm-treatment-opt.scale-tile.scale-tile-green.beta-sum-tile.beta-sum-off {
+  border-color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 10%, var(--bg-1));
+}
+.dlm-treatment-opt.scale-tile.scale-tile-green.beta-sum-tile.beta-sum-off .param-head .pval {
+  background: var(--amber);
+  color: #fff;
+}
+.dlm-treatment-opt.scale-tile.scale-tile-green.beta-sum-tile.beta-sum-off .beta-sum-note {
+  color: var(--amber);
+}
 /* Per-session rate grid — 10 compact rows nested inside the
    scale-tile-amber host. Each row carries {idx, slider, pct readout,
    asset dropdown}, so a single-column layout gives every row room for
