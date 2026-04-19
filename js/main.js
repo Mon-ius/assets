@@ -1624,6 +1624,19 @@ const App = {
       // the remainder of the round schedule.
       postReplacementAsset: (postAsset && activeAsset && postAsset.id !== activeAsset.id)
         ? postAsset : null,
+      // |corr| for the active session — drives the experience-transfer
+      // blend in utility.experienceEffective() so that α_i/σ_i/ω_i used
+      // during the post-asset rounds match what the card renders and
+      // what UI._blendExperience computes.
+      sessionAssetCorrAbs: (() => {
+        const r = this._sessionAssetCorr(this.currentSession || 1);
+        return Number.isFinite(r) ? Math.abs(r) : 0;
+      })(),
+      // Default heuristic weights (v3 §6.2); exposed on ctx so a future
+      // tunable can override without touching the agent code path.
+      heuristicBetas: (typeof HEURISTIC_BETAS !== 'undefined')
+        ? HEURISTIC_BETAS
+        : { anchor: 0.5, trend: 0.2, dividend: 0.2, narrative: 0.1 },
     };
     this.engine = new Engine(this.market, this.agents, this.logger, this.config, this._rng, this.ctx);
     this.engine.onTick = () => this.requestRender();

@@ -405,9 +405,9 @@
         <dd class="const-note">Upper bound on the fraction of belief an adaptive agent can shift toward the trust-weighted message mean $\bar{m}$ in a single period: even with fully-trusted senders, $w \geq 0.50$ so $V_i^{\text{post}}$ is at most 50% $\bar{m}$ + 50% $V_i^{\text{prior}}$. Not in DLM 2005; guards against runaway over-update from a single high-trust period.<span class="const-src">agents.js — UTILITY_DEFAULTS.adaptiveWeightCap</span></dd>
       </div>
       <div class="const-item ext-only">
-        <dt>valuation noise <span class="const-val">= ±3%</span></dt>
+        <dt>valuation noise <span class="const-val">= ±3%</span> <em class="const-val" style="font-style:italic;opacity:0.7">(legacy)</em></dt>
         <dd class="const-label">Per-tick uniform noise on the Utility-agent prior</dd>
-        <dd class="const-note">Before any bias or message update, each Utility agent draws $\text{prior}_t = \mathrm{FV}_t \cdot (1 + b_i + \varepsilon)$, $\varepsilon \sim \mathcal{U}[-n,\, n]$, $n = 0.03$ (see Architecture Figure 2). Not in DLM 2005; added so trade decisions do not degenerate to lockstep when every biased/unbiased agent starts each tick from the identical prior.<span class="const-src">agents.js — UTILITY_DEFAULTS.valuationNoise</span></dd>
+        <dd class="const-note"><strong>Superseded</strong> — now replaced by the v3 §2 Gaussian noise term <span data-sym="epsilon"></span> ~ <span data-sym="normalDist"></span> scaled by the experience-indexed <span data-sym="sigmaI"></span> (see the <strong>novice valuation noise <span data-sym="sigmaZero"></span></strong> entry below). The legacy uniform draw $\varepsilon \sim \mathcal{U}[-n, n]$, $n = 0.03$ is still carried on each agent spec for backwards compatibility with older replays but no longer feeds <code>updateBelief</code>. Kept here to document the pre-v3 behaviour.<span class="const-src">agents.js — UTILITY_DEFAULTS.valuationNoise (inert)</span></dd>
       </div>
       <div class="const-item ext-only">
         <dt>trust λ <span class="const-val">= 0.30</span></dt>
@@ -2027,7 +2027,7 @@ Action: &lt;BUY_NOW / SELL_NOW / BID_1 / BID_3 / ASK_1 / ASK_3 / HOLD&gt;</pre>
 
 <script defer src="https://cloud.umami.is/script.js" data-website-id="7949072b-501b-43b1-b400-323e6dbc53c4"></script>
 <script data-cfasync="false" src="js/mathml.js?v=22"></script>
-<script data-cfasync="false" src="js/utility.js?v=22"></script>
+<script data-cfasync="false" src="js/utility.js?v=23"></script>
 <!--
   Rich hover tooltip templates — Advanced Settings tiles. Each
   template is cloned into a shared floating div by App._initRichTips
@@ -2124,13 +2124,13 @@ Action: &lt;BUY_NOW / SELL_NOW / BID_1 / BID_3 / ASK_1 / ASK_3 / HOLD&gt;</pre>
 <script data-cfasync="false" src="js/messaging.js?v=21"></script>
 <script data-cfasync="false" src="js/assets.js?v=25"></script>
 <script data-cfasync="false" src="js/market.js?v=22"></script>
-<script data-cfasync="false" src="js/agents.js?v=21"></script>
+<script data-cfasync="false" src="js/agents.js?v=22"></script>
 <script data-cfasync="false" src="js/logger.js?v=21"></script>
 <script data-cfasync="false" src="js/viz.js?v=21"></script>
 <script data-cfasync="false" src="js/ai.js?v=21"></script>
 <script data-cfasync="false" src="js/engine.js?v=22"></script>
-<script data-cfasync="false" src="js/ui.js?v=25"></script>
+<script data-cfasync="false" src="js/ui.js?v=26"></script>
 <script data-cfasync="false" src="js/replay.js?v=22"></script>
-<script data-cfasync="false" src="js/main.js?v=26"></script>
+<script data-cfasync="false" src="js/main.js?v=27"></script>
 </body>
 </html>

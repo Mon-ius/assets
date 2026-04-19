@@ -53,23 +53,27 @@ const UI = {
   _blendExperience(trained, agent, v) {
     if (!trained) return trained;
     const App = window.App;
-    // Pre-run / replay at tick 0: no session is live yet, show trained.
     const session = (v && v.session) || (App && App.currentSession) || 0;
     if (!App || !session) return trained;
     const round  = (v && v.round) || 1;
     const replR  = (App.replacementRound | 0) || 4;
-    if (round < replR) return trained;  // still in pre-asset phase
+    const applyBlend = round >= replR
+                    && agent && (agent.roundsPlayed | 0) > 0;
+    if (!applyBlend) return trained;
     const idx = Math.max(0, Math.min(9, session - 1));
     const preId  = App.sessionAssets && App.sessionAssets[idx];
     const postId = App.sessionAssetsPost && App.sessionAssetsPost[idx];
     if (!preId || !postId || preId === postId) return trained;
-    // Novices carry no training to blend — skip the work.
-    if (!(agent && (agent.roundsPlayed | 0) > 0)) return trained;
     const corr = (typeof App._sessionAssetCorr === 'function')
       ? App._sessionAssetCorr(session)
       : NaN;
-    const w = Math.abs(Number.isFinite(corr) ? corr : 0);
-    const clamped = Math.min(1, Math.max(0, w));
+    const corrAbs = Math.abs(Number.isFinite(corr) ? corr : 0);
+    // Delegate to the shared helper so the card and the belief
+    // pipeline (agents.js updateBelief) always agree on α/σ/ω.
+    if (typeof experienceEffective === 'function') {
+      return experienceEffective(trained.k | 0, corrAbs, true);
+    }
+    const clamped = Math.min(1, Math.max(0, corrAbs));
     const novice = (typeof experienceFactors === 'function')
       ? experienceFactors(0)
       : { alpha: 0.4, sigma: 15, omega: 0.6 };

@@ -158,3 +158,170 @@ function experienceFactors(k) {
          + EXPERIENCE_OMEGA_STEP * Math.min(EXPERIENCE_OMEGA_KMAX, ki),
   };
 }
+
+/**
+ * experienceEffective — apply the post-replacement experience-transfer
+ * blend on top of experienceFactors(k). Shared by UI (`UI._blendExperience`)
+ * and the agent belief pipeline (`UtilityAgent.updateBelief`) so the
+ * displayed α_i/σ_i/ω_i on the card match the values that actually drove
+ * the trade decision.
+ *
+ *   α_new = |corr|·α_trained + (1 − |corr|)·α_0
+ *   σ_new = |corr|·σ_trained + (1 − |corr|)·σ_0
+ *   ω_new = |corr|·ω_trained + (1 − |corr|)·ω_0
+ *
+ * `applyBlend` is the phase gate: pass true only when the engine has
+ * passed the replacement-round boundary and the post-asset is live.
+ * Before that, the agent is still trading on the pre-asset and its
+ * trained experience applies at full strength.
+ */
+function experienceEffective(k, corrAbs, applyBlend) {
+  const trained = experienceFactors(k);
+  if (!applyBlend || !(trained.k > 0)) return trained;
+  const raw = Number.isFinite(corrAbs) ? corrAbs : 0;
+  const w   = Math.min(1, Math.max(0, raw));
+  const novice = experienceFactors(0);
+  return {
+    k:      trained.k,
+    alpha:  w * trained.alpha + (1 - w) * novice.alpha,
+    sigma:  w * trained.sigma + (1 - w) * novice.sigma,
+    omega:  w * trained.omega + (1 - w) * novice.omega,
+    corr:   w,
+    blended: true,
+  };
+}
+
+/* =====================================================================
+   Heuristic H_{i,t} — v3 §4 four-term decomposition:
+
+       H_{i,t} = β_1·Anchor_{i,t} + β_2·Trend_{i,t}
+               + β_3·DividendSignal_{i,t} + β_4·Narrative_{i,t}
+
+   Default weights from §6.2 (tuned uniformly; asset-specific tweaks left
+   to the registry). Per §6.3, Trend is omitted at t = 1 because there
+   is no previous period to difference against.
+   ===================================================================== */
+
+const HEURISTIC_BETAS = {
+  anchor:    0.50,
+  trend:     0.20,
+  dividend:  0.20,
+  narrative: 0.10,
+};
+
+/** Standard-normal draw via Box–Muller over the seeded RNG. Returns
+ *  σ · z so callers can scale by a per-agent σ_i in one step. */
+function gaussianDraw(rng, sigma) {
+  const s = Number.isFinite(sigma) ? Math.max(0, sigma) : 0;
+  if (s === 0) return 0;
+  let u = typeof rng === 'function' ? rng() : Math.random();
+  if (u < 1e-12) u = 1e-12;
+  const v = typeof rng === 'function' ? rng() : Math.random();
+  const z = Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  return s * z;
+}
+
+/**
+ * heuristicValue — evaluate H_{i,t} for one utility agent at the start
+ * of the current period. All four terms are recomputed from the Market
+ * state (priceHistory, dividendHistory, asset state) and the agent's
+ * own empirical dividend window (same slice `updateBelief` uses for the
+ * bounded-rationality FṼ estimate), so the function is pure and safe
+ * to call every tick.
+ *
+ * Returns `{ H, anchor, trend, dividend, narrative }` — the per-term
+ * breakdown is stashed on the agent's reasoning trace so a replay can
+ * show why a given decision moved.
+ */
+function heuristicValue(agent, market, ctx) {
+  const betas   = (ctx && ctx.heuristicBetas) || HEURISTIC_BETAS;
+  const period  = market.period | 0;
+  const T       = market.config.periods | 0;
+  const kt      = Math.max(0, T - period + 1);            // remaining periods
+  const r       = (market.config && market.config.discountRate) || 0.05;
+
+  // Anchor — v3 §4.1. At t = 1 we have no live history, so anchor to
+  // the agent's model-based reference (FV_1 ≈ 100 by construction at
+  // every registered asset). For t ≥ 2 anchor to the asset's current
+  // environment center (FV_t from the active asset's state).
+  const anchorInit = (market.assetType && typeof market.assetType.fundamentalValue === 'function')
+    ? market.assetType.fundamentalValue(1, market.assetState)
+    : market.fundamentalValue(1);
+  const anchor = (period <= 1) ? anchorInit : market.fundamentalValue(period);
+
+  // Trend — v3 §4.2. Use the last *trade* price of each of the previous
+  // two periods. Missing trades fall through to 0 so a sparse book
+  // doesn't spike the heuristic.
+  let trend = 0;
+  if (period >= 2) {
+    const pPrev  = lastTradePriceForPeriod(market, period - 1);
+    const pPrev2 = (period >= 3) ? lastTradePriceForPeriod(market, period - 2)
+                                 : anchorInit;
+    if (pPrev != null && pPrev2 != null) trend = pPrev - pPrev2;
+  }
+
+  // DividendSignal — v3 §4.3.
+  //   t = 1: μ_public (asset's published expected dividend per period)
+  //          scaled by the PV factor A_t = Σ_{j=1..kt} (1+r)^(−j).
+  //   t ≥ 2: d̄_obs · A_t using the agent's empirical mean across the
+  //          rounds it has actually observed (roundsPlayed window).
+  const muPublic = (market.assetState && market.assetState.expectedDividend != null)
+    ? market.assetState.expectedDividend
+    : (market.config && market.config.dividendMean) || 0;
+  let At = 0;
+  for (let j = 1; j <= kt; j++) At += Math.pow(1 + r, -j);
+  let dMean = muPublic;
+  if (period >= 2) {
+    const divHist   = market.dividendHistory || [];
+    const firstSeen = market.round - (agent.roundsPlayed | 0);
+    let sum = 0, n = 0;
+    for (let i = 0; i < divHist.length; i++) {
+      if (divHist[i].round >= firstSeen) { sum += divHist[i].value; n++; }
+    }
+    dMean = n > 0 ? sum / n : muPublic;
+  }
+  const dividendSignal = dMean * At;
+
+  // Narrative — v3 §4.4. Asset-specific "story premium/discount". The
+  // registry exposes this through `asset.narrativeShift(period, state)`
+  // when an asset wants to inject one; otherwise we default to 0 so β_4
+  // simply remains a reserved slot for future per-asset calibration.
+  let narrative = 0;
+  if (market.assetType && typeof market.assetType.narrativeShift === 'function') {
+    narrative = market.assetType.narrativeShift(period, market.assetState) || 0;
+  }
+
+  // Assemble H. At t = 1 §6.3 drops the Trend term entirely — the
+  // other three weights carry the full prior.
+  const useTrend = period >= 2 ? betas.trend : 0;
+  const H = betas.anchor * anchor
+          + useTrend      * trend
+          + betas.dividend * dividendSignal
+          + betas.narrative * narrative;
+
+  return {
+    H,
+    anchor,
+    trend,
+    dividend: dividendSignal,
+    narrative,
+    betas,
+    At,
+    dMean,
+    muPublic,
+  };
+}
+
+/** Last transaction price recorded inside a given round/period window,
+ *  or null if no trade printed in that window. Cheap enough at current
+ *  history sizes to scan linearly every tick. */
+function lastTradePriceForPeriod(market, period) {
+  const hist = market.priceHistory || [];
+  for (let i = hist.length - 1; i >= 0; i--) {
+    const h = hist[i];
+    if (h.round === market.round && h.period === period && h.price != null) {
+      return h.price;
+    }
+  }
+  return null;
+}

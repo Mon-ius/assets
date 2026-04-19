@@ -681,12 +681,43 @@ class UtilityAgent extends Agent {
       fvEffective      = muHat * remaining;
     }
 
-    // Prior = FV̂ × (1 + bias_i + ε). FV̂ is the true FV by default and
-    // the bounded-rationality estimate above when Complex Dividends is
-    // on. Bias and noise are toggled independently via applyBias /
-    // applyNoise (checkboxes in Advanced settings). With all three off
-    // the prior collapses to the true FV exactly and the sole
-    // heterogeneity channel is the peer-message blend.
+    // v3 §7 implementation flow:
+    //   Step 1 — FṼ_{i,t} (model-based value). Already in fvEffective:
+    //            fv for the deterministic default and the
+    //            bounded-rationality empirical estimate when Complex
+    //            Dividends is on.
+    //   Step 2 — prior = α_i · FṼ + (1 − α_i) · H + ε_i, where
+    //            H is the §4 four-term heuristic and ε_i ~ N(0, σ_i²).
+    //            Experience factors (α_i, σ_i, ω_i) are taken from
+    //            experienceEffective() so the post-replacement
+    //            asset-correlation blend affects belief updating the
+    //            same way it affects the card display.
+    //   Step 3 — post = ω_i · prior + (1 − ω_i) · m̄_t, where m̄_t
+    //            aggregates foreign messages received last period.
+    //   Bias and the Advanced → Prior Noise toggle are layered on top:
+    //   bias is a multiplicative persistent tilt on the prior (applyBias)
+    //   and the noise toggle (applyNoise) gates the ε draw. When both
+    //   toggles are off and H happens to equal FṼ the prior collapses
+    //   to FṼ exactly, keeping the Plan I baseline reachable.
+
+    // Experience factors — trained by k_i, then optionally blended with
+    // the novice anchors by |corr| once the asset has swapped at the
+    // replacement boundary. Same math ui.js uses to render the card.
+    const corrAbs = (ctx && Number.isFinite(ctx.sessionAssetCorrAbs))
+      ? ctx.sessionAssetCorrAbs
+      : 1;
+    const replR     = (ctx && (ctx.replacementRound | 0)) || 4;
+    const isPost    = (market.round | 0) >= replR;
+    const expFactor = (typeof experienceEffective === 'function')
+      ? experienceEffective(this.roundsPlayed | 0, corrAbs, isPost)
+      : { alpha: 0.4, sigma: 15, omega: 0.6 };
+
+    // Heuristic H_{i,t} per v3 §4. Defaults in HEURISTIC_BETAS (§6.2).
+    // The full breakdown is stashed on the reasoning trace below.
+    const heur = (typeof heuristicValue === 'function')
+      ? heuristicValue(this, market, ctx)
+      : { H: fvEffective, anchor: fvEffective, trend: 0, dividend: 0, narrative: 0 };
+
     const useBias  = ctx && ctx.tunables && ctx.tunables.applyBias;
     const useNoise = ctx && ctx.tunables && ctx.tunables.applyNoise;
     const bias  = useBias
@@ -694,15 +725,17 @@ class UtilityAgent extends Agent {
        : this.biasMode === 'under' ? -this.biasAmount
        : 0)
       : 0;
-    const noise = useNoise
-      ? this.valuationNoise * (2 * rng() - 1)
+    const epsilon = useNoise && typeof gaussianDraw === 'function'
+      ? gaussianDraw(rng, expFactor.sigma)
       : 0;
-    const prior = Math.max(0, fvEffective * (1 + bias + noise));
+    const priorBlend = expFactor.alpha * fvEffective
+                     + (1 - expFactor.alpha) * heur.H;
+    const prior = Math.max(0, priorBlend * (1 + bias) + epsilon);
     this.trueValuation = prior;
 
-    // Gather last period's messages from the bus (peer channel). These
-    // drive the blend in Plan I and feed the next period-boundary LLM
-    // call in Plans II/III.
+    // Gather last period's messages from the bus (peer channel). m̄_t in
+    // the spec — foreign senders only; self-echoes are stripped so an
+    // agent never marks itself up with its own claimed valuation.
     const bus        = ctx && ctx.messageBus;
     const ext        = ctx && ctx.extended;
     const canListen  = !ext || ext.communication !== false;
@@ -723,21 +756,32 @@ class UtilityAgent extends Agent {
       }
     }
 
-    // Algorithmic fallback (and Plan I's primary path). Prior weight
-    // grows with accumulated experience: w ∈ {0.6, 0.7, 0.8, 0.9} for
-    // roundsPlayed ∈ {0, 1, 2, ≥3}. With an empty message set the
-    // posterior collapses to the prior.
+    // Step 3 — peer blend using the experience-weighted ω_i. Empty
+    // foreign set collapses to the prior (nothing to average).
     if (subjective == null) {
-      const w = 0.6 + 0.1 * Math.min(3, this.roundsPlayed | 0);
+      const omega = expFactor.omega;
       if (foreign.length) {
-        const avg = foreign.reduce((s, m) => s + m.claimedValuation, 0) / foreign.length;
-        subjective = w * prior + (1 - w) * avg;
+        const mBar = foreign.reduce((s, m) => s + m.claimedValuation, 0) / foreign.length;
+        subjective = omega * prior + (1 - omega) * mBar;
       } else {
         subjective = prior;
       }
     }
 
     this.subjectiveValuation = Math.max(0, subjective);
+    // Stash the §7 breakdown for the reasoning trace + UI.
+    this._lastBelief = {
+      fvTilde:   fvEffective,
+      heuristic: heur,
+      alpha:     expFactor.alpha,
+      sigma:     expFactor.sigma,
+      omega:     expFactor.omega,
+      epsilon,
+      bias,
+      prior,
+      post:      this.subjectiveValuation,
+      corrAbs:   isPost ? corrAbs : null,
+    };
     return { trueV: this.trueValuation, subjectiveV: this.subjectiveValuation };
   }
 
@@ -889,6 +933,25 @@ class UtilityAgent extends Agent {
       biasMode:      this.biasMode,
       biasAmount:    this.biasAmount,
       beliefMode:    this.beliefMode,
+      // v3 §7 belief breakdown — FṼ, heuristic components, α/σ/ω
+      // actually used this tick, ε draw, prior before peer blend, and
+      // the posterior that drove the decision. Surfaces on the replay
+      // trace so a reader can reconstruct why a given order was placed.
+      belief: this._lastBelief ? {
+        fvTilde:   this._lastBelief.fvTilde,
+        anchor:    this._lastBelief.heuristic.anchor,
+        trend:     this._lastBelief.heuristic.trend,
+        dividend:  this._lastBelief.heuristic.dividend,
+        narrative: this._lastBelief.heuristic.narrative,
+        H:         this._lastBelief.heuristic.H,
+        alpha:     this._lastBelief.alpha,
+        sigma:     this._lastBelief.sigma,
+        omega:     this._lastBelief.omega,
+        epsilon:   this._lastBelief.epsilon,
+        prior:     this._lastBelief.prior,
+        post:      this._lastBelief.post,
+        corrAbs:   this._lastBelief.corrAbs,
+      } : null,
       receivedMsgs: this.receivedMsgs.map(m => ({
         from:  m.senderName,
         claim: m.claimedValuation,
