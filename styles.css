@@ -1488,18 +1488,18 @@ body:not(.plan-ii):not(.plan-iii) .plan-llm-only { display: none !important; }
    row so the three bands of Advanced Settings read as distinct groups.
    Compact padding + tight pval so the 4 tiles fit on one row. */
 .dlm-treatment-opt.scale-tile.scale-tile-violet,
-.dlm-treatment-opt.scale-tile.scale-tile-blue {
+.dlm-treatment-opt.scale-tile.scale-tile-green {
   padding: 6px 8px;
   min-width: 0;
 }
 .dlm-treatment-opt.scale-tile.scale-tile-violet .param-head,
-.dlm-treatment-opt.scale-tile.scale-tile-blue .param-head {
+.dlm-treatment-opt.scale-tile.scale-tile-green .param-head {
   gap: 6px;
   width: 100%;
   min-width: 0;
 }
 .dlm-treatment-opt.scale-tile.scale-tile-violet .param-head label,
-.dlm-treatment-opt.scale-tile.scale-tile-blue .param-head label {
+.dlm-treatment-opt.scale-tile.scale-tile-green .param-head label {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1507,7 +1507,7 @@ body:not(.plan-ii):not(.plan-iii) .plan-llm-only { display: none !important; }
   font-size: 11px;
 }
 .dlm-treatment-opt.scale-tile.scale-tile-violet .param-head .pval,
-.dlm-treatment-opt.scale-tile.scale-tile-blue .param-head .pval {
+.dlm-treatment-opt.scale-tile.scale-tile-green .param-head .pval {
   min-width: 42px;
   padding: 2px 6px;
   font-size: 10px;
@@ -1528,41 +1528,40 @@ body:not(.plan-ii):not(.plan-iii) .plan-llm-only { display: none !important; }
   --accent: var(--purple);
   --accent-light: color-mix(in srgb, var(--purple) 22%, transparent);
 }
-/* Blue variant — v3 §4 heuristic-mix weights β₁..β₄. */
-.dlm-treatment-opt.scale-tile.scale-tile-blue {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 8%, var(--bg-1));
+/* Green variant — v3 §4 heuristic-mix weights β₁..β₄. */
+.dlm-treatment-opt.scale-tile.scale-tile-green {
+  border-color: var(--green);
+  background: color-mix(in srgb, var(--green) 8%, var(--bg-1));
 }
-.dlm-treatment-opt.scale-tile.scale-tile-blue:hover {
-  border-color: var(--accent);
+.dlm-treatment-opt.scale-tile.scale-tile-green:hover {
+  border-color: var(--green);
 }
-.dlm-treatment-opt.scale-tile.scale-tile-blue .param-head .pval {
-  background: var(--accent);
+.dlm-treatment-opt.scale-tile.scale-tile-green .param-head .pval {
+  background: var(--green);
   color: #fff;
 }
-.dlm-treatment-opt.scale-tile.scale-tile-blue input[type=range].scale-slider {
-  --accent: #2563eb;
-  --accent-light: color-mix(in srgb, #2563eb 22%, transparent);
+.dlm-treatment-opt.scale-tile.scale-tile-green input[type=range].scale-slider {
+  --accent: var(--green);
+  --accent-light: color-mix(in srgb, var(--green) 22%, transparent);
 }
-/* Σβ readout. Sits flush-right under the β row; turns red/amber when
-   the four weights drift off the unit-sum default so the user has a
-   visible reminder that H_{i,t} is no longer a convex combination. */
-.param-row.beta-sum-row {
-  justify-content: flex-end;
-  margin-top: -2px;
-}
+/* Σβ readout. Lives inline at the right corner of the β row so the
+   total sits next to the four tiles that feed it; turns amber when
+   the weights drift off the unit-sum default. */
 .beta-sum-chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 8px;
+  padding: 4px 10px;
   border-radius: 999px;
   font-size: 11px;
   font-family: var(--mono, ui-monospace, Menlo, monospace);
   font-variant-numeric: tabular-nums;
-  color: var(--fg-2);
-  background: var(--bg-2);
-  border: 1px solid var(--border);
+  color: var(--green);
+  background: color-mix(in srgb, var(--green) 12%, var(--bg-1));
+  border: 1px solid var(--green);
+  flex: none;
+  align-self: stretch;
+  white-space: nowrap;
 }
 .beta-sum-chip.beta-sum-off {
   color: #fff;
