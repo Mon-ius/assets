@@ -1285,11 +1285,11 @@ const App = {
       const corr = document.createElement('span');
       corr.className = 'session-asset-corr';
       corr.dataset.session = String(s);
-      corr.title = 'Pearson correlation of the pre and post assets\u2019 expected FV paths (ρ = 1 when both selectors pick the same asset)';
+      corr.title = 'Pearson correlation of the pre and post assets\u2019 expected FV paths (corr = 1 when both selectors pick the same asset)';
 
       const refreshCorr = () => {
         const r = this._sessionAssetCorr(s + 1);
-        corr.textContent = Number.isFinite(r) ? `ρ ${r.toFixed(2)}` : 'ρ —';
+        corr.textContent = Number.isFinite(r) ? `corr ${r.toFixed(2)}` : 'corr —';
         // Tint: green for positive, red for negative, muted when undefined.
         corr.classList.toggle('corr-neg', Number.isFinite(r) && r < 0);
         corr.classList.toggle('corr-pos', Number.isFinite(r) && r > 0);

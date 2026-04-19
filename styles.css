@@ -1593,7 +1593,7 @@ body:not(.plan-ii):not(.plan-iii) .plan-llm-only { display: none !important; }
   outline: none;
 }
 .session-asset-corr {
-  min-width: 50px;
+  min-width: 64px;
   margin-left: 6px;
   padding: 1px 5px;
   font-size: 10.5px;
