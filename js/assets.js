@@ -100,12 +100,12 @@ const ASSET_LINEAR_DECLINING = {
 };
 
 /**
- * Asset 2 — Constant / Perpetual. FV_t = E[d] / r = 5 / 0.05 = 100 for
+ * Asset 2 — Perpetual. FV_t = E[d] / r = 5 / 0.05 = 100 for
  * every period. d_t ∈ {6 @ 0.5, 4 @ 0.5}, E[d_t] = 5.
  */
 const ASSET_CONSTANT_PERPETUAL = {
   id:          'constantPerpetual',
-  label:       'Constant / Perpetual',
+  label:       'Perpetual',
   shortLabel:  'CP',
   description: 'Perpetual claim — FV constant at 100, dividend {4,6}¢.',
   init(config) {
@@ -163,13 +163,13 @@ const ASSET_LINEAR_GROWTH = {
 };
 
 /**
- * Asset 4 — Cyclical (Sine Wave). FV_t = 100 + 20·sin(2π/10·(t−1)),
+ * Asset 4 — Cyclical. FV_t = 100 + 20·sin(2π/10·(t−1)),
  * period 10, amplitude 20, mean 100. Dividend tracks the same cycle
  * with smaller amplitude.
  */
 const ASSET_CYCLICAL_SINE = {
   id:          'cyclicalSine',
-  label:       'Cyclical (Sine)',
+  label:       'Cyclical',
   shortLabel:  'CY',
   description: 'Sinusoidal FV — 100 + 20·sin(2π(t−1)/10).',
   init(config) {
@@ -199,7 +199,7 @@ const ASSET_CYCLICAL_SINE = {
  */
 const ASSET_RANDOM_WALK = {
   id:          'randomWalk',
-  label:       'Random Walk',
+  label:       'Random Walk Fundamental',
   shortLabel:  'RW',
   description: 'FV_t follows a reflected random walk with floor 20.',
   init(config) {

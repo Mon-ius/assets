@@ -2065,7 +2065,7 @@ Action: &lt;BUY_NOW / SELL_NOW / BID_1 / BID_3 / ASK_1 / ASK_3 / HOLD&gt;</pre>
   <p><em>Use case.</em> Reproduces DLM 2005 Figure 1. Mispricing against a known-declining fundamental is the textbook bubble signature; the Complex-Dividends toggle swaps the coin flip for the paper's 5-point distribution to activate bounded-rationality priors.</p>
 </template>
 <template id="tpl-asset-constantPerpetual">
-  <p><strong>Constant / Perpetual</strong> — a flat-FV reference asset. Removes the declining-value channel so any bubble must come from belief / liquidity dynamics alone.</p>
+  <p><strong>Perpetual</strong> — a flat-FV reference asset. Removes the declining-value channel so any bubble must come from belief / liquidity dynamics alone.</p>
   <p>Fundamental value: <code>FV<sub>t</sub> = E[d] / r = 5 / 0.05 = 100</code> for every period. The asset is a perpetual claim with terminal value 100 (no horizon effect).</p>
   <p>Dividend: <code>d<sub>t</sub> ∈ {4, 6}¢</code> with equal probability, <code>E[d<sub>t</sub>] = 5¢</code>. Tight dispersion keeps the sample mean close to the truth, so the rational prior should stick at 100 across the full round.</p>
   <p><em>Use case.</em> Null asset for bubble-attribution studies — if prices drift from 100 there is no fundamental tailwind to blame.</p>
@@ -2077,7 +2077,7 @@ Action: &lt;BUY_NOW / SELL_NOW / BID_1 / BID_3 / ASK_1 / ASK_3 / HOLD&gt;</pre>
   <p><em>Use case.</em> Does growth priming (rising <code>E[d]</code>) help agents stay anchored, or does it amplify optimism? The FV still ends at 0, so late-period overpricing remains a bubble signature.</p>
 </template>
 <template id="tpl-asset-cyclicalSine">
-  <p><strong>Cyclical (Sine Wave)</strong> — wave-shaped FV around a flat mean, probing whether agents can track a non-monotone fundamental.</p>
+  <p><strong>Cyclical</strong> — wave-shaped FV around a flat mean, probing whether agents can track a non-monotone fundamental.</p>
   <p>Fundamental value: <code>FV<sub>t</sub> = 100 + 20 · sin(2π (t − 1) / 10)</code>. Period 10, amplitude 20, long-run mean 100. FV<sub>1</sub> = 100 on every round.</p>
   <p>Dividend: <code>d<sub>t</sub> ~ N(5 + 2 · sin(2π (t − 1) / 10), 1)</code>, clamped to be non-negative. The dividend phase is aligned with FV so the observable cash flow carries the same cycle.</p>
   <p><em>Use case.</em> Seasonal / cyclical value benchmark. Measures whether trading rules trained on monotone FV transfer to oscillatory environments.</p>
@@ -2096,7 +2096,7 @@ Action: &lt;BUY_NOW / SELL_NOW / BID_1 / BID_3 / ASK_1 / ASK_3 / HOLD&gt;</pre>
 </template>
 
 <script data-cfasync="false" src="js/messaging.js?v=21"></script>
-<script data-cfasync="false" src="js/assets.js?v=22"></script>
+<script data-cfasync="false" src="js/assets.js?v=23"></script>
 <script data-cfasync="false" src="js/market.js?v=22"></script>
 <script data-cfasync="false" src="js/agents.js?v=21"></script>
 <script data-cfasync="false" src="js/logger.js?v=21"></script>
