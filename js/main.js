@@ -1802,7 +1802,7 @@ const App = {
     // no batch is running). Must run before the engine is constructed
     // so the initial snapshot records the right FV path.
     const activeAsset = this._assetForSession(this.currentSession || 1);
-    if (activeAsset) this.market.setAsset(activeAsset);
+    if (activeAsset) this.market.setAsset(activeAsset, this.currentSession || 1, 1);
     // The per-session asset picker now carries a pre/post pair. The
     // engine reads postReplacementAsset off ctx and swaps the market's
     // active asset at the replacement-round boundary; when the two

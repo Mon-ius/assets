@@ -69,17 +69,6 @@ const Replay = {
     const pre  = (ctx && ctx.preReplacementAsset)  || market.assetType;
     const post = (ctx && ctx.postReplacementAsset) || pre;
     const session = (ctx && ctx.currentSession | 0) || 0;
-    const sampleSeed = (asset, r) => {
-      // Stable, per-(asset, session, round) seed so each round of
-      // Figure 1 draws its own wandering trajectory but the curve
-      // doesn't jitter across renders within a round.
-      const id = asset && asset.id ? asset.id : 'x';
-      let h = 2166136261;
-      for (let i = 0; i < id.length; i++) {
-        h = Math.imul(h ^ id.charCodeAt(i), 16777619);
-      }
-      return ((h ^ Math.imul(session + 1, 0x9E3779B1) ^ Math.imul(r, 0x85EBCA6B)) >>> 0) || 1;
-    };
     const isPathDependent = (asset) => asset && (asset.id === 'randomWalk' || asset.id === 'jumpCrash');
     const deterministicPath = (asset) => {
       if (!asset) return null;
@@ -92,8 +81,11 @@ const Replay = {
     };
     const pathForRound = (asset, r) => {
       if (!asset) return null;
-      if (isPathDependent(asset) && typeof sampleAssetFvPath === 'function') {
-        return sampleAssetFvPath(asset, market.config, sampleSeed(asset, r));
+      if (isPathDependent(asset)
+          && typeof sampleAssetFvPath === 'function'
+          && typeof assetFvPathSeed === 'function') {
+        const seed = assetFvPathSeed(asset.id, session, r);
+        return sampleAssetFvPath(asset, market.config, seed);
       }
       return deterministicPath(asset);
     };

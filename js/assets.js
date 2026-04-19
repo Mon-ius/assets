@@ -437,6 +437,41 @@ function _assetSampleRng(seed) {
   };
 }
 
+/* Deterministic (assetId, session, round) → 32-bit seed. Both the
+ * engine and `_fvByRoundPeriod` derive their per-round seeds through
+ * this helper so a path-dependent asset's simulated FV trajectory and
+ * the chart overlay trace the same curve. Keep the mixing stable — any
+ * change here silently breaks that equivalence. */
+function assetFvPathSeed(assetId, session, round) {
+  const id = assetId || 'x';
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i++) {
+    h = Math.imul(h ^ id.charCodeAt(i), 16777619);
+  }
+  const s = ((session | 0) + 1) >>> 0;
+  const r = (round | 0) >>> 0;
+  return ((h ^ Math.imul(s, 0x9E3779B1) ^ Math.imul(r, 0x85EBCA6B)) >>> 0) || 1;
+}
+
+/* Mutate an already-init'd assetState so state.fv[1..T] carries a
+ * full sample realisation (rather than only fv[1] = 100 with the rest
+ * zero). Only touches randomWalk and jumpCrash; deterministic assets
+ * keep the closed-form fv[] that `init()` already populated. Called by
+ * Market.setAsset / resetAssetForRound at every round boundary with a
+ * deterministic per-round seed so drawDividend reads from the same
+ * path that Figure 1 plots. No-op if `state` is null or `asset` is
+ * missing. */
+function preSampleAssetPath(asset, state, config, seed) {
+  if (!asset || !state || !state.fv || !config) return;
+  if (asset.id !== 'randomWalk' && asset.id !== 'jumpCrash') return;
+  const path = sampleAssetFvPath(asset, config, seed);
+  if (!path) return;
+  const T = config.periods;
+  for (let p = 1; p <= T + 1; p++) {
+    if (Number.isFinite(path[p])) state.fv[p] = path[p];
+  }
+}
+
 /* Return a length-(T+2) FV path starting at FV_1 = 100. Deterministic
  * assets are read from `asset.init(config)` directly. Path-dependent
  * assets (random walk, jump/crash) are sampled via a seeded RNG so

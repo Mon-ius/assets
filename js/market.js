@@ -144,18 +144,37 @@ class Market {
   /**
    * Install a new asset type. Called once per session by the batch
    * runner before reset(); resets the state so period 1 starts from
-   * FV_1 = 100.
+   * FV_1 = 100. For path-dependent assets (random walk, jump/crash)
+   * the caller may pass `(session, round)` so the state's fv[] gets
+   * pre-filled with a deterministic sample path — drawDividend then
+   * reads from that path instead of drawing a fresh realisation,
+   * which keeps Figure 1's FV overlay and the simulated FV in lockstep.
    */
-  setAsset(assetType) {
+  setAsset(assetType, session = 0, round = 1) {
     if (!assetType) return;
     this.assetType  = assetType;
     this.assetState = assetType.init(this.config);
+    this._preSamplePath(session, round);
   }
 
   /** Re-initialise the asset state at a round boundary (within a session). */
-  resetAssetForRound() {
+  resetAssetForRound(session = 0, round = this.round) {
     if (!this.assetType) return;
     this.assetState = this.assetType.init(this.config);
+    this._preSamplePath(session, round);
+  }
+
+  /* For randomWalk / jumpCrash, overwrite assetState.fv[1..T] with a
+   * deterministic sample realisation keyed by (assetId, session, round).
+   * drawDividend already reads from pre-filled fv[period+1] slots so no
+   * change is needed on the consumer side. No-op on deterministic
+   * assets (init() already fills their fv[] from closed form). */
+  _preSamplePath(session, round) {
+    if (!this.assetType || !this.assetState) return;
+    if (typeof preSampleAssetPath !== 'function'
+        || typeof assetFvPathSeed !== 'function') return;
+    const seed = assetFvPathSeed(this.assetType.id, session, round);
+    preSampleAssetPath(this.assetType, this.assetState, this.config, seed);
   }
 
   /** Global 1-indexed period across the full session. */
