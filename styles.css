@@ -2585,6 +2585,11 @@ body.n-small .agents-flip-inner { min-height: 0; }
   gap: 12px;
   height: 100%;
   min-height: 0;
+  /* One shared scroll area: only grows a scrollbar when the combined
+     head + grid + model block exceeds the back-face height; otherwise
+     nothing scrolls. Per-step overflows are removed below so they
+     don't spawn their own scrollbars. */
+  overflow-y: auto;
 }
 .stats-view-head {
   display: flex;
@@ -2608,7 +2613,6 @@ body.n-small .agents-flip-inner { min-height: 0; }
   grid-auto-rows: minmax(180px, 1fr);
   gap: 10px;
   flex: 1 1 auto;
-  min-height: 0;
 }
 .stats-panel {
   margin: 0;
@@ -2680,12 +2684,10 @@ body.n-small .agents-flip-inner { min-height: 0; }
 .stats-model-value {
   font-size: 12.5px;
   color: var(--fg-1);
-  overflow-x: auto;
   min-width: 0;
 }
 .stats-model-value math {
   font-size: 1em;
-  white-space: nowrap;
 }
 .stats-model-chips {
   display: flex;
