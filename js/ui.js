@@ -2061,10 +2061,6 @@ const UI = {
 
     Viz.axisLabel(ctx, rect, v.session > 0 ? 'Round R · Session ' + v.session : 'Round R', 'bottom');
 
-    const decisionLabel = {
-      hold: 'hold', crossBid: 'cross-bid', crossAsk: 'cross-ask',
-      passiveBid: 'passive bid', passiveAsk: 'passive ask',
-    };
     this._registerHover('timeline', {
       mode: 'row', rect, xMin: 0, xMax: totalTicks,
       rows: {
@@ -2086,11 +2082,14 @@ const UI = {
               { name: 'decision', color: this.theme.fg3, value: '—' },
             ]};
           }
+          const price = best.decision && best.decision.price;
+          const qty   = best.decision && best.decision.quantity;
           return {
             header: `${name} · ${this._tickHoverFmt(v, config, best.timestamp)}`,
             rows: [
-              { name: 'decision', color: this._actionColor(best.decision), value: decisionLabel[best.decision] || best.decision },
-              ...(best.price != null ? [{ name: 'price', color: this.theme.fg2, value: best.price.toFixed(2) + '¢' }] : []),
+              { name: 'decision', color: this._actionColor(best.decision), value: this._actionLabel(best.decision) },
+              ...(price != null ? [{ name: 'price', color: this.theme.fg2, value: price.toFixed(2) + '¢' }] : []),
+              ...(qty   != null ? [{ name: 'qty',   color: this.theme.fg2, value: String(qty) }] : []),
               ...(best.filled ? [{ name: 'filled', color: this.theme.accent, value: best.filled + '' }] : []),
             ],
           };
