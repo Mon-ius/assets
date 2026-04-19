@@ -266,6 +266,27 @@ const UI = {
     return config.dividendMean * config.periods;
   },
 
+  /**
+   * Swap Figure 1's FV formula to match the active asset. The markup in
+   * index.html carries `data-sym="fvDef"` as a build-time default so the
+   * DLM staircase renders before the first tick; once the engine picks
+   * an asset, this override replaces it with per-asset MathML from the
+   * asset registry. Short-circuits when the asset hasn't changed so we
+   * don't churn the DOM on every frame.
+   */
+  _renderFvFormula(v) {
+    const target = document.getElementById('fig1-fv-formula');
+    if (!target) return;
+    const id = v && v.assetId;
+    if (!id || typeof getAssetType !== 'function') return;
+    if (this._lastAssetFormulaId === id) return;
+    const asset = getAssetType(id);
+    const mathml = asset && asset.fvFormula;
+    if (!mathml) return;
+    target.innerHTML = mathml;
+    this._lastAssetFormulaId = id;
+  },
+
   /* -------- Top-level render dispatcher -------- */
 
   render(view, config) {
@@ -273,6 +294,7 @@ const UI = {
     // outside the per-frame loop).
     this._lastView   = view;
     this._lastConfig = config;
+    this._renderFvFormula(view);
     this.renderStats(view, config);
     this.renderBook(view);
     this.renderAgents(view, config);

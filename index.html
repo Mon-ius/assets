@@ -523,7 +523,7 @@
       <span class="fig-num">Figure 1</span>
       <h2 class="fig-title">Transaction Price Trajectory versus Risk-Neutral Fundamental Value</h2>
     </header>
-    <div class="fig-eq"><span data-sym="fvDef"></span> <em>risk-neutral fundamental value at the start of period t</em></div>
+    <div class="fig-eq"><span id="fig1-fv-formula" data-sym="fvDef"></span> <em>risk-neutral fundamental value at the start of period t</em></div>
     <canvas id="chart-price"></canvas>
     <figcaption class="fig-caption">
       <p>Tick-level transaction prices <span data-sym="price"></span> (accent line, one dot per executed trade) plotted against the deterministic step function <span data-sym="fv"></span> (amber dashes). Alternating vertical bands delimit the ten trading periods. In the Dufwenberg, Lindqvist &amp; Moore (2005) design a rational market should track the step line exactly; persistent excursions above it are the bubble and the crash toward <span data-sym="fvT"></span> = <span data-sym="muD"></span> in the final period is the collapse.</p>
@@ -2096,14 +2096,14 @@ Action: &lt;BUY_NOW / SELL_NOW / BID_1 / BID_3 / ASK_1 / ASK_3 / HOLD&gt;</pre>
 </template>
 
 <script data-cfasync="false" src="js/messaging.js?v=21"></script>
-<script data-cfasync="false" src="js/assets.js?v=23"></script>
+<script data-cfasync="false" src="js/assets.js?v=24"></script>
 <script data-cfasync="false" src="js/market.js?v=22"></script>
 <script data-cfasync="false" src="js/agents.js?v=21"></script>
 <script data-cfasync="false" src="js/logger.js?v=21"></script>
 <script data-cfasync="false" src="js/viz.js?v=21"></script>
 <script data-cfasync="false" src="js/ai.js?v=21"></script>
 <script data-cfasync="false" src="js/engine.js?v=22"></script>
-<script data-cfasync="false" src="js/ui.js?v=22"></script>
+<script data-cfasync="false" src="js/ui.js?v=23"></script>
 <script data-cfasync="false" src="js/replay.js?v=22"></script>
 <script data-cfasync="false" src="js/main.js?v=25"></script>
 </body>

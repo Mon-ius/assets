@@ -268,6 +268,98 @@ const ASSET_TYPES = [
 
 const ASSET_TYPES_BY_ID = Object.fromEntries(ASSET_TYPES.map(a => [a.id, a]));
 
+/* Per-asset FV formula as native-MathML source. Rendered verbatim into
+ * Figure 1's fig-eq on every UI render so the caption tracks the active
+ * asset. The strings live here (rather than mathml.js Sym) because they
+ * are asset-specific and only surface through the asset registry. */
+const _ASSET_MATH_NS = ' xmlns="http://www.w3.org/1998/Math/MathML"';
+const _assetMath = body => `<math display="inline"${_ASSET_MATH_NS}>${body}</math>`;
+
+const ASSET_FV_FORMULAS = {
+  // FV_t = 5 · (T − t + 1)
+  linearDeclining: _assetMath(
+    '<mrow>'
+    + '<msub><mrow><mi>F</mi><mi>V</mi></mrow><mi>t</mi></msub>'
+    + '<mo>=</mo><mn>5</mn><mo>·</mo>'
+    + '<mo>(</mo><mi>T</mi><mo>−</mo><mi>t</mi><mo>+</mo><mn>1</mn><mo>)</mo>'
+    + '</mrow>',
+  ),
+  // FV_t = E[d] / r = 100
+  constantPerpetual: _assetMath(
+    '<mrow>'
+    + '<msub><mrow><mi>F</mi><mi>V</mi></mrow><mi>t</mi></msub>'
+    + '<mo>=</mo>'
+    + '<mfrac><mrow><mi>E</mi><mo>[</mo><mi>d</mi><mo>]</mo></mrow><mi>r</mi></mfrac>'
+    + '<mo>=</mo><mn>100</mn>'
+    + '</mrow>',
+  ),
+  // FV_t = Σ_{s=t}^{T} (a + b·s),  b = 0.3
+  linearGrowth: _assetMath(
+    '<mrow>'
+    + '<msub><mrow><mi>F</mi><mi>V</mi></mrow><mi>t</mi></msub>'
+    + '<mo>=</mo>'
+    + '<munderover><mo>Σ</mo><mrow><mi>s</mi><mo>=</mo><mi>t</mi></mrow><mi>T</mi></munderover>'
+    + '<mo>(</mo><mi>a</mi><mo>+</mo><mi>b</mi><mo>·</mo><mi>s</mi><mo>)</mo>'
+    + '<mspace width="0.5em"/>'
+    + '<mo>,</mo>'
+    + '<mspace width="0.35em"/>'
+    + '<mi>b</mi><mo>=</mo><mn>0.3</mn>'
+    + '</mrow>',
+  ),
+  // FV_t = 100 + 20·sin(2π(t − 1) / 10)
+  cyclicalSine: _assetMath(
+    '<mrow>'
+    + '<msub><mrow><mi>F</mi><mi>V</mi></mrow><mi>t</mi></msub>'
+    + '<mo>=</mo><mn>100</mn><mo>+</mo><mn>20</mn><mo>·</mo><mi>sin</mi>'
+    + '<mo>(</mo>'
+    + '<mfrac>'
+    + '<mrow><mn>2</mn><mi>π</mi><mo>(</mo><mi>t</mi><mo>−</mo><mn>1</mn><mo>)</mo></mrow>'
+    + '<mn>10</mn>'
+    + '</mfrac>'
+    + '<mo>)</mo>'
+    + '</mrow>',
+  ),
+  // FV_{t+1} = max(20, FV_t + η_t),  η_t ~ N(0, 25)
+  randomWalk: _assetMath(
+    '<mrow>'
+    + '<msub><mrow><mi>F</mi><mi>V</mi></mrow><mrow><mi>t</mi><mo>+</mo><mn>1</mn></mrow></msub>'
+    + '<mo>=</mo><mi>max</mi>'
+    + '<mo>(</mo><mn>20</mn><mo>,</mo>'
+    + '<msub><mrow><mi>F</mi><mi>V</mi></mrow><mi>t</mi></msub>'
+    + '<mo>+</mo><msub><mi>η</mi><mi>t</mi></msub>'
+    + '<mo>)</mo>'
+    + '<mspace width="0.5em"/>'
+    + '<mo>,</mo>'
+    + '<mspace width="0.35em"/>'
+    + '<msub><mi>η</mi><mi>t</mi></msub>'
+    + '<mo>∼</mo>'
+    + '<mi>N</mi><mo>(</mo><mn>0</mn><mo>,</mo><mn>25</mn><mo>)</mo>'
+    + '</mrow>',
+  ),
+  // FV_{t+1} = FV_t + μ_j,  μ_j ∈ {+2 (0.9), −30 (0.1)}
+  jumpCrash: _assetMath(
+    '<mrow>'
+    + '<msub><mrow><mi>F</mi><mi>V</mi></mrow><mrow><mi>t</mi><mo>+</mo><mn>1</mn></mrow></msub>'
+    + '<mo>=</mo>'
+    + '<msub><mrow><mi>F</mi><mi>V</mi></mrow><mi>t</mi></msub>'
+    + '<mo>+</mo><msub><mi>μ</mi><mi>j</mi></msub>'
+    + '<mspace width="0.5em"/>'
+    + '<mo>,</mo>'
+    + '<mspace width="0.35em"/>'
+    + '<msub><mi>μ</mi><mi>j</mi></msub>'
+    + '<mo>∈</mo>'
+    + '<mo>{</mo><mo>+</mo><mn>2</mn>'
+    + '<mspace width="0.25em"/><mo>(</mo><mn>0.9</mn><mo>)</mo>'
+    + '<mo>,</mo>'
+    + '<mo>−</mo><mn>30</mn>'
+    + '<mspace width="0.25em"/><mo>(</mo><mn>0.1</mn><mo>)</mo>'
+    + '<mo>}</mo>'
+    + '</mrow>',
+  ),
+};
+
+for (const a of ASSET_TYPES) a.fvFormula = ASSET_FV_FORMULAS[a.id] || '';
+
 /** Resolve an id → asset, falling back to Linear Declining (DLM baseline). */
 function getAssetType(id) {
   return ASSET_TYPES_BY_ID[id] || ASSET_LINEAR_DECLINING;
