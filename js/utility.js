@@ -253,14 +253,22 @@ function heuristicValue(agent, market, ctx) {
   const kt      = Math.max(0, T - period + 1);            // remaining periods
   const r       = (market.config && market.config.discountRate) || 0.05;
 
-  // Anchor — v3 §4.1. At t = 1 we have no live history, so anchor to
-  // the agent's model-based reference (FV_1 ≈ 100 by construction at
-  // every registered asset). For t ≥ 2 anchor to the asset's current
-  // environment center (FV_t from the active asset's state).
-  const anchorInit = (market.assetType && typeof market.assetType.fundamentalValue === 'function')
-    ? market.assetType.fundamentalValue(1, market.assetState)
-    : market.fundamentalValue(1);
-  const anchor = (period <= 1) ? anchorInit : market.fundamentalValue(period);
+  // Anchor — v3 §4.1 / v4 §5.*. The anchor is the agent's model-based
+  // reference level at each period, which for stochastic assets is
+  // NOT the live FV_t (oracle) but the public-rule-derived FṼ (v4
+  // §5.28 first-version: constant 100 for random walk; §5.34: 100 −
+  // 1.2·k_t for jump/crash; §5.22: discounted sinusoidal tail sum).
+  const readModel = (p) => {
+    if (market.assetType && typeof market.assetType.modelBasedFV === 'function') {
+      return market.assetType.modelBasedFV(p, market.assetState, market.config, market);
+    }
+    if (market.assetType && typeof market.assetType.fundamentalValue === 'function') {
+      return market.assetType.fundamentalValue(p, market.assetState);
+    }
+    return market.fundamentalValue(p);
+  };
+  const anchorInit = readModel(1);
+  const anchor     = (period <= 1) ? anchorInit : readModel(period);
 
   // Trend — v3 §4.2. Use the last *trade* price of each of the previous
   // two periods. Missing trades fall through to 0 so a sparse book

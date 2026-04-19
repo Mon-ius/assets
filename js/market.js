@@ -191,6 +191,22 @@ class Market {
   }
 
   /**
+   * Agent-visible model-based FṼ, per v4 §5.4 / §5.10 / §5.16 / §5.22
+   * / §5.28 / §5.34. This is what the agent is *supposed* to derive
+   * from the public rule — distinct from `fundamentalValue` above,
+   * which reads the simulator's live state (and for stochastic assets
+   * is oracle knowledge the agent cannot actually observe).
+   * Falls back to `fundamentalValue` for any asset that has not
+   * defined the hook, so legacy callers keep working.
+   */
+  modelBasedFV(period = this.period) {
+    if (this.assetType && this.assetState && typeof this.assetType.modelBasedFV === 'function') {
+      return this.assetType.modelBasedFV(period, this.assetState, this.config, this);
+    }
+    return this.fundamentalValue(period);
+  }
+
+  /**
    * Submit an order, matching it greedily against the book first and
    * resting any remainder. Validates that the submitting agent has the
    * cash / inventory to cover the worst-case fill; otherwise the order

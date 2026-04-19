@@ -94,6 +94,14 @@ const ASSET_LINEAR_DECLINING = {
   fundamentalValue(period, state) {
     return state.fv[period] != null ? state.fv[period] : 0;
   },
+  // v4 §5.4 — agent infers μ̂_{i,t+j}=5 and takes the simplified
+  // (undiscounted) tail sum FṼ_{i,t} = 5·k_t, k_t = T−t+1. Matches the
+  // staircase so a rational agent is exactly right.
+  modelBasedFV(period, state, config) {
+    const T = (config && config.periods) || state.fv.length - 2;
+    const kt = Math.max(0, T - period + 1);
+    return 5 * kt;
+  },
   drawDividend(period, state, rng, config, tunables) {
     if (tunables && tunables.applyComplexDividends) {
       return drawFromDistribution(rng, COMPLEX_LINEAR_DIVIDENDS);
@@ -119,6 +127,10 @@ const ASSET_CONSTANT_PERPETUAL = {
   },
   fundamentalValue(period, state) {
     return state.fv[period] != null ? state.fv[period] : ASSET_ANCHOR_FV;
+  },
+  // v4 §5.10 — FṼ_{i,t} = E[d]/r = 5/0.05 = 100 at every t.
+  modelBasedFV(/* period, state, config */) {
+    return ASSET_ANCHOR_FV;
   },
   drawDividend(period, state, rng, config, tunables) {
     return rng() < 0.5 ? 4 : 6;
@@ -161,6 +173,12 @@ const ASSET_LINEAR_GROWTH = {
   fundamentalValue(period, state) {
     return state.fv[period] != null ? Math.max(0, state.fv[period]) : 0;
   },
+  // v4 §5.16 — agent infers μ̂_{i,s} = 2 + 0.3·s and discounts the
+  // finite tail: FṼ_{i,t} = Σ_{s=t..T} (2+0.3·s)/(1+r)^{s−t+1}. Same
+  // closed form as `fundamentalValue` above, so we just delegate.
+  modelBasedFV(period, state /*, config */) {
+    return state.fv[period] != null ? Math.max(0, state.fv[period]) : 0;
+  },
   drawDividend(period, state, rng, config, tunables) {
     const mean  = state.a + state.b * period;
     const sigma = 1.0;
@@ -180,15 +198,37 @@ const ASSET_CYCLICAL_SINE = {
   description: 'Sinusoidal FV — 100 + 20·sin(2π(t−1)/10).',
   init(config) {
     const T = config.periods;
+    const r = ASSET_DISCOUNT_RATE;
     const fv = new Array(T + 2).fill(0);
     for (let t = 1; t <= T; t++) {
       fv[t] = ASSET_ANCHOR_FV + 20 * Math.sin((2 * Math.PI / 10) * (t - 1));
     }
     fv[T + 1] = fv[T];
-    return { fv, expectedDividend: 5, terminalValue: fv[T] };
+    // v4 §5.22 — agent's discounted tail sum over the sinusoidal μ̂.
+    // Pre-computed once here so modelBasedFV is O(1) at runtime.
+    //   FṼ_{i,t} = Σ_{s=t..T} [5 + 2·sin(2π(s−1)/10)] / (1+r)^{s−t+1}
+    const modelFV = new Array(T + 2).fill(0);
+    for (let t = 1; t <= T; t++) {
+      let v = 0;
+      for (let s = t; s <= T; s++) {
+        const mu = 5 + 2 * Math.sin((2 * Math.PI / 10) * (s - 1));
+        v += mu / Math.pow(1 + r, s - t + 1);
+      }
+      modelFV[t] = v;
+    }
+    return { fv, modelFV, expectedDividend: 5, terminalValue: fv[T] };
   },
   fundamentalValue(period, state) {
     return state.fv[period] != null ? state.fv[period] : ASSET_ANCHOR_FV;
+  },
+  // v4 §5.22 — distinct from the 100+20·sin path above, which is the
+  // simulator's heuristic FV for Figure 1. The agent's model-based
+  // value is the discounted tail sum of expected dividends.
+  modelBasedFV(period, state /*, config */) {
+    if (state && state.modelFV && state.modelFV[period] != null) {
+      return Math.max(0, state.modelFV[period]);
+    }
+    return ASSET_ANCHOR_FV;
   },
   drawDividend(period, state, rng, config, tunables) {
     const mean  = 5 + 2 * Math.sin((2 * Math.PI / 10) * (period - 1));
@@ -216,6 +256,13 @@ const ASSET_RANDOM_WALK = {
   },
   fundamentalValue(period, state) {
     return state.fv[period] != null ? state.fv[period] : ASSET_ANCHOR_FV;
+  },
+  // v4 §5.28 — with no explicit structure the agent can only take the
+  // "current central level". First-version recommendation (the simplest
+  // choice listed in the spec): FṼ_{i,t} = 100 (constant anchor).
+  // The agent does NOT observe the live FV path.
+  modelBasedFV(/* period, state, config */) {
+    return ASSET_ANCHOR_FV;
   },
   drawDividend(period, state, rng, config, tunables) {
     // Extend the path one period at a time, so the dividend is a
@@ -250,6 +297,16 @@ const ASSET_JUMP_CRASH = {
   },
   fundamentalValue(period, state) {
     return state.fv[period] != null ? state.fv[period] : ASSET_ANCHOR_FV;
+  },
+  // v4 §5.34 — if agent uses the stated probabilities,
+  //   Ẽ_i[ΔFV] = 0.9·(+2) + 0.1·(−30) = −1.2
+  //   FṼ_{i,t} = FV^{anchor} − 1.2·k_t,  k_t = T − t + 1,
+  //   FV^{anchor} = 100 (constant, public starting level).
+  // Not the live post-shock FV_t.
+  modelBasedFV(period, state, config) {
+    const T = (config && config.periods) || state.fv.length - 2;
+    const kt = Math.max(0, T - period + 1);
+    return Math.max(0, ASSET_ANCHOR_FV - 1.2 * kt);
   },
   drawDividend(period, state, rng, config, tunables) {
     if (state.fv[period + 1] === 0 || state.fv[period + 1] == null) {

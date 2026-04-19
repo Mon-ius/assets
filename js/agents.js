@@ -649,7 +649,14 @@ class UtilityAgent extends Agent {
    *              is sufficient to recover the utility-aware belief.
    */
   updateBelief(market, ctx, rng) {
-    const fv   = market.fundamentalValue();
+    // v4 §7 Step 1 — agent's model-based FṼ derived from the *public*
+    // rule for the active asset, NOT the simulator's live FV path.
+    // For linear declining / constant / linear growth the two happen to
+    // coincide; for cyclical, random-walk and jump-crash they differ
+    // (see `js/assets.js modelBasedFV` per §5.22 / §5.28 / §5.34).
+    const fv   = (typeof market.modelBasedFV === 'function')
+      ? market.modelBasedFV()
+      : market.fundamentalValue();
     const plan = (ctx && ctx.plan) || 'I';
 
     // Bounded-rationality FV estimate (Advanced → "Complex Dividends").
