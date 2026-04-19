@@ -81,7 +81,7 @@
     <div class="params-body">
 
       <details class="psec" id="psec-trade" open>
-        <summary>Trade settings <span class="muted" id="mix-total">(N = 100)</span></summary>
+        <summary>Trade settings <span class="muted" id="mix-total">(N = 10)</span></summary>
         <div class="psec-body">
           <div class="param-row bg-only" data-tip="N(F) — Fundamentalist agents in the background. Rational mean-reversion anchors on FV. Set to 0 to remove the rational anchor entirely and study how Utility agents behave without any FV-pinned counterparty. Editing this slider rescales the U slot within the fixed N = 100 and re-samples on release.">
             <div class="param-head">
@@ -250,9 +250,9 @@
             <div class="dlm-treatment-opt scale-tile" data-tip-id="advN">
               <div class="param-head">
                 <label for="p-adv-n-total">Population <span data-sym="nAgents"></span></label>
-                <span class="pval" id="v-adv-n-total">100 agents</span>
+                <span class="pval" id="v-adv-n-total">10 agents</span>
               </div>
-              <input type="range" id="p-adv-n-total" class="scale-slider" min="6" max="100" step="1" value="100">
+              <input type="range" id="p-adv-n-total" class="scale-slider" min="6" max="100" step="1" value="10">
             </div>
           </div>
           <div class="param-row dlm-treatment-row" id="adv-rounds-row">
@@ -422,7 +422,7 @@
         <div class="psec-body">
           <dl class="const-list">
             <div class="const-item">
-              <dt>N <span class="const-val" id="const-n-total">= 100</span></dt>
+              <dt>N <span class="const-val" id="const-n-total">= 10</span></dt>
               <dd class="const-label">Subjects per session</dd>
               <dd class="const-note" id="const-n-note">DLM 2005 &sect;I pins the original design at six subjects &mdash; &ldquo;At each session, six subjects participated in a sequence of four consecutive markets for an experimental asset.&rdquo; This simulator scales the population to N = 100 for a thicker order book while preserving the four-round session structure.<span class="const-src">§I, p. 1733 &middot; scaled in main.js · switch in Advanced settings</span></dd>
             </div>

@@ -55,7 +55,7 @@ const App = {
   // DLM 2005 §I; the scaled-up regime keeps the same round-4
   // treatment fractions while giving the order book a thicker
   // population).
-  TOTAL_N: 100,
+  TOTAL_N: 10,
 
   // Population composition — feeds the sampling stage in agents.js.
   // Total N is pinned at 100. F (Fundamentalist) and T (Trend follower)
@@ -64,7 +64,7 @@ const App = {
   // always filled. F and T provide the initial price heterogeneity
   // that bootstraps non-degenerate trading under Plan I's DLM belief
   // model (prior = FV, peer-message blend with experience weight w).
-  mix: { F: 0, T: 0, R: 0, U: 100 },
+  mix: { F: 0, T: 0, R: 0, U: 10 },
 
   // Simulator-invented numeric constants consumed by the engine and
   // utility agents. None of these are proposed by DLM 2005 (which
@@ -1242,7 +1242,7 @@ const App = {
   SESSION_RATE_MIN:  0.10,
   SESSION_RATE_MAX:  0.50,
   SESSION_RATE_STEP: 0.01,
-  SESSION_RATE_DEFAULT: 0.33,
+  SESSION_RATE_DEFAULT: 0.50,
   _ensureSessionRates() {
     if (!Array.isArray(this.sessionRates) || this.sessionRates.length !== 10) {
       this.sessionRates = new Array(10).fill(this.SESSION_RATE_DEFAULT);
