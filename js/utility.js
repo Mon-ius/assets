@@ -145,9 +145,9 @@ function markPrice(market) {
  * that materially drive the v3 §3 experience curve. Main.js keeps this
  * object in lock-step with App.tunables on every rebuild. */
 const ExperienceConfig = {
-  alpha0:     0.40,  // novice fundamental weight on model-based valuation (v3 §2)
+  alpha0:     1.00,  // novice fundamental weight on model-based valuation (v3 §2)
   gammaAlpha: 0.15,  // per-round growth of α_i
-  sigma0:     15,    // anchor for valuation noise
+  sigma0:     5,     // anchor for valuation noise
   gammaSigma: 0.30,  // per-round decay rate of σ_i
   omega0:     0.60,  // novice self (non-peer) weight ω_i (v3 §3)
   omegaStep:  0.10,  // per-round increment of ω_i

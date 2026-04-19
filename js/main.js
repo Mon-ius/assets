@@ -124,9 +124,9 @@ const App = {
     // rates. ω_0 is intentionally omitted from the slider row to
     // keep the experience-transfer novice baseline stable across
     // sessions; edit it via ExperienceConfig directly if needed.
-    expAlpha0:      0.40,
+    expAlpha0:      1.00,
     expGammaAlpha:  0.15,
-    expSigma0:      15,
+    expSigma0:      5,
     expGammaSigma:  0.30,
     expOmega0:      0.60,
     // Heuristic-mix weights (v3 §4). Live-tunable via Advanced
