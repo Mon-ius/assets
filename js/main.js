@@ -468,13 +468,31 @@ const App = {
 
     // Boolean toggles in Advanced settings (bias / noise on the prior,
     // complex-dividend regime).
-    for (const key of ['applyBias', 'applyNoise', 'applyComplexDividends', 'applyBoundedRationality']) {
+    for (const key of ['applyBias', 'applyNoise', 'applyComplexDividends']) {
       const cb = document.getElementById('p-' + key);
       if (!cb) continue;
       cb.checked = !!this.tunables[key];
       cb.addEventListener('change', () => {
         this.tunables[key] = cb.checked;
         this.rebuild();
+      });
+    }
+
+    // Bounded Rationality lives in the AI endpoint panel (Plan II and
+    // Plan III each get their own checkbox; both share the
+    // .ai-shared-br class and stay in sync via the same pattern the
+    // provider / key / model inputs use). Wired here rather than in
+    // Advanced settings because it is a pure LLM-prompt constraint
+    // with no meaning under Plan I.
+    const brBoxes = document.querySelectorAll('.ai-shared-br');
+    if (brBoxes.length) {
+      brBoxes.forEach(cb => { cb.checked = !!this.tunables.applyBoundedRationality; });
+      brBoxes.forEach(cb => {
+        cb.addEventListener('change', () => {
+          this.tunables.applyBoundedRationality = cb.checked;
+          brBoxes.forEach(other => { if (other !== cb) other.checked = cb.checked; });
+          this.rebuild();
+        });
       });
     }
 

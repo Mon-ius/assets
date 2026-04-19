@@ -1206,6 +1206,31 @@ body:not(.plan-iii) .plan-iii-only { display: none !important; }
   font-style: italic;
   color: var(--pink);
 }
+/* Bounded Rationality toggle row — lives inside the Plan II / III
+   AI endpoint panels and controls the Cognitive Constraints block
+   that AI.getPlanBeliefs appends to the system prompt. */
+.ai-config .ai-br-row { padding: 0; }
+.ai-config .ai-br-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--fg-1);
+  cursor: pointer;
+}
+.ai-config .ai-br-toggle .muted {
+  font-size: 10.5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.ai-config .ai-br-toggle:has(input:checked) {
+  border-color: var(--pink);
+  background: color-mix(in srgb, var(--pink) 12%, var(--bg-2));
+}
 .ai-config .ai-status:empty { display: none; }
 .ai-config .input-text:hover { border-color: var(--bg-3); }
 .ai-config .input-text:focus {
