@@ -282,74 +282,44 @@ const _mFv      = '<msub><mrow><mi>F</mi><mi>V</mi></mrow><mi>t</mi></msub>';
 const _mFvNext  = '<msub><mrow><mi>F</mi><mi>V</mi></mrow><mrow><mi>t</mi><mo>+</mo><mn>1</mn></mrow></msub>';
 const _mEdt     = '<mrow><mi>E</mi><mo>[</mo><msub><mi>d</mi><mi>t</mi></msub><mo>]</mo></mrow>';
 const _mEds     = '<mrow><mi>E</mi><mo>[</mo><msub><mi>d</mi><mi>s</mi></msub><mo>]</mo></mrow>';
-const _mKt      = '<msub><mi>k</mi><mi>t</mi></msub>';
-const _mImplies = '<mspace width="0.45em"/><mo stretchy="false">⟹</mo><mspace width="0.45em"/>';
-const _mComma   = '<mspace width="0.25em"/><mo>,</mo><mspace width="0.35em"/>';
 const _mSinArg  = '<mfrac>'
   + '<mrow><mn>2</mn><mi>π</mi><mo>(</mo><mi>t</mi><mo>−</mo><mn>1</mn><mo>)</mo></mrow>'
   + '<mn>10</mn>'
   + '</mfrac>';
 
 const ASSET_FV_FORMULAS = {
-  // E[d_t] = 5  ⟹  FV_t = E[d_t] · (T − t + 1) = 5 · k_t,  k_t = T − t + 1
+  // FV_t = E[d_t] · (T − t + 1)      (symbolic form per v3 §5.1)
   linearDeclining: _assetMath(
     '<mrow>'
-    + _mEdt + '<mo>=</mo><mn>5</mn>'
-    + _mImplies
     + _mFv + '<mo>=</mo>' + _mEdt
     + '<mo>·</mo><mo>(</mo><mi>T</mi><mo>−</mo><mi>t</mi><mo>+</mo><mn>1</mn><mo>)</mo>'
-    + '<mo>=</mo><mn>5</mn>' + _mKt
-    + _mComma
-    + _mKt + '<mo>=</mo><mi>T</mi><mo>−</mo><mi>t</mi><mo>+</mo><mn>1</mn>'
     + '</mrow>',
   ),
-  // E[d_t] = 5, r = 0.05  ⟹  FV_t = E[d_t] / r = 100
+  // FV_t = E[d_t] / r                (v3 §5.7)
   constantPerpetual: _assetMath(
     '<mrow>'
-    + _mEdt + '<mo>=</mo><mn>5</mn>'
-    + _mComma
-    + '<mi>r</mi><mo>=</mo><mn>0.05</mn>'
-    + _mImplies
     + _mFv + '<mo>=</mo>'
     + '<mfrac>' + _mEdt + '<mi>r</mi></mfrac>'
-    + '<mo>=</mo><mn>100</mn>'
     + '</mrow>',
   ),
-  // E[d_s] = a + b·s, b = 0.3  ⟹  FV_t = Σ_{s=t}^{T} E[d_s] = Σ_{s=t}^{T} (a + b·s)
+  // FV_t = Σ_{s=t}^{T} E[d_s]        (v3 §5.13, undiscounted tail sum)
   linearGrowth: _assetMath(
     '<mrow>'
-    + _mEds + '<mo>=</mo><mi>a</mi><mo>+</mo><mi>b</mi><mo>·</mo><mi>s</mi>'
-    + _mComma
-    + '<mi>b</mi><mo>=</mo><mn>0.3</mn>'
-    + _mImplies
     + _mFv + '<mo>=</mo>'
     + '<munderover><mo>Σ</mo><mrow><mi>s</mi><mo>=</mo><mi>t</mi></mrow><mi>T</mi></munderover>'
     + _mEds
-    + '<mo>=</mo>'
-    + '<munderover><mo>Σ</mo><mrow><mi>s</mi><mo>=</mo><mi>t</mi></mrow><mi>T</mi></munderover>'
-    + '<mo>(</mo><mi>a</mi><mo>+</mo><mi>b</mi><mo>·</mo><mi>s</mi><mo>)</mo>'
     + '</mrow>',
   ),
-  // E[d_t] = 5 + 2·sin(2π(t−1)/10)  ⟹  FV_t = 100 + 20·sin(2π(t−1)/10)
+  // FV_t = 100 + 20·sin(2π(t−1)/10)  (v3 §5.19 specifies the path directly)
   cyclicalSine: _assetMath(
     '<mrow>'
-    + _mEdt + '<mo>=</mo><mn>5</mn><mo>+</mo><mn>2</mn><mo>·</mo><mi>sin</mi>'
-    + '<mo>(</mo>' + _mSinArg + '<mo>)</mo>'
-    + _mImplies
     + _mFv + '<mo>=</mo><mn>100</mn><mo>+</mo><mn>20</mn><mo>·</mo><mi>sin</mi>'
     + '<mo>(</mo>' + _mSinArg + '<mo>)</mo>'
     + '</mrow>',
   ),
-  // η_t ~ N(0, σ²), σ = 5  ⟹  FV_{t+1} = max(20, FV_t + η_t)
+  // FV_{t+1} = max(20, FV_t + η_t)   (v3 §5.25)
   randomWalk: _assetMath(
     '<mrow>'
-    + '<msub><mi>η</mi><mi>t</mi></msub>'
-    + '<mo>∼</mo>'
-    + '<mi>N</mi><mo>(</mo><mn>0</mn><mo>,</mo>'
-    + '<msup><mi>σ</mi><mn>2</mn></msup><mo>)</mo>'
-    + _mComma
-    + '<mi>σ</mi><mo>=</mo><mn>5</mn>'
-    + _mImplies
     + _mFvNext + '<mo>=</mo><mi>max</mi>'
     + '<mo>(</mo><mn>20</mn><mo>,</mo>'
     + _mFv
@@ -357,18 +327,9 @@ const ASSET_FV_FORMULAS = {
     + '<mo>)</mo>'
     + '</mrow>',
   ),
-  // μ_j ∈ {+2 (p=0.9), −30 (p=0.1)}  ⟹  FV_{t+1} = max(5, FV_t + μ_j)
+  // FV_{t+1} = max(5, FV_t + μ_j)    (v3 §5.31)
   jumpCrash: _assetMath(
     '<mrow>'
-    + '<msub><mi>μ</mi><mi>j</mi></msub>'
-    + '<mo>∈</mo>'
-    + '<mo>{</mo><mo>+</mo><mn>2</mn>'
-    + '<mspace width="0.25em"/><mo>(</mo><mi>p</mi><mo>=</mo><mn>0.9</mn><mo>)</mo>'
-    + '<mo>,</mo>'
-    + '<mo>−</mo><mn>30</mn>'
-    + '<mspace width="0.25em"/><mo>(</mo><mi>p</mi><mo>=</mo><mn>0.1</mn><mo>)</mo>'
-    + '<mo>}</mo>'
-    + _mImplies
     + _mFvNext + '<mo>=</mo><mi>max</mi>'
     + '<mo>(</mo><mn>5</mn><mo>,</mo>'
     + _mFv
