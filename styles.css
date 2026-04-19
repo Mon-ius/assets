@@ -1431,11 +1431,17 @@ body:not(.plan-ii):not(.plan-iii) .plan-llm-only { display: none !important; }
 .dlm-treatment-opt.scale-tile {
   border-color: var(--teal);
   background: color-mix(in srgb, var(--teal) 8%, var(--bg-1));
+  padding: 6px 10px;
 }
 .dlm-treatment-opt.scale-tile .param-head .pval {
   color: #fff;
   background: var(--teal);
-  min-width: 72px;
+  min-width: 64px;
+  padding: 2px 8px;
+  font-size: 10px;
+}
+.dlm-treatment-opt.scale-tile .param-head label {
+  font-size: 11px;
 }
 /* Amber variant of the scale-tile for session-structural controls
    (R, r, per-session rates) — shares the layout of the teal tile
