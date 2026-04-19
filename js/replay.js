@@ -126,6 +126,10 @@ const Replay = {
         initialWealth:       a.initialWealth,
         lastLLMPrompt:       a.lastLLMPrompt  || null,
         lastLLMResponse:     a.lastLLMResponse || null,
+        // v5 narrative traits (g_i growth, c_i cycle, u_i random-walk,
+        // h_i everyday-normal, δ_i crash-underweight) consumed by the
+        // asset-specific heuristic in assets.js §5.{17,23,29,35}.
+        narrativeTraits:     a.narrativeTraits || null,
       };
     }
     return {

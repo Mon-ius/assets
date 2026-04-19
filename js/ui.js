@@ -1317,23 +1317,46 @@ const UI = {
       ? 'FṼ_{i,t} = μ̂_i · (T − t + 1),  μ̂_i = x̄_n · (1 + ξ),  ξ ~ U[−σ_n, +σ_n],  σ_n = 0.35/√(n+1)  (bounded-rationality path; Complex Dividends ON)'
       : tpl.fvFormula;
 
-    const heurStep =
+    const heurGeneric =
       `H_{i,t} = ${betas.anchor.toFixed(2)}·Anchor ` +
       `+ ${betas.trend.toFixed(2)}·Trend ` +
       `+ ${betas.dividend.toFixed(2)}·DividendSignal ` +
       `+ ${betas.narrative.toFixed(2)}·Narrative`;
+    // v5 — prefer the asset-specific heuristic formula from §5.{5,11,17,23,29,35}
+    // so each card shows the exact expression that applies to this asset.
+    const heurStep = tpl.heuristicFormula
+      ? `${heurGeneric}  —  ${tpl.heuristicFormula}`
+      : heurGeneric;
 
     const biasTerm  = tun.applyBias  ? ' · (1 + bias_i)' : '';
     const noiseTerm = tun.applyNoise ? ' + ε_i' : '';
     const priorStep = `prior_{i,t} = [ α_i·FṼ_{i,t} + (1 − α_i)·H_{i,t} ]${biasTerm}${noiseTerm}`;
     const postStep  = 'V̂_{i,t} = ω_i · prior_{i,t} + (1 − ω_i) · m̄_t';
 
-    const chips = [
+    const chipList = [
       `α_i = ${exp.alpha.toFixed(2)}`,
       `σ_i = ${exp.sigma.toFixed(1)}`,
       `ω_i = ${exp.omega.toFixed(2)}`,
       `R${rp}`,
-    ].map(t => `<span class="stats-model-chip">${UI._escHtml(t)}</span>`).join('');
+    ];
+    // v5 — surface the per-agent narrative trait used by the active asset's
+    // heuristic (g_i for Linear Growth, c_i for Cyclical, u_i for Random
+    // Walk, h_i + δ_i for Jump/Crash). Only the trait(s) the current asset
+    // consumes are shown, so the chip row stays scannable.
+    const traits = (agent && agent.narrativeTraits) || null;
+    if (traits) {
+      if (assetId === 'linearGrowth' && Number.isFinite(traits.g)) {
+        chipList.push(`g_i = ${traits.g.toFixed(2)}`);
+      } else if (assetId === 'cyclicalSine' && Number.isFinite(traits.c)) {
+        chipList.push(`c_i = ${traits.c.toFixed(2)}`);
+      } else if (assetId === 'randomWalk' && Number.isFinite(traits.u)) {
+        chipList.push(`u_i = ${traits.u.toFixed(2)}`);
+      } else if (assetId === 'jumpCrash') {
+        if (Number.isFinite(traits.h))     chipList.push(`h_i = ${traits.h.toFixed(2)}`);
+        if (Number.isFinite(traits.delta)) chipList.push(`δ_i = ${traits.delta.toFixed(3)}`);
+      }
+    }
+    const chips = chipList.map(t => `<span class="stats-model-chip">${UI._escHtml(t)}</span>`).join('');
 
     const subtitleBits = [];
     if (tpl.typeLabel) subtitleBits.push(tpl.typeLabel);

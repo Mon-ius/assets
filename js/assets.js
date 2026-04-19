@@ -102,6 +102,16 @@ const ASSET_LINEAR_DECLINING = {
     const kt = Math.max(0, T - period + 1);
     return 5 * kt;
   },
+  // v5 §5.5 — Anchor = 5T (initial total value — "没有完全 internalize
+  // declining path"). DividendSignal = d̄_obs·A_t. Narrative = 0.
+  heuristicParts(period, state, config, env) {
+    const T = (config && config.periods) || state.fv.length - 2;
+    return {
+      anchor: 5 * T,
+      dividendSignal: env.dBarObs * env.At,
+      narrative: 0,
+    };
+  },
   drawDividend(period, state, rng, config, tunables) {
     if (tunables && tunables.applyComplexDividends) {
       return drawFromDistribution(rng, COMPLEX_LINEAR_DIVIDENDS);
@@ -132,6 +142,16 @@ const ASSET_CONSTANT_PERPETUAL = {
   modelBasedFV(/* period, state, config */) {
     return ASSET_ANCHOR_FV;
   },
+  // v5 §5.11 — Anchor = 100. DividendSignal = d̄_obs / r (Gordon).
+  // Narrative = 0 (easy-to-value asset, weak heuristic).
+  heuristicParts(period, state, config, env) {
+    const r = ASSET_DISCOUNT_RATE;
+    return {
+      anchor: ASSET_ANCHOR_FV,
+      dividendSignal: env.dBarObs / r,
+      narrative: 0,
+    };
+  },
   drawDividend(period, state, rng, config, tunables) {
     return rng() < 0.5 ? 4 : 6;
   },
@@ -152,32 +172,43 @@ const ASSET_LINEAR_GROWTH = {
   id:          'linearGrowth',
   label:       'Linear Growth',
   shortLabel:  'LG',
-  description: 'Rising-dividend regime — E[d] grows linearly in t.',
+  description: 'Rising-dividend perpetuity — FV = (2 + 0.3t)/r.',
   init(config) {
     const T = config.periods;
     const a = 2;
     const b = 0.3;
     const r = ASSET_DISCOUNT_RATE;
     const fv = new Array(T + 2).fill(0);
-    // FV_t = Σ_{s=t..T} (a + b·s) / (1+r)^{s-t+1}
-    for (let t = 1; t <= T; t++) {
-      let v = 0;
-      for (let s = t; s <= T; s++) {
-        v += (a + b * s) / Math.pow(1 + r, s - t + 1);
-      }
-      fv[t] = v;
-    }
-    fv[T + 1] = 0;
-    return { fv, a, b, r, expectedDividend: a + b * Math.ceil(T / 2), terminalValue: 0 };
+    // v5 §5.13 — perpetual growth asset with rising μ̂ and FV_t = E[d_t]/r.
+    // Produces a monotonically rising environment instead of the v4
+    // finite-horizon tail sum, matching the agent's model-based §5.16.
+    for (let t = 1; t <= T + 1; t++) fv[t] = (a + b * t) / r;
+    return { fv, a, b, r, expectedDividend: a + b * Math.ceil(T / 2), terminalValue: fv[T] };
   },
   fundamentalValue(period, state) {
     return state.fv[period] != null ? Math.max(0, state.fv[period]) : 0;
   },
-  // v4 §5.16 — agent infers μ̂_{i,s} = 2 + 0.3·s and discounts the
-  // finite tail: FṼ_{i,t} = Σ_{s=t..T} (2+0.3·s)/(1+r)^{s−t+1}. Same
-  // closed form as `fundamentalValue` above, so we just delegate.
+  // v5 §5.16 — agent infers μ̂_{i,t} = 2 + 0.3·t and Gordon-discounts:
+  //   FṼ_{i,t} = (2 + 0.3·t) / r.
+  // Same closed form as `fundamentalValue` above (perpetuity), so we
+  // just delegate — a rational (α=1) trader is then exactly right.
   modelBasedFV(period, state /*, config */) {
     return state.fv[period] != null ? Math.max(0, state.fv[period]) : 0;
+  },
+  // v5 §5.17 — Anchor = FṼ_{i,t} (model value). DividendSignal =
+  //   d̄_obs·A_t. Narrative = g_i + max(Trend, 0), growth optimism
+  //   plus a one-sided momentum bonus.
+  heuristicParts(period, state, config, env) {
+    const r = ASSET_DISCOUNT_RATE;
+    const anchor = Math.max(0, ((state.a || 2) + (state.b || 0.3) * period) / r);
+    const trend  = Number.isFinite(env && env.trend) ? env.trend : 0;
+    const g      = (env && env.agent && env.agent.narrativeTraits)
+      ? env.agent.narrativeTraits.g : 5;
+    return {
+      anchor,
+      dividendSignal: env.dBarObs * env.At,
+      narrative: g + Math.max(trend, 0),
+    };
   },
   drawDividend(period, state, rng, config, tunables) {
     const mean  = state.a + state.b * period;
@@ -230,6 +261,19 @@ const ASSET_CYCLICAL_SINE = {
     }
     return ASSET_ANCHOR_FV;
   },
+  // v5 §5.23 — Anchor = 100. DividendSignal = d̄_obs·A_t. Narrative =
+  //   c_i + λ_c·sign(Trend), with λ_c = 4 (mistake a short trend for
+  //   the whole cycle).
+  heuristicParts(period, state, config, env) {
+    const trend = Number.isFinite(env && env.trend) ? env.trend : 0;
+    const c     = (env && env.agent && env.agent.narrativeTraits)
+      ? env.agent.narrativeTraits.c : 0;
+    return {
+      anchor: ASSET_ANCHOR_FV,
+      dividendSignal: env.dBarObs * env.At,
+      narrative: c + 4 * Math.sign(trend),
+    };
+  },
   drawDividend(period, state, rng, config, tunables) {
     const mean  = 5 + 2 * Math.sin((2 * Math.PI / 10) * (period - 1));
     const sigma = 1.0;
@@ -257,12 +301,24 @@ const ASSET_RANDOM_WALK = {
   fundamentalValue(period, state) {
     return state.fv[period] != null ? state.fv[period] : ASSET_ANCHOR_FV;
   },
-  // v4 §5.28 — with no explicit structure the agent can only take the
-  // "current central level". First-version recommendation (the simplest
-  // choice listed in the spec): FṼ_{i,t} = 100 (constant anchor).
+  // v4/v5 §5.28 — with no explicit structure the agent can only take
+  // the "current central level". First-version recommendation (the
+  // simplest choice listed in the spec): FṼ_{i,t} = 100 (constant).
   // The agent does NOT observe the live FV path.
   modelBasedFV(/* period, state, config */) {
     return ASSET_ANCHOR_FV;
+  },
+  // v5 §5.29 — Anchor = 100. DividendSignal = 100 at t=1 else 0
+  //   (no dividend structure to latch onto once trading starts).
+  //   Narrative = u_i (random drift narrative, no trend reaction).
+  heuristicParts(period, state, config, env) {
+    const u = (env && env.agent && env.agent.narrativeTraits)
+      ? env.agent.narrativeTraits.u : 0;
+    return {
+      anchor: ASSET_ANCHOR_FV,
+      dividendSignal: period <= 1 ? ASSET_ANCHOR_FV : 0,
+      narrative: u,
+    };
   },
   drawDividend(period, state, rng, config, tunables) {
     // Extend the path one period at a time, so the dividend is a
@@ -307,6 +363,25 @@ const ASSET_JUMP_CRASH = {
     const T = (config && config.periods) || state.fv.length - 2;
     const kt = Math.max(0, T - period + 1);
     return Math.max(0, ASSET_ANCHOR_FV - 1.2 * kt);
+  },
+  // v5 §5.35 — Anchor = 100. DividendSignal = 100 + k_t·Ẽ_i[ΔFV]
+  //   with Ẽ_i[ΔFV] = (1 − p̃_c,i)·2 + p̃_c,i·(−30) and subjective
+  //   crash prob p̃_c,i = max(0, 0.1 − δ_i). Narrative = h_i +
+  //   max(Trend, 0) — everyday-normal optimism plus momentum.
+  heuristicParts(period, state, config, env) {
+    const T  = (config && config.periods) || state.fv.length - 2;
+    const kt = Math.max(0, T - period + 1);
+    const traits = (env && env.agent && env.agent.narrativeTraits)
+      ? env.agent.narrativeTraits
+      : { h: 4, delta: 0 };
+    const pc   = Math.max(0, 0.1 - (traits.delta || 0));
+    const edFv = (1 - pc) * 2 + pc * (-30);
+    const trend = Number.isFinite(env && env.trend) ? env.trend : 0;
+    return {
+      anchor: ASSET_ANCHOR_FV,
+      dividendSignal: ASSET_ANCHOR_FV + kt * edFv,
+      narrative: (traits.h || 0) + Math.max(trend, 0),
+    };
   },
   drawDividend(period, state, rng, config, tunables) {
     if (state.fv[period + 1] === 0 || state.fv[period + 1] == null) {
@@ -368,7 +443,8 @@ const ASSET_AGENT_TEMPLATES = {
     extras: [
       'No terminal value — K_t = 0.',
     ],
-    fvFormula: 'v4 §5.4 — agent infers μ̂_{i,t+j} = 5 from the public rule, then  FṼ_{i,t} = Σ_{j=1..k_t} 5 / (1+r)^j  where k_t = T − t + 1. Simplified (undiscounted first-version):  FṼ_{i,t} = 5·k_t.',
+    fvFormula: 'v5 §5.4 — agent infers μ̂_{i,t+j} = 5 from the public rule, then  FṼ_{i,t} = Σ_{j=1..k_t} 5 / (1+r)^j  where k_t = T − t + 1. Simplified (undiscounted first-version):  FṼ_{i,t} = 5·k_t.',
+    heuristicFormula: 'v5 §5.5 — H_{i,t} = β₁·(5T) + β₂·(p_{t−1}^{last} − p_{t−2}^{last}) + β₃·(d̄_obs · A_t);  A_t = Σ_{j=1..k_t} (1+r)^{−j};  narrative = 0.',
     heuristic: 'Naive agents anchor to the initial total value 5T and fail to internalise the declining path; they also over-weight the last observed price as a trend signal.',
   },
   constantPerpetual: {
@@ -382,7 +458,8 @@ const ASSET_AGENT_TEMPLATES = {
     extras: [
       'Capital opportunity cost / discount rate r = 5% per period.',
     ],
-    fvFormula: 'v4 §5.10 — agent infers μ̂_{i,t+j} = 5, then  FṼ_{i,t} = 5 / 0.05 = 100  (constant across t; Gordon perpetuity on the flat expected dividend).',
+    fvFormula: 'v5 §5.10 — agent infers μ̂_{i,t+j} = 5, then  FṼ_{i,t} = 5 / 0.05 = 100  (constant across t; Gordon perpetuity on the flat expected dividend).',
+    heuristicFormula: 'v5 §5.11 — H_{i,t} = β₁·100 + β₂·(p_{t−1}^{last} − p_{t−2}^{last}) + β₃·(d̄_obs / 0.05);  narrative = 0 (easy-to-value, weak heuristic).',
     heuristic: 'Naive agents treat the perpetual as if it were finite-horizon and drift toward a declining mental model; peer messages about "price going up" can push them away from the flat 100 anchor.',
   },
   linearGrowth: {
@@ -395,7 +472,8 @@ const ASSET_AGENT_TEMPLATES = {
     extras: [
       'Capital opportunity cost / discount rate r = 5% per period.',
     ],
-    fvFormula: 'v4 §5.16 — agent infers μ̂_{i,s} = 2 + 0.3·s, then  FṼ_{i,t} = Σ_{s=t..T} (2 + 0.3·s) / (1+r)^{s−t+1}  — discounted tail-sum of the rising expected dividend stream at r = 0.05.',
+    fvFormula: 'v5 §5.16 — agent infers μ̂_{i,t} = 2 + 0.3·t, Gordon perpetuity:  FṼ_{i,t} = (2 + 0.3·t) / r  with r = 0.05. Rising environment (perpetual growth asset, no terminal date).',
+    heuristicFormula: 'v5 §5.17 — H_{i,t} = β₁·FṼ_{i,t} + β₂·(p_{t−1}^{last} − p_{t−2}^{last}) + β₃·(d̄_obs · A_t) + β₄·(g_i + max(Trend, 0));  A_t = Σ_{j=1..k_t} (1+r)^{−j};  g_i ~ N(5, 5²), g_i ≥ 0 (growth-optimism trait).',
     heuristic: 'Naive agents mistake the rising dividend stream for a rising price path and ignore that finite-horizon remaining FV actually declines — over-paying early and late as terms fall out of the tail sum.',
   },
   cyclicalSine: {
@@ -408,7 +486,8 @@ const ASSET_AGENT_TEMPLATES = {
     extras: [
       'You know a cycle exists, but may not know exactly which phase you are in.',
     ],
-    fvFormula: 'v4 §5.22 — if agent understands the cycle rule, μ̂_{i,s} = 5 + 2·sin(2π·(s−1)/10), then  FṼ_{i,t} = Σ_{s=t..T} [5 + 2·sin(2π·(s−1)/10)] / (1+r)^{s−t+1}  — discounted tail-sum of the sinusoidal expected dividend at r = 0.05.',
+    fvFormula: 'v5 §5.22 — if agent understands the cycle rule, μ̂_{i,s} = 5 + 2·sin(2π·(s−1)/10), then  FṼ_{i,t} = Σ_{s=t..T} [5 + 2·sin(2π·(s−1)/10)] / (1+r)^{s−t+1}  — discounted tail-sum of the sinusoidal expected dividend at r = 0.05.',
+    heuristicFormula: 'v5 §5.23 — H_{i,t} = β₁·100 + β₂·(p_{t−1}^{last} − p_{t−2}^{last}) + β₃·(d̄_obs · A_t) + β₄·(c_i + λ_c·sign(Trend));  c_i ~ N(0, 5²) is the per-agent cycle bias;  λ_c = 4 (mistake a short trend for the whole cycle).',
     heuristic: 'Naive agents mistake the rising half of the cycle for a durable trend and the falling half for a crash; phase confusion is the dominant error.',
   },
   randomWalk: {
@@ -421,7 +500,8 @@ const ASSET_AGENT_TEMPLATES = {
     extras: [
       'Current environment starts at FV_1 = 100. Future FV may rise or fall symmetrically.',
     ],
-    fvFormula: 'v4 §5.28 — with no explicit structure the agent can only take the "current central level". First-version default:  FṼ_{i,1} = 100  and  FṼ_{i,t} = 100  (constant anchor, simplest). Alternatives mentioned in the spec for t ≥ 2:  FṼ_{i,t} = p_{t−1}^{last}  (last trade price of the previous period) or  FṼ_{i,t} = p̄_{t−1}^{(L)}  (rolling L-period mean).',
+    fvFormula: 'v5 §5.28 — with no explicit structure the agent can only take the "current central level". First-version default:  FṼ_{i,1} = 100  and  FṼ_{i,t} = 100  (constant anchor, simplest). Alternatives mentioned in the spec for t ≥ 2:  FṼ_{i,t} = p_{t−1}^{last}  (last trade price of the previous period) or  FṼ_{i,t} = p̄_{t−1}^{(L)}  (rolling L-period mean).',
+    heuristicFormula: 'v5 §5.29 — t = 1: H_{i,1} = β₁·100 + β₄·u_i.  t ≥ 2: H_{i,t} = β₁·100 + β₂·(p_{t−1}^{last} − p_{t−2}^{last}) + β₄·u_i  (DividendSignal = 0 — no structured dividend to latch onto); u_i ~ N(0, 5²) is a random-walk narrative idiosyncrasy.',
     heuristic: 'Naive agents over-extrapolate recent moves — they treat a short up-run as a trend and a short down-run as a crash, instead of treating FV as memoryless.',
   },
   jumpCrash: {
@@ -437,7 +517,8 @@ const ASSET_AGENT_TEMPLATES = {
       'Current environment starts at FV_1 = 100. Floor at 5 (FV cannot fall below 5).',
       'Expected per-period drift E[ΔFV] = 0.9·(+2) + 0.1·(−30) = −1.2 — slightly negative on average.',
     ],
-    fvFormula: 'v4 §5.34 — if agent uses the stated probabilities,  Ẽ_i[ΔFV] = 0.9·(+2) + 0.1·(−30) = −1.2.  Therefore  FṼ_{i,t} = FV_t^{anchor} − 1.2·k_t  with the first-version anchor  FV_t^{anchor} = 100  (constant, public starting level), so  FṼ_{i,1} = 100 − 1.2·T.  k_t = T − t + 1.',
+    fvFormula: 'v5 §5.34 — if agent uses the stated probabilities,  Ẽ_i[ΔFV] = 0.9·(+2) + 0.1·(−30) = −1.2.  Therefore  FṼ_{i,t} = FV_t^{anchor} − 1.2·k_t  with the first-version anchor  FV_t^{anchor} = 100  (constant, public starting level), so  FṼ_{i,1} = 100 − 1.2·T.  k_t = T − t + 1.',
+    heuristicFormula: 'v5 §5.35 — H_{i,t} = β₁·100 + β₂·(p_{t−1}^{last} − p_{t−2}^{last}) + β₃·(100 + k_t·Ẽ_i[ΔFV]) + β₄·(h_i + max(Trend, 0));  subjective crash prob p̃_{c,i} = max(0, 0.1 − δ_i), Ẽ_i[ΔFV] = (1 − p̃_{c,i})·2 + p̃_{c,i}·(−30);  h_i ~ N(4, 4²), h_i ≥ 0 (everyday-normal optimism); δ_i is the agent\u2019s crash underweight.',
     heuristic: 'Naive agents under-weight the 10% crash branch after a long calm run, treating +2 as the norm and getting caught when the crash hits.',
   },
 };

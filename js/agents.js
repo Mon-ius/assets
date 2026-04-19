@@ -569,6 +569,17 @@ class UtilityAgent extends Agent {
     this.valuationNoise = opts.valuationNoise != null ? opts.valuationNoise : UTILITY_DEFAULTS.valuationNoise;
     this.deceptionMode  = opts.deceptionMode  || 'honest';
     this.beliefMode     = opts.beliefMode     || 'naive';
+    // Per-agent narrative traits (v5 §5.17/§5.23/§5.29/§5.35) — used
+    // by the asset-specific heuristic in `js/assets.js heuristicParts`.
+    // Missing fields fall back to the spec mean so legacy replays and
+    // hand-built specs still produce reasonable heuristics.
+    this.narrativeTraits = {
+      g:     Number.isFinite(opts.narrativeG) ? opts.narrativeG : 5,
+      c:     Number.isFinite(opts.narrativeC) ? opts.narrativeC : 0,
+      u:     Number.isFinite(opts.narrativeU) ? opts.narrativeU : 0,
+      h:     Number.isFinite(opts.narrativeH) ? opts.narrativeH : 4,
+      delta: Number.isFinite(opts.crashDelta) ? opts.crashDelta : 0,
+    };
 
     // Valuation state — recomputed each decide().
     this.trueValuation       = 100;
@@ -1290,6 +1301,24 @@ function sampleAgents(mix, rng, options = {}) {
     // Drawing from the sampling RNG keeps reproducibility intact:
     // the same (seed, mix) pair produces the same ρ vector every time.
     const rho = sampleRho(risk, rng);
+    // Per-agent narrative traits (v5 §5.17 / §5.23 / §5.29 / §5.35).
+    // Drawn once at sample time and carried through specs → agent so
+    // they persist across rounds (same role as biasMode/riskPref).
+    //   g_i ~ N(5, 5²), floored at 0   — Linear Growth growth optimism
+    //   c_i ~ N(0, 5²)                  — Cyclical phase-bias
+    //   u_i ~ N(0, 5²)                  — Random-Walk drift narrative
+    //   h_i ~ N(4, 4²), floored at 0   — Jump/Crash everyday-normal optimism
+    //   δ_i ~ U[0, 0.1]                 — Jump/Crash subjective crash under-weight
+    const traitDraw = (mean, sd) => {
+      const u1 = Math.max(1e-12, rng());
+      const u2 = rng();
+      return mean + sd * Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+    };
+    const narrativeG = Math.max(0, traitDraw(5, 5));
+    const narrativeC = traitDraw(0, 5);
+    const narrativeU = traitDraw(0, 5);
+    const narrativeH = Math.max(0, traitDraw(4, 4));
+    const crashDelta = 0.1 * rng();
     specs.push({
       id, slot: id, type: 'utility',
       typeLabel:     cycle > 0 ? `${slotTag}·${cycle + 1}` : slotTag,
@@ -1302,6 +1331,7 @@ function sampleAgents(mix, rng, options = {}) {
       biasAmount:    0,
       deceptionMode: 'honest',
       beliefMode:    'plan',
+      narrativeG, narrativeC, narrativeU, narrativeH, crashDelta,
     });
     id++;
   }
@@ -1347,6 +1377,11 @@ function buildAgentsFromSpecs(specs, overrides = {}) {
           biasAmount:     s.biasAmount,
           deceptionMode:  s.deceptionMode,
           beliefMode:     s.beliefMode,
+          narrativeG:     s.narrativeG,
+          narrativeC:     s.narrativeC,
+          narrativeU:     s.narrativeU,
+          narrativeH:     s.narrativeH,
+          crashDelta:     s.crashDelta,
         };
         if (overrides.forceHonest) opts.deceptionMode = 'honest';
         if (overrides.biasAmount != null && opts.biasMode && opts.biasMode !== 'none') {

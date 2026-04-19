@@ -253,11 +253,7 @@ function heuristicValue(agent, market, ctx) {
   const kt      = Math.max(0, T - period + 1);            // remaining periods
   const r       = (market.config && market.config.discountRate) || 0.05;
 
-  // Anchor — v3 §4.1 / v4 §5.*. The anchor is the agent's model-based
-  // reference level at each period, which for stochastic assets is
-  // NOT the live FV_t (oracle) but the public-rule-derived FṼ (v4
-  // §5.28 first-version: constant 100 for random walk; §5.34: 100 −
-  // 1.2·k_t for jump/crash; §5.22: discounted sinusoidal tail sum).
+  // Model-based anchor fallback (used by assets with no heuristic hook).
   const readModel = (p) => {
     if (market.assetType && typeof market.assetType.modelBasedFV === 'function') {
       return market.assetType.modelBasedFV(p, market.assetState, market.config, market);
@@ -267,25 +263,21 @@ function heuristicValue(agent, market, ctx) {
     }
     return market.fundamentalValue(p);
   };
-  const anchorInit = readModel(1);
-  const anchor     = (period <= 1) ? anchorInit : readModel(period);
+  const modelAnchorInit = readModel(1);
 
-  // Trend — v3 §4.2. Use the last *trade* price of each of the previous
-  // two periods. Missing trades fall through to 0 so a sparse book
-  // doesn't spike the heuristic.
+  // Trend — v5 §4.2 / §5.5–§5.35. Last-trade difference between
+  // the two previous periods. Missing trades fall through to 0.
   let trend = 0;
   if (period >= 2) {
     const pPrev  = lastTradePriceForPeriod(market, period - 1);
     const pPrev2 = (period >= 3) ? lastTradePriceForPeriod(market, period - 2)
-                                 : anchorInit;
+                                 : modelAnchorInit;
     if (pPrev != null && pPrev2 != null) trend = pPrev - pPrev2;
   }
 
-  // DividendSignal — v3 §4.3.
-  //   t = 1: μ_public (asset's published expected dividend per period)
-  //          scaled by the PV factor A_t = Σ_{j=1..kt} (1+r)^(−j).
-  //   t ≥ 2: d̄_obs · A_t using the agent's empirical mean across the
-  //          rounds it has actually observed (roundsPlayed window).
+  // Generic dBar_obs and A_t (passed to the asset-specific heuristic).
+  //   t = 1 → μ_public (asset's published expected dividend per period)
+  //   t ≥ 2 → agent's empirical mean over its roundsPlayed window.
   const muPublic = (market.assetState && market.assetState.expectedDividend != null)
     ? market.assetState.expectedDividend
     : (market.config && market.config.dividendMean) || 0;
@@ -301,15 +293,25 @@ function heuristicValue(agent, market, ctx) {
     }
     dMean = n > 0 ? sum / n : muPublic;
   }
-  const dividendSignal = dMean * At;
 
-  // Narrative — v3 §4.4. Asset-specific "story premium/discount". The
-  // registry exposes this through `asset.narrativeShift(period, state)`
-  // when an asset wants to inject one; otherwise we default to 0 so β_4
-  // simply remains a reserved slot for future per-asset calibration.
-  let narrative = 0;
-  if (market.assetType && typeof market.assetType.narrativeShift === 'function') {
-    narrative = market.assetType.narrativeShift(period, market.assetState) || 0;
+  // Delegate anchor / dividendSignal / narrative to the asset hook so
+  // each asset contributes its v5 §5.5/§5.11/§5.17/§5.23/§5.29/§5.35
+  // formula. Generic defaults are used for any asset that hasn't
+  // defined the hook yet (anchor = modelBasedFV, dividendSignal =
+  // d̄·A_t, narrative = 0 or narrativeShift).
+  const env = { agent, market, dBarObs: dMean, At, trend, T, kt, r };
+  let anchor, dividendSignal, narrative;
+  if (market.assetType && typeof market.assetType.heuristicParts === 'function') {
+    const parts = market.assetType.heuristicParts(period, market.assetState, market.config, env) || {};
+    anchor         = Number.isFinite(parts.anchor)         ? parts.anchor         : readModel(period);
+    dividendSignal = Number.isFinite(parts.dividendSignal) ? parts.dividendSignal : (dMean * At);
+    narrative      = Number.isFinite(parts.narrative)      ? parts.narrative      : 0;
+  } else {
+    anchor         = readModel(period);
+    dividendSignal = dMean * At;
+    narrative      = (market.assetType && typeof market.assetType.narrativeShift === 'function')
+      ? (market.assetType.narrativeShift(period, market.assetState) || 0)
+      : 0;
   }
 
   // Assemble H. At t = 1 §6.3 drops the Trend term entirely — the
