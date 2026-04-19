@@ -246,6 +246,10 @@ class Engine {
         m.period    = 1;
         m.lastPrice = null;
         m.book.clear();
+        // Each round gets a fresh copy of the session's asset state so
+        // path-dependent assets (random walk, jump/crash) restart from
+        // FV_1 = 100 every round inside the same session.
+        m.resetAssetForRound();
         this.logger.logEvent({ tick: m.tick, type: 'round_start', round: m.round });
       } else if (m.round === (this.config.roundsPerSession || 1) && m.period === this.config.periods) {
         // Final round, final period: capture payoff one last time

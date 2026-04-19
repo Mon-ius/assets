@@ -134,6 +134,28 @@ class Market {
     this.period          = 1;
     this.tick            = 0;
     this.lastPrice       = null;
+    // Active asset type (from js/assets.js) + its round-local state.
+    // If setAsset() is never called the market falls back to the DLM
+    // linear-declining baseline so legacy call sites keep working.
+    this.assetType  = (typeof getAssetType === 'function') ? getAssetType() : null;
+    this.assetState = this.assetType ? this.assetType.init(config) : null;
+  }
+
+  /**
+   * Install a new asset type. Called once per session by the batch
+   * runner before reset(); resets the state so period 1 starts from
+   * FV_1 = 100.
+   */
+  setAsset(assetType) {
+    if (!assetType) return;
+    this.assetType  = assetType;
+    this.assetState = assetType.init(this.config);
+  }
+
+  /** Re-initialise the asset state at a round boundary (within a session). */
+  resetAssetForRound() {
+    if (!this.assetType) return;
+    this.assetState = this.assetType.init(this.config);
   }
 
   /** Global 1-indexed period across the full session. */
@@ -142,6 +164,9 @@ class Market {
   }
 
   fundamentalValue(period = this.period) {
+    if (this.assetType && this.assetState) {
+      return this.assetType.fundamentalValue(period, this.assetState);
+    }
     const remaining = Math.max(0, this.config.periods - period + 1);
     return this.config.dividendMean * remaining;
   }
@@ -216,26 +241,34 @@ class Market {
   /**
    * Draw the common dividend and credit every holder.
    *
-   * The baseline process is DLM 2005's {0, 2μ} coin flip. When the
-   * Advanced → "Complex Dividends" toggle is ON (read from ctx.tunables)
-   * the draw switches to the 5-point distribution in
-   * COMPLEX_DIVIDEND_DISTRIBUTION — same mean, harder-to-compute
-   * weighted sum.
+   * Delegates to the active asset type's `drawDividend`. Under the
+   * default Linear-Declining asset this reproduces DLM 2005's {0, 10}¢
+   * coin flip at T = 20; the other five asset types (Constant/Perpetual,
+   * Linear Growth, Cyclical, Random Walk, Jump/Crash) each implement
+   * their own dividend process from the spec. The Advanced → "Complex
+   * Dividends" toggle is still honoured inside the Linear-Declining
+   * asset (it swaps the coin flip for a 5-point mean-preserving
+   * distribution); every other asset ignores it.
    */
   payDividend(agents, rng = Math.random, ctx = null) {
-    const useComplex = !!(ctx && ctx.tunables && ctx.tunables.applyComplexDividends);
+    const tunables = (ctx && ctx.tunables) || null;
     let d;
-    if (useComplex) {
-      const r = rng();
-      let acc = 0;
-      d = COMPLEX_DIVIDEND_DISTRIBUTION[COMPLEX_DIVIDEND_DISTRIBUTION.length - 1].value;
-      for (const bucket of COMPLEX_DIVIDEND_DISTRIBUTION) {
-        acc += bucket.prob;
-        if (r < acc) { d = bucket.value; break; }
-      }
+    if (this.assetType && this.assetState) {
+      d = this.assetType.drawDividend(this.period, this.assetState, rng, this.config, tunables);
     } else {
-      const hi = this.config.dividendMean * 2;
-      d = rng() < 0.5 ? 0 : hi;
+      const useComplex = !!(tunables && tunables.applyComplexDividends);
+      if (useComplex) {
+        const r = rng();
+        let acc = 0;
+        d = COMPLEX_DIVIDEND_DISTRIBUTION[COMPLEX_DIVIDEND_DISTRIBUTION.length - 1].value;
+        for (const bucket of COMPLEX_DIVIDEND_DISTRIBUTION) {
+          acc += bucket.prob;
+          if (r < acc) { d = bucket.value; break; }
+        }
+      } else {
+        const hi = this.config.dividendMean * 2;
+        d = rng() < 0.5 ? 0 : hi;
+      }
     }
     for (const a of Object.values(agents)) a.cash += d * a.inventory;
     this.dividendHistory.push({ period: this.period, round: this.round, value: d });

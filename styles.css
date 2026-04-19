@@ -1458,12 +1458,13 @@ body:not(.plan-ii):not(.plan-iii) .plan-llm-only { display: none !important; }
 .dlm-treatment-opt.scale-tile.scale-tile-amber input[type=range].scale-slider::-moz-range-progress {
   background: transparent;
 }
-/* Per-session rate grid — 10 compact slider rows nested inside the
-   scale-tile-amber host. Layout is a 2-column grid so the vertical
-   footprint stays reasonable inside the fixed-width sidebar. */
+/* Per-session rate grid — 10 compact rows nested inside the
+   scale-tile-amber host. Each row carries {idx, slider, pct readout,
+   asset dropdown}, so a single-column layout gives every row room for
+   the asset <select> without truncating the slider track. */
 .session-rate-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 4px 10px;
   width: 100%;
 }
@@ -1551,6 +1552,23 @@ body:not(.plan-ii):not(.plan-iii) .plan-llm-only { display: none !important; }
   font-weight: 500;
   font-variant-numeric: tabular-nums;
   color: var(--fg-1);
+}
+.session-asset-select {
+  margin-left: 4px;
+  max-width: 150px;
+  padding: 2px 4px;
+  font-size: 11px;
+  color: var(--fg-1);
+  background: var(--bg-2);
+  border: 1px solid var(--bg-3);
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.session-asset-select:hover,
+.session-asset-select:focus {
+  border-color: var(--amber);
+  outline: none;
 }
 .dlm-treatment-opt.regulator-tile input[type=range].regulator-slider,
 .dlm-treatment-opt.scale-tile input[type=range].scale-slider {

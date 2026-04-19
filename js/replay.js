@@ -31,6 +31,20 @@
    ===================================================================== */
 
 const Replay = {
+  /**
+   * Build a per-period FV array of length T+2 so the UI can render an
+   * FV staircase / overlay without knowing which asset is active.
+   * Path-dependent assets (random walk, jump/crash) only have state
+   * for the periods they've traversed; the rest of the array carries
+   * the current FV as a passive extension.
+   */
+  _fvByPeriod(market) {
+    const T = market.config.periods;
+    const out = new Array(T + 2).fill(0);
+    for (let p = 1; p <= T + 1; p++) out[p] = market.fundamentalValue(p);
+    return out;
+  },
+
   buildLiveView(market, logger, agents, ctx = {}) {
     const agentState = {};
     for (const [id, a] of Object.entries(agents)) {
@@ -68,6 +82,9 @@ const Replay = {
       session:        ctx && ctx.currentSession || 0,
       lastPrice:      market.lastPrice,
       fv:             market.fundamentalValue(),
+      fvByPeriod:     Replay._fvByPeriod(market),
+      assetId:        market.assetType ? market.assetType.id : null,
+      assetLabel:     market.assetType ? market.assetType.label : null,
       bids: market.book.bids.map(o => ({ price: o.price, remaining: o.remaining, agentId: o.agentId })),
       asks: market.book.asks.map(o => ({ price: o.price, remaining: o.remaining, agentId: o.agentId })),
       agents:              agentState,
@@ -104,6 +121,9 @@ const Replay = {
         session:             ctx && ctx.currentSession || 0,
         lastPrice:           null,
         fv:                  market.fundamentalValue(1),
+        fvByPeriod:          Replay._fvByPeriod(market),
+        assetId:             market.assetType ? market.assetType.id : null,
+        assetLabel:          market.assetType ? market.assetType.label : null,
         bids:                [],
         asks:                [],
         agents:              {},
@@ -128,6 +148,13 @@ const Replay = {
       session:             snap.session || (ctx && ctx.currentSession) || 0,
       lastPrice:            snap.lastPrice,
       fv:                   snap.fv,
+      // For path-dependent assets this is the *current* live path,
+      // not a frozen snapshot — pragmatic shortcut for the v2 pass,
+      // will show the right shape for deterministic assets and the
+      // latest-known shape for stochastic ones.
+      fvByPeriod:           Replay._fvByPeriod(market),
+      assetId:              market.assetType ? market.assetType.id : null,
+      assetLabel:           market.assetType ? market.assetType.label : null,
       bids:                 snap.bids,
       asks:                 snap.asks,
       agents:               snap.agents,

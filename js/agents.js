@@ -578,9 +578,10 @@ class UtilityAgent extends Agent {
 
     // Frozen baseline — used to normalize utility so U(w0) = 1. The
     // initial price reference is FV at the top of period 1 of round 1
-    // (= dividendMean × periods, usually 100¢), which matches the
-    // mark-to-market wealth the agent would compute on the very first
-    // tick if the first trade printed at FV.
+    // (= 100¢ for every registered asset; the registry anchors FV_1 at
+    // ASSET_ANCHOR_FV so this constant is safe across LD/CP/LG/CY/RW/JC),
+    // which matches the mark-to-market wealth the agent would compute
+    // on the very first tick if the first trade printed at FV.
     this.initialWealth = this.cash + this.inventory * 100;
   }
 

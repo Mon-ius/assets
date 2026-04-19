@@ -234,6 +234,38 @@ const UI = {
     return palette[(Number(id) - 1) % palette.length];
   },
 
+  /**
+   * Look up the fundamental value at local period `p` using the active
+   * asset's FV path from the latest view. Falls back to the DLM linear
+   * staircase for any period the view doesn't have a value for — so
+   * chart FV overlays keep working even if the view predates the asset
+   * system.
+   */
+  _fvAt(p, config) {
+    const v = this._lastView;
+    if (v && Array.isArray(v.fvByPeriod) && Number.isFinite(v.fvByPeriod[p])) {
+      return v.fvByPeriod[p];
+    }
+    return config.dividendMean * (config.periods - p + 1);
+  },
+
+  /**
+   * Peak fundamental value of the active asset — Math.max over
+   * fvByPeriod, falling back to the legacy DLM peak (dividendMean × T)
+   * when a view lacks the array. Used as an anchor for chart y-scales
+   * so path-dependent assets don't get clipped.
+   */
+  _fvPeak(v, config) {
+    if (v && Array.isArray(v.fvByPeriod)) {
+      let peak = -Infinity;
+      for (const x of v.fvByPeriod) {
+        if (Number.isFinite(x) && x > peak) peak = x;
+      }
+      if (Number.isFinite(peak) && peak > 0) return peak;
+    }
+    return config.dividendMean * config.periods;
+  },
+
   /* -------- Top-level render dispatcher -------- */
 
   render(view, config) {
@@ -396,7 +428,7 @@ const UI = {
   /* -------- Agent cards -------- */
 
   renderAgents(v, config) {
-    const initialFV = config.dividendMean * config.periods;
+    const initialFV = this._fvAt(1, config);
     // Pre-run: live view, tick still at 0. Only then do we render the
     // editable endowment inputs — once the engine has ticked past 0,
     // the numbers reflect live trading state and must not be edited.
@@ -782,7 +814,7 @@ const UI = {
     const sessionPeriods = (config.roundsPerSession || 1) * config.periods;
     for (let g = 1; g <= sessionPeriods; g++) {
       const localP = ((g - 1) % config.periods) + 1;
-      const fv     = config.dividendMean * (config.periods - localP + 1);
+      const fv     = UI._fvAt(localP, config);
       fvPoints.push({ x: (g - 1) * config.ticksPerPeriod, y: fv });
       fvPoints.push({ x:  g      * config.ticksPerPeriod, y: fv });
     }
@@ -1096,7 +1128,7 @@ const UI = {
     const rounds         = config.roundsPerSession || 1;
     const sessionPeriods = rounds * config.periods;
     const totalTicks     = sessionPeriods * config.ticksPerPeriod;
-    const maxFV          = config.dividendMean * config.periods;
+    const maxFV          = this._fvPeak(v, config);
     const priceMax       = Math.max(
       maxFV * 1.3,
       ...v.priceHistory.map(p => p.price || 0),
@@ -1129,7 +1161,7 @@ const UI = {
     const fvPoints = [];
     for (let g = 1; g <= sessionPeriods; g++) {
       const localP = ((g - 1) % config.periods) + 1;
-      const fv     = config.dividendMean * (config.periods - localP + 1);
+      const fv     = UI._fvAt(localP, config);
       fvPoints.push({ x: (g - 1) * config.ticksPerPeriod, y: fv });
       fvPoints.push({ x:  g      * config.ticksPerPeriod, y: fv });
     }
@@ -1283,7 +1315,7 @@ const UI = {
 
     const rounds         = config.roundsPerSession || 1;
     const sessionPeriods = rounds * config.periods;
-    const maxFV    = config.dividendMean * config.periods;
+    const maxFV    = this._fvPeak(v, config);
     const maxPrice = Math.max(maxFV * 1.4, ...v.trades.map(t => t.price || 0));
     const nCols    = sessionPeriods;
     const nRows    = 10;
@@ -1493,7 +1525,7 @@ const UI = {
       byAgent[row.agentId].push({ x: row.tick, y: row.subjV });
     }
 
-    let yMax = config.dividendMean * config.periods * 1.4;
+    let yMax = this._fvPeak(v, config) * 1.4;
     for (const row of hist) {
       if (row.subjV != null && row.subjV > yMax) yMax = row.subjV;
     }
@@ -1518,7 +1550,7 @@ const UI = {
     const fvPoints = [];
     for (let g = 1; g <= sessionPeriodsVal; g++) {
       const localP = ((g - 1) % config.periods) + 1;
-      const fv     = config.dividendMean * (config.periods - localP + 1);
+      const fv     = UI._fvAt(localP, config);
       fvPoints.push({ x: (g - 1) * config.ticksPerPeriod, y: fv });
       fvPoints.push({ x:  g      * config.ticksPerPeriod, y: fv });
     }
@@ -1801,7 +1833,7 @@ const UI = {
       byAgent[row.agentId].push({ x: row.tick, y: row.subjV });
     }
 
-    let yMax = config.dividendMean * config.periods * 1.4;
+    let yMax = this._fvPeak(v, config) * 1.4;
     for (const row of hist) {
       if (row.subjV != null && row.subjV > yMax) yMax = row.subjV;
     }
@@ -1819,7 +1851,7 @@ const UI = {
     const fvPoints = [];
     for (let g = 1; g <= sessionPeriods; g++) {
       const localP = ((g - 1) % config.periods) + 1;
-      const fv     = config.dividendMean * (config.periods - localP + 1);
+      const fv     = UI._fvAt(localP, config);
       fvPoints.push({ x: (g - 1) * config.ticksPerPeriod, y: fv });
       fvPoints.push({ x:  g      * config.ticksPerPeriod, y: fv });
     }
@@ -2240,10 +2272,10 @@ const UI = {
       if (cntByG[g]) meanP[g] = sumByG[g] / cntByG[g];
     }
     const localPeriodOf = g => ((g - 1) % config.periods) + 1;
-    const fvOfG = g => config.dividendMean * (config.periods - localPeriodOf(g) + 1);
+    const fvOfG = g => this._fvAt(localPeriodOf(g), config);
     // Per-trade FV uses the trade's own period within its own round; the
     // round dimension cancels because FV is round-invariant.
-    const fvOfTrade = t => config.dividendMean * (config.periods - t.period + 1);
+    const fvOfTrade = t => this._fvAt(t.period, config);
 
     // Total shares outstanding (conserved under double-auction trades).
     let totalShares = 0;
@@ -2299,7 +2331,7 @@ const UI = {
       for (let g = 1; g <= sessionPeriodsM; g++) {
         if (meanP[g] != null) diffs.push(meanP[g] - fvOfG(g));
       }
-      const fv1 = config.dividendMean * config.periods;
+      const fv1 = this._fvAt(1, config);
       if (diffs.length && fv1 > 0) amplitude = (Math.max(...diffs) - Math.min(...diffs)) / fv1;
     }
 

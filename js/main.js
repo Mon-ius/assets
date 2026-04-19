@@ -44,7 +44,7 @@ const App = {
   // the paper constants because it shapes the tick-level dynamics.
   config: {
     roundsPerSession: 4,
-    periods:          10,
+    periods:          20,
     ticksPerPeriod:   18,
     dividendMean:     10,
     tickInterval:     340,
@@ -139,6 +139,14 @@ const App = {
   // T-small, sessions 6-10 take T-big. Values populate lazily in
   // rebuild() because we need _treatmentsFor(TOTAL_N) to resolve first.
   sessionRates: null,
+
+  // Per-session asset type ids (one per session in the 10-session
+  // batch). Sits alongside sessionRates because the Advanced grid now
+  // renders both controls side-by-side. Populated lazily by
+  // _ensureSessionAssets() and read by rebuild() — whichever id
+  // corresponds to the current session is installed on the Market
+  // via setAsset() before engine.start() runs.
+  sessionAssets: null,
 
   // Session counter for the 10-session batch. 0 = idle/pre-run,
   // 1-10 during a batch. Updated by start() at every session
@@ -1079,6 +1087,36 @@ const App = {
     }
   },
 
+  /**
+   * Ensure App.sessionAssets is a 10-slot array of valid asset ids.
+   * Unknown or legacy ids are normalised back to the default (Linear
+   * Declining / DLM baseline) so a stale saved value can't wedge the
+   * scheduler.
+   */
+  _ensureSessionAssets() {
+    const fallback = (typeof DEFAULT_ASSET_ID === 'string')
+      ? DEFAULT_ASSET_ID : 'linearDeclining';
+    const known = (typeof ASSET_TYPES_BY_ID === 'object' && ASSET_TYPES_BY_ID)
+      ? ASSET_TYPES_BY_ID : null;
+    if (!Array.isArray(this.sessionAssets) || this.sessionAssets.length !== 10) {
+      this.sessionAssets = new Array(10).fill(fallback);
+      return;
+    }
+    for (let i = 0; i < 10; i++) {
+      const id = this.sessionAssets[i];
+      if (!id || (known && !known[id])) this.sessionAssets[i] = fallback;
+    }
+  },
+
+  /** Resolve the asset type object for a given 1-indexed session number
+   *  (1..10), falling back to the default asset for the idle state. */
+  _assetForSession(session) {
+    this._ensureSessionAssets();
+    const idx = Math.max(0, Math.min(9, (session | 0) - 1));
+    const id  = this.sessionAssets[idx];
+    return (typeof getAssetType === 'function') ? getAssetType(id) : null;
+  },
+
   /** Convert a session-rate fraction + current N into an integer
    *  treatmentSize (number of agents replaced at the r-1 → r boundary).
    *  Centralised so start() and the export metadata agree on rounding. */
@@ -1099,10 +1137,13 @@ const App = {
     const grid = document.getElementById('session-rate-grid');
     if (!grid) return;
     this._ensureSessionRates();
+    this._ensureSessionAssets();
     const lo = this.SESSION_RATE_MIN;
     const hi = this.SESSION_RATE_MAX;
     const step = this.SESSION_RATE_STEP;
     const fmt = (rate) => `${Math.round(rate * 100)}%`;
+    const assetList = (typeof ASSET_TYPES !== 'undefined' && Array.isArray(ASSET_TYPES))
+      ? ASSET_TYPES : [];
     grid.innerHTML = '';
     for (let s = 0; s < 10; s++) {
       const row = document.createElement('div');
@@ -1139,9 +1180,25 @@ const App = {
         this.reset();
       });
 
+      const assetSel = document.createElement('select');
+      assetSel.className = 'session-asset-select';
+      assetSel.dataset.session = String(s);
+      for (const a of assetList) {
+        const opt = document.createElement('option');
+        opt.value = a.id;
+        opt.textContent = a.label;
+        if (a.id === this.sessionAssets[s]) opt.selected = true;
+        assetSel.appendChild(opt);
+      }
+      assetSel.addEventListener('change', () => {
+        this.sessionAssets[s] = assetSel.value;
+        this.reset();
+      });
+
       row.appendChild(idx);
       row.appendChild(sl);
       row.appendChild(val);
+      row.appendChild(assetSel);
       grid.appendChild(row);
       this._updateSliderPct(sl);
     }
@@ -1380,6 +1437,11 @@ const App = {
       valuationNoise: this.tunables.valuationNoise,
     });
     this.market = new Market(this.config);
+    // Install the asset type for the current session (session 1 when
+    // no batch is running). Must run before the engine is constructed
+    // so the initial snapshot records the right FV path.
+    const activeAsset = this._assetForSession(this.currentSession || 1);
+    if (activeAsset) this.market.setAsset(activeAsset);
     this.logger = new Logger();
     // Message bus + trust tracker live for every run. With a mix that
     // has no utility agents they simply stay empty because no agent
@@ -1512,7 +1574,7 @@ const App = {
         const roundTrades = this.market.trades.filter(t => t.round === round);
         const fvAtTr = roundTrades.map(t => {
           const p = t.period != null ? t.period : 1;
-          return this.config.dividendMean * (this.config.periods - p + 1);
+          return this.market.fundamentalValue(p);
         });
         const absDev  = roundTrades.map((t, i) => Math.abs(t.price - fvAtTr[i]));
         const meanDev = absDev.length
