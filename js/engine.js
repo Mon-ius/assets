@@ -653,6 +653,7 @@ class Engine {
         applyComplexDividends:  !!(this.ctx.tunables && this.ctx.tunables.applyComplexDividends),
         applyRegulator:         !!(this.ctx.tunables && this.ctx.tunables.applyRegulator),
         regulatorThreshold:     (this.ctx.tunables && this.ctx.tunables.regulatorThreshold) || 0.5,
+        applyBoundedRationality: !!(this.ctx.tunables && this.ctx.tunables.applyBoundedRationality),
       },
       regulatorWarning:   this.ctx && this.ctx.regulatorWarning
         ? Object.assign({}, this.ctx.regulatorWarning)

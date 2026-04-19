@@ -293,6 +293,15 @@
               <input type="range" id="p-regulator-threshold" class="regulator-slider" min="0" max="100" step="1" value="0">
             </div>
           </div>
+          <div class="param-row dlm-treatment-row plan-llm-only">
+            <label class="dlm-treatment-opt" data-tip-id="advBoundedRationality">
+              <span>Bounded Rationality</span>
+              <label class="slide-toggle" for="p-applyBoundedRationality">
+                <input type="checkbox" id="p-applyBoundedRationality">
+                <span class="slide-track"><span class="slide-thumb"></span></span>
+              </label>
+            </label>
+          </div>
         </div>
       </details>
 
@@ -2199,6 +2208,11 @@ Action: &lt;BUY_NOW / SELL_NOW / BID_1 / BID_3 / ASK_1 / ASK_3 / HOLD&gt;</pre>
   <p>Regulator (Plan II / III only). The slider value <span data-sym="theta"></span> is the bubble-ratio threshold <span data-sym="bubbleRatioRaw"></span> at which the regulator fires its one-shot warning. <span data-sym="theta"></span> = 0 disables it.</p>
   <p>When <span data-sym="theta"></span> &gt; 0 the engine monitors the ratio at every period boundary; the first time it crosses <span data-sym="theta"></span> within a round it injects a <code>REGULATOR WARNING</code> block into every Utility agent's LLM prompt for the rest of that round (cleared at the next <code>round_start</code>).</p>
   <p>Plan I has no LLM channel, so the toggle is recorded in the snapshot but agent behavior is unchanged.</p>
+</template>
+<template id="tpl-advBoundedRationality">
+  <p><strong>Bounded Rationality</strong> (Plan II / III only). Caps the LLM trader's cognitive budget so it trades like a human subject instead of a textbook optimiser.</p>
+  <p>When ON the system prompt adds: K = 3 reasoning steps, N = 5 pieces of attention, T = 3 periods of price memory, perceived FV = true FV + <code>ε ~ N(0, σ²)</code> with σ = 10¢, and execution-noise probability <code>p = 0.10</code> of a suboptimal action. The model must commit to ONE heuristic — trend-following, mean-reversion, anchoring to past trades, or randomized preference — rather than computing FV from the full dividend model.</p>
+  <p>The memory cap also truncates the <em>price paths</em> spliced into the user prompt (last T periods only), so the LLM sees the same short window a human would hold in working memory.</p>
 </template>
 
 <!-- Per-asset rich tips. The session-asset <select> carries a

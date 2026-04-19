@@ -107,6 +107,15 @@ const App = {
     // toggle so a replay shows where the regulator would have fired.
     applyRegulator:        false,
     regulatorThreshold:    0,
+    // Plan II / III — Bounded Rationality. When true the LLM prompt
+    // gains a Cognitive Constraints block (K reasoning steps, N
+    // attention slots, T periods of price memory, ε-noisy perceived
+    // FV, execution noise p, one heuristic picked from a short list),
+    // and the price-history blocks in the user prompt are truncated
+    // to the last T periods so the model literally cannot look
+    // further back than a human subject's working memory. Plan I is
+    // unaffected — the toggle is a pure prompt-level constraint.
+    applyBoundedRationality: false,
   },
 
   // Research plan — 'I' | 'II' | 'III'. Plan I is the algorithm-only
@@ -459,7 +468,7 @@ const App = {
 
     // Boolean toggles in Advanced settings (bias / noise on the prior,
     // complex-dividend regime).
-    for (const key of ['applyBias', 'applyNoise', 'applyComplexDividends']) {
+    for (const key of ['applyBias', 'applyNoise', 'applyComplexDividends', 'applyBoundedRationality']) {
       const cb = document.getElementById('p-' + key);
       if (!cb) continue;
       cb.checked = !!this.tunables[key];

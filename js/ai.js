@@ -297,6 +297,17 @@ const AI = {
     const dividendAvg  = config.dividendMean;
     const fvNow        = market.fundamentalValue();
 
+    // Bounded Rationality — Plan II/III toggle. When ON the system
+    // prompt gains a Cognitive Constraints block (K reasoning steps,
+    // N attention slots, T periods of price memory, ε-noisy perceived
+    // FV, execution noise p, one heuristic from a short list) and the
+    // price-history blocks in the user prompt are truncated to the
+    // last T periods so the LLM literally cannot look further back
+    // than a human subject's working memory. Defaults are fixed here
+    // rather than exposed as sliders to keep the Advanced panel sane.
+    const brOn = !!(tunables && tunables.applyBoundedRationality);
+    const BR   = { K: 3, N: 5, T: 3, sigma: 10, p: 0.10 };
+
     // Active asset + its agent-input template (v3 §5.3 / §5.9 / §5.15 /
     // §5.21 / §5.27 / §5.33). Drives the "Asset Environment" block and
     // the per-period FV math in history lookbacks — so when the
@@ -338,9 +349,13 @@ const AI = {
 
     // Per-period last-trade price for the current round so far — gives
     // the LLM the within-round trajectory (bubble forming? converging?)
-    // instead of a single "previous reference price" number.
+    // instead of a single "previous reference price" number. Under
+    // Bounded Rationality the window is clipped to the last T periods
+    // so the LLM cannot see further back than a human subject's
+    // working memory would allow.
+    const firstPeriodInWindow = brOn ? Math.max(1, periodNow - BR.T) : 1;
     const currentRoundPath = [];
-    for (let p = 1; p < periodNow; p++) {
+    for (let p = firstPeriodInWindow; p < periodNow; p++) {
       const tr = market.trades.filter(t => t.round === round && t.period === p);
       const last = tr.length ? tr[tr.length - 1].price : null;
       currentRoundPath.push({ period: p, price: last, fv: fvAtPeriod(p) });
@@ -360,19 +375,30 @@ const AI = {
         const fvPath    = [];
         let peakPrice = -Infinity, peakPeriod = 0;
         let lastSeenPrice = null;
+        // Under BR, only the tail of each remembered round is visible
+        // to the LLM — the memory window is T periods, full-stop. The
+        // peak / round-end summary still scans the whole round so a
+        // rational reader of the prompt (e.g. during a replay) sees
+        // the same aggregate facts.
+        const rStart = brOn ? Math.max(1, periods - BR.T + 1) : 1;
         for (let p = 1; p <= periods; p++) {
           const tr = market.trades.filter(t => t.round === r && t.period === p);
           const last = tr.length ? tr[tr.length - 1].price : null;
           const fvP  = fvAtPeriod(p);
-          pricePath.push(last != null ? last.toFixed(0) : '—');
-          fvPath.push(Number.isFinite(fvP) ? fvP.toFixed(0) : '—');
+          if (p >= rStart) {
+            pricePath.push(last != null ? last.toFixed(0) : '—');
+            fvPath.push(Number.isFinite(fvP) ? fvP.toFixed(0) : '—');
+          }
           if (last != null) {
             lastSeenPrice = last;
             if (last > peakPrice) { peakPrice = last; peakPeriod = p; }
           }
         }
+        const pathLabel = brOn
+          ? `p${rStart}..p${periods} (memory window, last ${BR.T})`
+          : `p1..p${periods}`;
         lines.push(`Round ${r} (${r === firstRound && exp > 1 ? 'your first in this market' : r === round - 1 ? 'most recent' : 'past'}):`);
-        lines.push(`  - FV path (p1..p${periods}):    ${fvPath.join(' / ')}`);
+        lines.push(`  - FV path (${pathLabel}):    ${fvPath.join(' / ')}`);
         lines.push(`  - Last-trade price path:        ${pricePath.join(' / ')}`);
         if (peakPeriod > 0 && peakPrice > -Infinity) {
           const peakFV  = fvAtPeriod(peakPeriod);
@@ -413,7 +439,7 @@ const AI = {
     // β4·Narrative so the model can compare its model-based FV to a
     // behaviourally realistic heuristic instead of reciting the
     // textbook answer.
-    const system =
+    const systemBase =
       'You are a trader in an experimental double-auction asset market. ' +
       'Each round you trade ONE asset drawn from a menu of six environments: ' +
       'linear declining, long-lived perpetual, linearly growing, cyclical, ' +
@@ -441,6 +467,58 @@ const AI = {
       '5. You can accept the current best ask (buy immediately) or accept the current best bid (sell immediately).\n' +
       '6. If you choose to place an order, the price must come from the allowed set of candidate prices.\n' +
       '7. Your output must strictly conform to the specified format.';
+
+    // Bounded-rationality addendum — active only when the toggle is
+    // on. Mirrors the constraint menu from the spec (Cognitive / Belief
+    // Formation / Attention / Memory / Decision Heuristic / Execution
+    // Noise / Action Rules) so the LLM deliberately stops behaving
+    // like a textbook optimiser.
+    const systemBR = brOn
+      ? ('\n\n' +
+         '====================\n' +
+         'Cognitive Constraints (Bounded Rationality)\n' +
+         '====================\n' +
+         `1. You can only perform up to K = ${BR.K} reasoning steps.\n` +
+         '2. You are NOT allowed to compute the exact fundamental value using the full dividend model.\n' +
+         '3. If reasoning becomes complex, you must fall back on heuristics — do not try to solve the whole problem analytically.\n\n' +
+         '====================\n' +
+         'Belief Formation\n' +
+         '====================\n' +
+         '- Your perceived fundamental value is noisy:\n' +
+         '    perceived_value = true_value + ε,   ε ~ Normal(0, σ²)\n' +
+         `  with σ = ${BR.sigma} cents. Treat FV numbers in the prompt as noisy signals, not ground truth.\n\n` +
+         '====================\n' +
+         'Attention Constraint\n' +
+         '====================\n' +
+         `- You can only consider up to N = ${BR.N} pieces of information when choosing your action. Pick the most decision-relevant ones and ignore the rest.\n\n` +
+         '====================\n' +
+         'Memory Constraint\n' +
+         '====================\n' +
+         `- You can only remember the last T = ${BR.T} periods of prices. The user prompt already truncates price paths to this window — do not try to infer older prices.\n\n` +
+         '====================\n' +
+         'Decision Heuristic\n' +
+         '====================\n' +
+         'You must commit to ONE of the following heuristics for this decision and name it in your Reason:\n' +
+         '  - Trend-following\n' +
+         '  - Mean-reversion\n' +
+         '  - Anchoring to past trades\n' +
+         '  - Randomized preference\n\n' +
+         '====================\n' +
+         'Execution Noise\n' +
+         '====================\n' +
+         `- With probability p = ${BR.p.toFixed(2)} a boundedly rational trader takes a suboptimal action. Factor this into your confidence, do not claim certainty.\n\n` +
+         '====================\n' +
+         'Action Rules\n' +
+         '====================\n' +
+         '1. You must select exactly one action.\n' +
+         '2. No vague answers.\n' +
+         '3. No "depends".\n' +
+         '4. Immediate execution is preferred.\n' +
+         '5. Orders must use allowed prices.\n' +
+         '6. Output must follow the specified format.')
+      : '';
+
+    const system = systemBase + systemBR;
 
     const labelOf = (risk) =>
       risk === 'loving' ? 'Risk loving' :
