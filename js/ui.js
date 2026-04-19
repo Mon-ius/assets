@@ -596,7 +596,18 @@ const UI = {
         return `<div class="ch-tt-row">${dot}<span class="ch-tt-lbl">${r.name}</span><span class="ch-tt-val">${r.value}</span></div>`;
       }).join('');
       tip.innerHTML = hdr + body;
-      this._lastTooltipDims = null;
+      // Only invalidate the cached width/height when the tooltip *shape*
+      // changes (row count + header presence). Text edits inside a fixed
+      // shape leave the box roughly the same size, so re-measuring on
+      // every cell-hop was forcing a synchronous layout at 60 Hz while
+      // scrubbing dense matrices (Figure 10's 100×100 trust grid has
+      // ~3 px cells, so every pixel of cursor travel triggered a
+      // reflow). CSS clamps width to [120, 280] px anyway.
+      const shapeKey = canvasKey + '|' + rows.length + '|' + (header ? 1 : 0);
+      if (this._lastTooltipShape !== shapeKey) {
+        this._lastTooltipShape = shapeKey;
+        this._lastTooltipDims  = null;
+      }
     }
     tip.classList.add('is-visible');
 
