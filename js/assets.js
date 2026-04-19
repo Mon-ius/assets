@@ -698,19 +698,13 @@ const ASSET_FV_FORMULAS = {
     + '<mfrac>' + _mEdt + '<mi>r</mi></mfrac>'
     + '</mrow>',
   ),
-  // FV_t = Σ_{s=t..T} (2 + 0.3·s) / (1+r)^(s−t+1)   (v4 §5.13)
+  // FV_t = (2 + 0.3·t) / r   (v5 §5.13 — Gordon perpetuity on rising μ̂)
   linearGrowth: _assetMath(
     '<mrow>'
     + _mFv + '<mo>=</mo>'
-    + '<munderover>'
-    + '<mo>∑</mo>'
-    + '<mrow><mi>s</mi><mo>=</mo><mi>t</mi></mrow>'
-    + '<mi>T</mi>'
-    + '</munderover>'
     + '<mfrac>'
-    + '<mrow><mo>(</mo><mn>2</mn><mo>+</mo><mn>0.3</mn><mi>s</mi><mo>)</mo></mrow>'
-    + '<msup><mrow><mo>(</mo><mn>1</mn><mo>+</mo><mi>r</mi><mo>)</mo></mrow>'
-    + '<mrow><mi>s</mi><mo>−</mo><mi>t</mi><mo>+</mo><mn>1</mn></mrow></msup>'
+    + '<mrow><mo>(</mo><mn>2</mn><mo>+</mo><mn>0.3</mn><mi>t</mi><mo>)</mo></mrow>'
+    + '<mi>r</mi>'
     + '</mfrac>'
     + '</mrow>',
   ),
