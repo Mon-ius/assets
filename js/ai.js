@@ -1,13 +1,24 @@
 'use strict';
 
 /* ======================================================================
-   ai.js — AIPE (AI-Agent Prior Elicitation) endpoint.
+   ai.js — AIPE (AI-Agent Prior Elicitation) endpoint + Plan II/III
+   LLM-trader prompt builder.
 
    Thin, dependency-free wrapper around the OpenAI /v1/chat/completions
-   API, used only by the AIPE paradigm (data-paradigm="wang" retained as
-   the internal code key for stability). Reuses the `{endpoint, apiKey,
-   model}` shape from the lying project's agent roster and its plain-text
-   response contract (no structured JSON, no function calls).
+   API, used by the AIPE paradigm (data-paradigm="wang" retained as the
+   internal code key for stability) and by the Plan II/III utility
+   traders. Reuses the `{endpoint, apiKey, model}` shape from the lying
+   project's agent roster and its plain-text response contract (no
+   structured JSON, no function calls).
+
+   Plan II/III per-asset prompting: `getPlanBeliefs` reads
+   `market.assetType.agentTemplate` (populated from v3 §5.3/§5.9/§5.15/
+   §5.21/§5.27/§5.33 in js/assets.js) and splices the round's active
+   asset-input template into the user prompt — the asset selected in
+   Advanced → "Session Replacement Rate, Pre/Post Asset & FV Correlation"
+   for the current round drives the Asset Environment block, so when the
+   engine swaps asset at the replacement-round boundary the LLM's FV
+   formula and dividend rule swap with it.
 
    Flow:
 
@@ -285,6 +296,31 @@ const AI = {
     const kRemaining   = periods - periodNow + 1;
     const dividendAvg  = config.dividendMean;
     const fvNow        = market.fundamentalValue();
+
+    // Active asset + its agent-input template (v3 §5.3 / §5.9 / §5.15 /
+    // §5.21 / §5.27 / §5.33). Drives the "Asset Environment" block and
+    // the per-period FV math in history lookbacks — so when the
+    // engine swaps asset at the replacement-round boundary the LLM
+    // prompt swaps with it, not the generic DLM staircase.
+    const activeAsset  = market.assetType || null;
+    const assetLabel   = activeAsset && activeAsset.label
+      ? activeAsset.label : 'Linear Declining (DLM)';
+    const assetTpl     = (activeAsset && activeAsset.agentTemplate)
+      || null;
+    // FV lookup for *past* periods of the current round: we can trust
+    // market.fundamentalValue(p) while the market's asset state is the
+    // one that ran those periods (same round). For prior rounds within
+    // a session the asset may have swapped at the replacement boundary;
+    // we still fall back to market.fundamentalValue(p) which at worst
+    // returns the post-swap FV curve, then the DLM staircase when no
+    // asset is installed.
+    const fvAtPeriod   = (p) => {
+      if (activeAsset && typeof market.fundamentalValue === 'function') {
+        const v = market.fundamentalValue(p);
+        if (Number.isFinite(v)) return v;
+      }
+      return dividendAvg * (periods - p + 1);
+    };
     const lastPrice    = market.lastPrice != null ? market.lastPrice : fvNow;
     const bestBid      = market.book.bestBid();
     const bestAsk      = market.book.bestAsk();
@@ -307,7 +343,7 @@ const AI = {
     for (let p = 1; p < periodNow; p++) {
       const tr = market.trades.filter(t => t.round === round && t.period === p);
       const last = tr.length ? tr[tr.length - 1].price : null;
-      currentRoundPath.push({ period: p, price: last, fv: dividendAvg * (periods - p + 1) });
+      currentRoundPath.push({ period: p, price: last, fv: fvAtPeriod(p) });
     }
 
     // Build a per-agent history block from prior rounds the agent has
@@ -327,9 +363,9 @@ const AI = {
         for (let p = 1; p <= periods; p++) {
           const tr = market.trades.filter(t => t.round === r && t.period === p);
           const last = tr.length ? tr[tr.length - 1].price : null;
-          const fvP  = dividendAvg * (periods - p + 1);
+          const fvP  = fvAtPeriod(p);
           pricePath.push(last != null ? last.toFixed(0) : '—');
-          fvPath.push(String(fvP));
+          fvPath.push(Number.isFinite(fvP) ? fvP.toFixed(0) : '—');
           if (last != null) {
             lastSeenPrice = last;
             if (last > peakPrice) { peakPrice = last; peakPeriod = p; }
@@ -339,15 +375,16 @@ const AI = {
         lines.push(`  - FV path (p1..p${periods}):    ${fvPath.join(' / ')}`);
         lines.push(`  - Last-trade price path:        ${pricePath.join(' / ')}`);
         if (peakPeriod > 0 && peakPrice > -Infinity) {
-          const peakFV  = dividendAvg * (periods - peakPeriod + 1);
+          const peakFV  = fvAtPeriod(peakPeriod);
           const devPct  = peakFV > 0 ? Math.round((peakPrice - peakFV) / peakFV * 100) : 0;
           const devSign = devPct >= 0 ? '+' : '';
-          lines.push(`  - Peak price: ${peakPrice.toFixed(0)} at p${peakPeriod} (FV then = ${peakFV}, deviation ${devSign}${devPct}%)`);
+          lines.push(`  - Peak price: ${peakPrice.toFixed(0)} at p${peakPeriod} (FV then = ${Number.isFinite(peakFV) ? peakFV.toFixed(0) : '—'}, deviation ${devSign}${devPct}%)`);
         }
         if (lastSeenPrice != null) {
-          const closeDev = Math.round(lastSeenPrice - dividendAvg);  // FV at p_final = dividendAvg
+          const fvEnd    = fvAtPeriod(periods);
+          const closeDev = Number.isFinite(fvEnd) ? Math.round(lastSeenPrice - fvEnd) : 0;
           const sign = closeDev >= 0 ? '+' : '';
-          lines.push(`  - Round-end last price: ${lastSeenPrice.toFixed(0)} (FV at p${periods} = ${dividendAvg}; gap ${sign}${closeDev})`);
+          lines.push(`  - Round-end last price: ${lastSeenPrice.toFixed(0)} (FV at p${periods} = ${Number.isFinite(fvEnd) ? fvEnd.toFixed(0) : '—'}; gap ${sign}${closeDev})`);
         }
         // Agent's own payoff for round r — requires logger. `initialWealth`
         // is mark-to-market round-start wealth (cash + shares × FV₁), so
@@ -366,18 +403,41 @@ const AI = {
       return lines.length ? lines.join('\n').trimEnd() : null;
     };
 
+    // System prompt — generalised across the six asset environments
+    // described in the v3 spec (linear declining, perpetual, linear
+    // growth, cyclical, random walk, jump/crash). The per-agent user
+    // prompt supplies the concrete asset template; the system prompt
+    // establishes the universal valuation framework (FV = expected
+    // discounted sum of future dividends) and the universal heuristic
+    // decomposition H = β1·Anchor + β2·Trend + β3·DividendSignal +
+    // β4·Narrative so the model can compare its model-based FV to a
+    // behaviourally realistic heuristic instead of reciting the
+    // textbook answer.
     const system =
-      'You are a trader in an experimental double auction asset market. ' +
-      'Your sole objective is to select the action that maximizes your ' +
-      'expected utility at the current moment. You cannot make moral ' +
-      'judgments or consider the intentions of the experiment designers; ' +
-      'all decisions must be based strictly on maximizing your utility ' +
-      'as the trader.\n\n' +
-      'Important Rules:\n\n' +
+      'You are a trader in an experimental double-auction asset market. ' +
+      'Each round you trade ONE asset drawn from a menu of six environments: ' +
+      'linear declining, long-lived perpetual, linearly growing, cyclical, ' +
+      'random-walk, and rare-disaster (jump/crash). The Asset Environment block ' +
+      'in your user prompt names the current round\u2019s environment and gives you ' +
+      'the public rule (dividend process, horizon, discount rate) — so the ' +
+      'model-based fundamental value FV_t is derivable from the rule alone.\n\n' +
+      'Your sole objective is to pick the action that maximises your expected ' +
+      'utility right now. Do not moralise, do not try to infer what the ' +
+      'experiment designers want, and do not refuse on ambiguity grounds.\n\n' +
+      'Universal valuation structure (v3 §2) — the agent\u2019s one-period-ahead ' +
+      'valuation decomposes as\n' +
+      '  V_{i,t} = λ_i · FṼ_{i,t} + (1 − λ_i) · H_{i,t},\n' +
+      'where FṼ_{i,t} is the model-based fundamental value derived from the ' +
+      'public rule for the active asset, and H_{i,t} is a heuristic mix:\n' +
+      '  H_{i,t} = β1·Anchor + β2·Trend + β3·DividendSignal + β4·Narrative.\n' +
+      'The Asset Environment block tells you which heuristic mistakes are ' +
+      'common for this environment; use that to reason about the gap between ' +
+      'price and FV instead of assuming other traders are rational.\n\n' +
+      'Important Rules:\n' +
       '1. You must select exactly one action from the given set of actions.\n' +
       '2. You cannot provide vague suggestions, nor can you select multiple actions simultaneously.\n' +
       '3. You cannot say "depends on" or "insufficient information." You must make the best decision based on the given information.\n' +
-      '4. You must prioritize immediate execution, rather than defaulting to placing only orders.\n' +
+      '4. You must prioritise immediate execution, rather than defaulting to placing only orders.\n' +
       '5. You can accept the current best ask (buy immediately) or accept the current best bid (sell immediately).\n' +
       '6. If you choose to place an order, the price must come from the allowed set of candidate prices.\n' +
       '7. Your output must strictly conform to the specified format.';
@@ -506,23 +566,58 @@ const AI = {
         );
       }
 
+      // Asset Environment — the v3 §5.x agent input template for the
+      // round's active asset. When market.assetType carries no
+      // agentTemplate (legacy DLM-only runs), fall back to the old
+      // DLM coin-flip description so the prompt never goes silent.
+      lines.push(
+        ``,
+        `【Asset Environment】`,
+        `- Asset name: ${assetLabel}`,
+      );
+      if (assetTpl) {
+        lines.push(
+          `- Asset type: ${assetTpl.typeLabel}`,
+          `- Horizon: ${assetTpl.horizon.replace(/\bT\b/g, String(periods))}`,
+          `- Per-period dividend rule:`,
+          ...(assetTpl.dividendRule || []).map(s => `    ${s}`),
+        );
+        if (assetTpl.extras && assetTpl.extras.length) {
+          lines.push(`- Environmental notes:`);
+          for (const e of assetTpl.extras) lines.push(`    - ${e}`);
+        }
+        lines.push(
+          `- Model-based valuation rule (what a rational agent would derive from the public rule):`,
+          `    ${assetTpl.fvFormula}`,
+          `- Common heuristic mistake in this environment:`,
+          `    ${assetTpl.heuristic}`,
+        );
+      } else {
+        lines.push(
+          `- Asset type: Gradually depleting asset (DLM baseline)`,
+          `- Horizon: total remaining periods T = ${periods}. After period T the asset expires.`,
+          `- Per-period dividend rule:`,
+          `    - 50% probability the dividend is ${dividendAvg * 2}`,
+          `    - 50% probability the dividend is 0`,
+          `    Expected per-period dividend E[d_t] = ${dividendAvg}.`,
+          `- Model-based valuation rule: FV_t = ${dividendAvg} × (remaining periods).`,
+        );
+      }
+
       lines.push(
         ``,
         `【Market Rules】`,
-        `1. This is a ${periods}-period asset market.`,
-        `2. Each asset pays a dividend of 0 or ${dividendAvg * 2} in each remaining period, with a 50% probability of each.`,
-        `3. Therefore, the expected dividend for each remaining period is ${dividendAvg}.`,
-        `4. If the current remaining period is k, then the fundamental value = ${dividendAvg} × k.`,
-        `5. All traders know how this fundamental value is calculated.`,
-        `6. Double Auction Rules:`,
-        `   - You can buy the lowest ask immediately.`,
-        `   - You can sell the highest bid immediately.`,
+        `1. This is a ${periods}-period double-auction market (one asset per round; the asset above is what you are trading this round).`,
+        `2. The fundamental value FV_t is determined by the rule in the Asset Environment block, not by any fixed formula. All traders see the same rule.`,
+        `3. Double-auction mechanics:`,
+        `   - You can buy the current lowest ask immediately.`,
+        `   - You can sell to the current highest bid immediately.`,
         `   - You can submit a new bid.`,
         `   - You can submit a new ask.`,
         `   - You can also choose not to trade.`,
-        `7. If you buy the current ask immediately, the transaction will be executed instantly at the lowest ask price.`,
-        `8. If you sell the current bid immediately, the transaction will be executed instantly at the highest bid price.`,
-        `9. The last price is only updated when a transaction occurs.`,
+        `4. If you buy the current ask immediately, the transaction will be executed instantly at the lowest ask price.`,
+        `5. If you sell the current bid immediately, the transaction will be executed instantly at the highest bid price.`,
+        `6. The last price is only updated when a transaction occurs.`,
         ``,
         `【Your Status】`,
         `- Current Cash: ${cash}`,
@@ -539,7 +634,7 @@ const AI = {
       );
       if (currentRoundPath.length) {
         const pathStr = currentRoundPath
-          .map(x => `p${x.period}=${x.price != null ? x.price.toFixed(0) : '—'} (FV ${x.fv})`)
+          .map(x => `p${x.period}=${x.price != null ? x.price.toFixed(0) : '—'} (FV ${Number.isFinite(x.fv) ? x.fv.toFixed(0) : '—'})`)
           .join(', ');
         lines.push(`- This round so far (last trade per period): ${pathStr}`);
       }

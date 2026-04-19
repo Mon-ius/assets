@@ -268,6 +268,119 @@ const ASSET_TYPES = [
 
 const ASSET_TYPES_BY_ID = Object.fromEntries(ASSET_TYPES.map(a => [a.id, a]));
 
+/* ---------------------------------------------------------------------
+ * Per-asset "agent input templates" (v3 §5.3 / §5.9 / §5.15 / §5.21 /
+ * §5.27 / §5.33). These drive the Plan II / Plan III LLM prompt: the
+ * current round's active asset (as selected in Advanced → Session
+ * Replacement Rate, Pre/Post Asset & FV Correlation) picks one of
+ * these templates, and `ai.getPlanBeliefs` splices the block into the
+ * user prompt in place of the generic DLM coin-flip rules. Fields:
+ *
+ *   typeLabel    — one-line "资产类型" in English
+ *   horizon      — boilerplate describing how many periods remain
+ *   dividendRule — bullet lines describing the per-period dividend
+ *                  process (what d_t is, with probabilities/means)
+ *   extras       — additional environmental notes (residual value,
+ *                  discount rate, cycle length, starting level, etc.)
+ *   fvFormula    — plain-text "model-based valuation" the agent is
+ *                  expected to derive from the public rule (v3 §5.4 /
+ *                  §5.10 / §5.16 / §5.22 / §5.28 / §5.34)
+ *   heuristic    — short sentence describing the canonical heuristic
+ *                  mistake a naive agent tends to make (v3 §5.5 etc.),
+ *                  so the LLM can reason about bias instead of merely
+ *                  reciting the textbook answer.
+ *
+ * Template text is kept here (not inlined in ai.js) so the asset
+ * registry stays the single source of truth for asset-specific copy,
+ * matching the pattern already used by `fvFormula` for Figure 1. */
+const ASSET_AGENT_TEMPLATES = {
+  linearDeclining: {
+    typeLabel:    'Gradually depleting asset',
+    horizon:      'Total remaining periods: T. After period T the asset expires — no further payoffs and no residual value.',
+    dividendRule: [
+      '- 50% probability the dividend is 10',
+      '- 50% probability the dividend is 0',
+      'Expected per-period dividend E[d_t] = 5.',
+    ],
+    extras: [
+      'No terminal value — K_t = 0.',
+    ],
+    fvFormula: 'Model-based FV at period t: FV_t = 5 × (T − t + 1) = E[d] × remaining periods. Undiscounted tail sum of expected dividends.',
+    heuristic: 'Naive agents anchor to the initial total value 5T and fail to internalise the declining path; they also over-weight the last observed price as a trend signal.',
+  },
+  constantPerpetual: {
+    typeLabel:    'Long-lived stable-yield asset',
+    horizon:      'The yield environment is long-run stable — the asset does not deplete and has no terminal period.',
+    dividendRule: [
+      '- 50% probability the dividend is 6',
+      '- 50% probability the dividend is 4',
+      'Expected per-period dividend E[d_t] = 5.',
+    ],
+    extras: [
+      'Capital opportunity cost / discount rate r = 5% per period.',
+    ],
+    fvFormula: 'Model-based FV at every period: FV_t = E[d] / r = 5 / 0.05 = 100 (constant over t).',
+    heuristic: 'Naive agents treat the perpetual as if it were finite-horizon and drift toward a declining mental model; peer messages about "price going up" can push them away from the flat 100 anchor.',
+  },
+  linearGrowth: {
+    typeLabel:    'Growth-type asset',
+    horizon:      'The project\u2019s earning power improves over time for the full T-period horizon. No residual value after period T.',
+    dividendRule: [
+      'Expected dividend at period s: E[d_s] ≈ 2 + 0.3·s',
+      'Each realisation fluctuates around this mean (Gaussian, σ = 1).',
+    ],
+    extras: [
+      'Undiscounted simulator convention — use the tail-sum form below.',
+    ],
+    fvFormula: 'Model-based FV at period t: FV_t = Σ_{s=t..T} E[d_s] = Σ_{s=t..T} (2 + 0.3·s). Monotonically declining as t advances because fewer future rungs remain.',
+    heuristic: 'Naive agents extrapolate the rising dividend into rising prices and forget that the tail of remaining periods shrinks, over-paying late in the round.',
+  },
+  cyclicalSine: {
+    typeLabel:    'Cyclical asset',
+    horizon:      'The asset is driven by a business-cycle pattern. Cycle length ≈ 10 periods. T periods total.',
+    dividendRule: [
+      'Expected dividend cycles with period 10: E[d_t] = 5 + 2·sin(2π · (t−1) / 10).',
+      'Each realisation fluctuates around this mean (Gaussian, σ = 1).',
+    ],
+    extras: [
+      'You know a cycle exists, but may not know exactly which phase you are in.',
+    ],
+    fvFormula: 'Model-based FV at period t: FV_t = 100 + 20·sin(2π · (t−1) / 10). The FV oscillates between 80 and 120 around a mean of 100.',
+    heuristic: 'Naive agents mistake the rising half of the cycle for a durable trend and the falling half for a crash; phase confusion is the dominant error.',
+  },
+  randomWalk: {
+    typeLabel:    'Stochastically drifting asset',
+    horizon:      'No fixed upward trend, downward trend, or cycle. The value environment is subject to persistent random shocks for T periods.',
+    dividendRule: [
+      'FV_{t+1} = max(20, FV_t + η_t), with η_t ~ Normal(0, σ=5).',
+      'Dividend at period t is backed out from the FV path: d_t = FV_t − FV_{t+1}/(1+r), floored at 0.',
+    ],
+    extras: [
+      'Current environment starts at FV_1 = 100. Future FV may rise or fall symmetrically.',
+    ],
+    fvFormula: 'Model-based FV is a martingale: E[FV_{t+k} | FV_t] = FV_t for all k ≥ 0. Your best point estimate of future FV is today\u2019s FV_t (floored at 20).',
+    heuristic: 'Naive agents over-extrapolate recent moves — they treat a short up-run as a trend and a short down-run as a crash, instead of treating FV as memoryless.',
+  },
+  jumpCrash: {
+    typeLabel:    'Asset with rare-disaster (crash) risk',
+    horizon:      'T periods. Calm phases are briefly positive; a small chance each period wipes out many calm periods at once.',
+    dividendRule: [
+      'FV moves each period by one of two jumps:',
+      '- 90% probability: +2 (calm drift up)',
+      '- 10% probability: −30 (rare crash)',
+      'Dividend at period t is backed out from the FV path: d_t = FV_t − FV_{t+1}/(1+r), floored at 0.',
+    ],
+    extras: [
+      'Current environment starts at FV_1 = 100. Floor at 5 (FV cannot fall below 5).',
+      'Expected per-period drift E[ΔFV] = 0.9·(+2) + 0.1·(−30) = −1.2 — slightly negative on average.',
+    ],
+    fvFormula: 'Model-based FV at period t using the stated probabilities: E[FV_{t+k} | FV_t] ≈ max(5, FV_t + k·(−1.2)). A correctly-calibrated agent anchors to this drift; an over-optimistic one discounts the crash probability.',
+    heuristic: 'Naive agents under-weight the 10% crash branch after a long calm run, treating +2 as the norm and getting caught when the crash hits.',
+  },
+};
+
+for (const a of ASSET_TYPES) a.agentTemplate = ASSET_AGENT_TEMPLATES[a.id] || null;
+
 /* Return the canonical FV points plotted on Figure 1 — the
  * "determined" fundamental-value path FV_1..FV_T implied by the
  * asset's spec, with no stochastic draws. Used by the per-session
