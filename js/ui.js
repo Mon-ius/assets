@@ -2403,10 +2403,11 @@ const UI = {
       if (cntByG[g]) meanP[g] = sumByG[g] / cntByG[g];
     }
     const localPeriodOf = g => ((g - 1) % config.periods) + 1;
-    const fvOfG = g => this._fvAt(localPeriodOf(g), config);
-    // Per-trade FV uses the trade's own period within its own round; the
-    // round dimension cancels because FV is round-invariant.
-    const fvOfTrade = t => this._fvAt(t.period, config);
+    const localRoundOf  = g => Math.floor((g - 1) / config.periods) + 1;
+    const fvOfG = g => this._fvAtRound(localRoundOf(g), localPeriodOf(g), config);
+    // Per-trade FV uses the trade's own round + period so pre/post-asset
+    // sessions route to the right FV curve at the round-4 boundary.
+    const fvOfTrade = t => this._fvAtRound(t.round || 1, t.period, config);
 
     // Total shares outstanding (conserved under double-auction trades).
     let totalShares = 0;
