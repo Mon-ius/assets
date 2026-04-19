@@ -1830,17 +1830,52 @@ const App = {
         this.requestRender();
       };
 
+      // Paint the new session's empty state immediately after rebuild
+      // so the DOM doesn't stay pinned on session N's charts + feed
+      // until N+1's first tick fires. Without this the session readout
+      // has already flipped (rendered by the onEnd of session N) but
+      // every data-driven panel still shows the previous session's
+      // content for ~tickInterval ms, which reads as a blank/snap when
+      // the user is scrolling across the boundary.
+      this.requestRender();
+
       this.engine.onEnd = () => {
         this.requestRender();
-        // Snapshot the completed session before chaining resets state.
-        this._exportSessions.push(this._snapshotSession());
-        // Chain to next session.
-        setTimeout(() => runSession(s + 1), 50);
+        // The session-switch used to run back-to-back on the main
+        // thread: onEnd → _snapshotSession (~thousands of trade/price
+        // objects mapped) → setTimeout(50) → reset + rebuild (new
+        // market, 100 fresh UtilityAgent instances). Together that's a
+        // multi-frame synchronous block, and because the new session's
+        // empty state is not painted until the *first tick* of N+1
+        // fires, a user scrolling at that moment sees the page freeze
+        // and the DOM snap from session N's filled charts to N+1's
+        // empty ones all at once. Splitting the chain across rIC/rAF
+        // yields the main thread to scroll input between each chunk
+        // and lets the browser paint the transitional states.
+        this._yield(() => {
+          this._exportSessions.push(this._snapshotSession());
+          this._yield(() => runSession(s + 1));
+        });
       };
       this.engine.start();
     };
 
     runSession(0);
+  },
+
+  /**
+   * Yield to the browser's scheduler so pending scroll / input events
+   * can run before `fn` executes. Prefers requestIdleCallback (which
+   * actually waits for idleness) with a short timeout cap so the batch
+   * chain cannot stall indefinitely on a busy main thread. Falls back
+   * to setTimeout(0) in environments without rIC (Safari).
+   */
+  _yield(fn) {
+    if (typeof requestIdleCallback === 'function') {
+      requestIdleCallback(fn, { timeout: 80 });
+    } else {
+      setTimeout(fn, 0);
+    }
   },
 
   /**
