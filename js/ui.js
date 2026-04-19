@@ -1281,6 +1281,82 @@ const UI = {
       baseline: 1,
       yLabel: y => y.toFixed(2),
     });
+
+    this._renderAgentModelBlock(view, appView, agent);
+  },
+
+  /**
+   * Fill the back-face "Agent model" panel with the model-based
+   * formulation the agent is actually running for the round's active
+   * asset. Text comes from `ASSET_AGENT_TEMPLATES` (assets.js) plus the
+   * generic v3 §7 prior/posterior blend; live chips show (α_i, σ_i,
+   * ω_i) so the reader can read off the current experience weighting.
+   */
+  _renderAgentModelBlock(view, appView, agent) {
+    const box = view.querySelector('#stats-model');
+    if (!box) return;
+
+    const assetId = appView && appView.assetId;
+    const asset   = (typeof ASSET_TYPES_BY_ID !== 'undefined' && assetId)
+      ? ASSET_TYPES_BY_ID[assetId]
+      : null;
+    const tpl = asset && asset.agentTemplate;
+    if (!tpl) { box.innerHTML = ''; return; }
+
+    const tun = (appView && appView.tunables) || {};
+    const rp  = agent ? (agent.roundsPlayed | 0) : 0;
+    const exp = (typeof experienceFactors === 'function')
+      ? experienceFactors(rp)
+      : { k: rp, alpha: 0.4, sigma: 15, omega: 0.6 };
+
+    const betas = (typeof HEURISTIC_BETAS !== 'undefined')
+      ? HEURISTIC_BETAS
+      : { anchor: 0.5, trend: 0.2, dividend: 0.2, narrative: 0.1 };
+
+    const fvStep = tun.applyComplexDividends
+      ? 'FṼ_{i,t} = μ̂_i · (T − t + 1),  μ̂_i = x̄_n · (1 + ξ),  ξ ~ U[−σ_n, +σ_n],  σ_n = 0.35/√(n+1)  (bounded-rationality path; Complex Dividends ON)'
+      : tpl.fvFormula;
+
+    const heurStep =
+      `H_{i,t} = ${betas.anchor.toFixed(2)}·Anchor ` +
+      `+ ${betas.trend.toFixed(2)}·Trend ` +
+      `+ ${betas.dividend.toFixed(2)}·DividendSignal ` +
+      `+ ${betas.narrative.toFixed(2)}·Narrative`;
+
+    const biasTerm  = tun.applyBias  ? ' · (1 + bias_i)' : '';
+    const noiseTerm = tun.applyNoise ? ' + ε_i' : '';
+    const priorStep = `prior_{i,t} = [ α_i·FṼ_{i,t} + (1 − α_i)·H_{i,t} ]${biasTerm}${noiseTerm}`;
+    const postStep  = 'V̂_{i,t} = ω_i · prior_{i,t} + (1 − ω_i) · m̄_t';
+
+    const chips = [
+      `α_i = ${exp.alpha.toFixed(2)}`,
+      `σ_i = ${exp.sigma.toFixed(1)}`,
+      `ω_i = ${exp.omega.toFixed(2)}`,
+      `R${rp}`,
+    ].map(t => `<span class="stats-model-chip">${UI._escHtml(t)}</span>`).join('');
+
+    const subtitleBits = [];
+    if (tpl.typeLabel) subtitleBits.push(tpl.typeLabel);
+    if (tpl.horizon)   subtitleBits.push(tpl.horizon);
+
+    box.innerHTML = `
+      <div class="stats-model-head">
+        <span class="stats-model-title">Agent model · ${UI._escHtml(appView.assetLabel || asset.label || '—')}</span>
+        <span class="stats-model-sub">${UI._escHtml(subtitleBits.join(' · '))}</span>
+        <span class="stats-model-chips">${chips}</span>
+      </div>
+      <div class="stats-model-steps">
+        <span class="stats-model-label">Step 1 · model FṼ</span>
+        <span class="stats-model-value">${UI._escHtml(fvStep)}</span>
+        <span class="stats-model-label">Step 2 · heuristic H</span>
+        <span class="stats-model-value">${UI._escHtml(heurStep)}</span>
+        <span class="stats-model-label">Step 3 · prior</span>
+        <span class="stats-model-value">${UI._escHtml(priorStep)}</span>
+        <span class="stats-model-label">Step 3 · posterior</span>
+        <span class="stats-model-value">${UI._escHtml(postStep)}</span>
+        ${tpl.heuristic ? `<div class="stats-model-note">Common heuristic mistake: ${UI._escHtml(tpl.heuristic)}</div>` : ''}
+      </div>
+    `;
   },
 
   /** Draw one sparkline-style mini chart inside the stats modal. */
