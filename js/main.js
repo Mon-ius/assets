@@ -314,6 +314,11 @@ const App = {
       tip.innerHTML = '';
       tip.appendChild(tpl.content.cloneNode(true));
       if (hydrate) hydrate(tip);
+      // Templates may contain KaTeX `$…$` spans (experience-curve
+      // derivations, replacement-blend formulas). Run the same
+      // KaTeX auto-render pass the rest of the body gets, so the
+      // math renders instead of showing as literal `$…$` text.
+      this._renderMath(tip);
       // Position requires the tip to be measurable — show invisibly
       // first so we can read its size, then flip to visible.
       tip.style.visibility = 'hidden';
