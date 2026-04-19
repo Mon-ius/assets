@@ -361,6 +361,7 @@ const UI = {
 
   _hideTooltip() {
     if (this._tooltip) this._tooltip.classList.remove('is-visible');
+    this._lastTooltipKey = null;
   },
 
   /**
@@ -386,18 +387,36 @@ const UI = {
     if (this._hoverBound[canvasKey]) return;
     const canvas = this.canvases[canvasKey];
     if (!canvas) return;
-    canvas.addEventListener('mousemove', e => this._onChartHover(canvasKey, e));
-    canvas.addEventListener('mouseleave', () => this._hideTooltip());
+    canvas.addEventListener('mousemove', e => this._onChartHover(canvasKey, e), { passive: true });
+    canvas.addEventListener('mouseleave', () => {
+      this._pendingHover = null;
+      this._hideTooltip();
+    }, { passive: true });
     this._hoverBound[canvasKey] = true;
   },
 
+  /**
+   * Public entry point — rAF-coalesces mousemove events so high-rate
+   * pointer streams don't rebuild the tooltip 120× per second. The
+   * latest pointer position wins; intermediate positions are dropped.
+   */
   _onChartHover(canvasKey, e) {
+    this._pendingHover = { canvasKey, clientX: e.clientX, clientY: e.clientY };
+    if (this._hoverRaf) return;
+    this._hoverRaf = requestAnimationFrame(() => {
+      this._hoverRaf = null;
+      const p = this._pendingHover;
+      if (p) this._processHover(p.canvasKey, p.clientX, p.clientY);
+    });
+  },
+
+  _processHover(canvasKey, clientX, clientY) {
     const info = this._chartHover[canvasKey];
     const canvas = this.canvases[canvasKey];
     if (!info || !canvas) return this._hideTooltip();
     const cr   = canvas.getBoundingClientRect();
-    const xPx  = e.clientX - cr.left;
-    const yPx  = e.clientY - cr.top;
+    const xPx  = clientX - cr.left;
+    const yPx  = clientY - cr.top;
     const rect = info.rect;
     if (xPx < rect.x || xPx > rect.x + rect.w ||
         yPx < rect.y || yPx > rect.y + rect.h) return this._hideTooltip();
@@ -482,22 +501,35 @@ const UI = {
       header = (info.xLabel ? info.xLabel + ': ' : '') + xTxt;
     }
 
+    // Cache key collapses identical pointer positions (hovering the
+    // same point) to a no-op innerHTML rebuild — avoids layout churn.
+    const cacheKey = canvasKey + '|' + header + '|' +
+      rows.map(r => r.color + ':' + r.name + ':' + r.value).join(';');
     const tip = this._ensureTooltip();
-    const hdr = header ? `<div class="ch-tt-hdr">${header}</div>` : '';
-    const body = rows.map(r => {
-      const dot = `<span class="ch-tt-dot" style="background:${r.color}"></span>`;
-      return `<div class="ch-tt-row">${dot}<span class="ch-tt-lbl">${r.name}</span><span class="ch-tt-val">${r.value}</span></div>`;
-    }).join('');
-    tip.innerHTML = hdr + body;
+    if (this._lastTooltipKey !== cacheKey) {
+      this._lastTooltipKey = cacheKey;
+      const hdr = header ? `<div class="ch-tt-hdr">${header}</div>` : '';
+      const body = rows.map(r => {
+        const dot = `<span class="ch-tt-dot" style="background:${r.color}"></span>`;
+        return `<div class="ch-tt-row">${dot}<span class="ch-tt-lbl">${r.name}</span><span class="ch-tt-val">${r.value}</span></div>`;
+      }).join('');
+      tip.innerHTML = hdr + body;
+      this._lastTooltipDims = null;
+    }
     tip.classList.add('is-visible');
 
-    // Position: prefer right+below, flip if clipped by viewport.
-    const tw = tip.offsetWidth  || 160;
-    const th = tip.offsetHeight || 40;
-    let left = e.clientX + 14;
-    let top  = e.clientY + 14;
-    if (left + tw > window.innerWidth  - 4) left = e.clientX - 14 - tw;
-    if (top  + th > window.innerHeight - 4) top  = e.clientY - 14 - th;
+    // Position: prefer right+below, flip if clipped by viewport. Cache
+    // dims across moves with the same content so we skip offsetWidth /
+    // offsetHeight reads (each one forces a synchronous layout).
+    if (!this._lastTooltipDims) {
+      this._lastTooltipDims = { w: tip.offsetWidth || 160, h: tip.offsetHeight || 40 };
+    }
+    const tw = this._lastTooltipDims.w;
+    const th = this._lastTooltipDims.h;
+    let left = clientX + 14;
+    let top  = clientY + 14;
+    if (left + tw > window.innerWidth  - 4) left = clientX - 14 - tw;
+    if (top  + th > window.innerHeight - 4) top  = clientY - 14 - th;
     tip.style.left = Math.max(4, left) + 'px';
     tip.style.top  = Math.max(4, top)  + 'px';
   },
@@ -1414,41 +1446,34 @@ const UI = {
   },
 
   /**
-   * Draw a per-round mispricing readout at the top of each round's
-   * vertical band. Used by Figures 1 and 2 so the rendered curves are
-   * backed by a numeric summary that travels with them across rounds.
+   * Append per-round mispricing chips to a Viz.legendRow entries array.
+   * Only rounds that have actually completed (v.tick ≥ r·T·K) contribute
+   * — the readout is a retrospective summary, so we don't show a
+   * partial-round value mid-stream that would jitter as more ticks land.
+   *
+   *   mode = 'signed'   → "R1 +2.4%"   (Figure 1: blue price vs orange FV)
+   *   mode = 'absolute' → "R1 12.4¢ · 8.2%"   (Figure 2: |P − FV|)
    */
-  _drawRoundMispricing(cx, rect, config, xMin, xMax, v, mode) {
-    const rounds = config.roundsPerSession || 1;
-    const mp     = this._mispricingByRound(v, config);
+  _appendMispricingLegend(entries, v, config, mode) {
+    const rounds      = config.roundsPerSession || 1;
     const ticksPerRnd = config.periods * config.ticksPerPeriod;
-    cx.save();
-    cx.font         = '10px "SF Mono", ui-monospace, Menlo, Consolas, monospace';
-    cx.textAlign    = 'center';
-    cx.textBaseline = 'top';
+    const mp          = this._mispricingByRound(v, config);
+    const tickNow     = (v && v.tick | 0) || 0;
     for (let r = 1; r <= rounds; r++) {
+      if (tickNow < r * ticksPerRnd) continue;  // round not finished yet
       const row = mp[r];
       if (!row) continue;
-      const mid = (r - 0.5) * ticksPerRnd;
-      const x   = Viz.mapX(rect, mid, xMin, xMax);
       let label, color;
       if (mode === 'signed') {
-        const v01  = row.signedPct;
-        const sign = v01 >= 0 ? '+' : '−';
-        label = `${sign}${(Math.abs(v01) * 100).toFixed(1)}%`;
-        color = v01 >= 0 ? this.theme.accent : this.theme.red;
+        const sign = row.signedPct >= 0 ? '+' : '−';
+        label = `R${r} ${sign}${(Math.abs(row.signedPct) * 100).toFixed(1)}%`;
+        color = row.signedPct >= 0 ? this.theme.accent : this.theme.red;
       } else {
-        label = `${row.absMean.toFixed(1)}¢ · ${(row.absPct * 100).toFixed(1)}%`;
+        label = `R${r} ${row.absMean.toFixed(1)}¢ · ${(row.absPct * 100).toFixed(1)}%`;
         color = this.theme.red;
       }
-      // White halo so the number reads over chart fills/lines.
-      cx.lineWidth   = 3;
-      cx.strokeStyle = this.theme.bg1 || '#ffffff';
-      cx.strokeText(label, x, rect.y + 2);
-      cx.fillStyle   = color;
-      cx.fillText(label, x, rect.y + 2);
+      entries.push({ color, label });
     }
-    cx.restore();
   },
 
   _drawRoundDividers(cx, rect, config, xMin, xMax, v) {
@@ -1571,12 +1596,12 @@ const UI = {
 
     Viz.axisLabel(ctx, rect, v.session > 0 ? 'Round R · Session ' + v.session : 'Round R', 'bottom');
 
-    Viz.legendRow(ctx, rect, [
+    const priceLegend = [
       { color: this.theme.accent, label: '● observed price' },
       { color: this.theme.amber,  label: '▬ fundamental value' },
-    ]);
-
-    this._drawRoundMispricing(ctx, rect, config, xMin, xMax, v, 'signed');
+    ];
+    this._appendMispricingLegend(priceLegend, v, config, 'signed');
+    Viz.legendRow(ctx, rect, priceLegend);
 
     const fvSeries = [];
     for (let g = 1; g <= sessionPeriods; g++) {
@@ -1635,11 +1660,11 @@ const UI = {
     this._drawRoundDividers(ctx, rect, config, 0, totalTicks, v);
 
     Viz.axisLabel(ctx, rect, v.session > 0 ? 'Round R · Session ' + v.session : 'Round R', 'bottom');
-    Viz.legendRow(ctx, rect, [
+    const bubbleLegend = [
       { color: this.theme.red, label: '▬ absolute mispricing' },
-    ]);
-
-    this._drawRoundMispricing(ctx, rect, config, 0, totalTicks, v, 'absolute');
+    ];
+    this._appendMispricingLegend(bubbleLegend, v, config, 'absolute');
+    Viz.legendRow(ctx, rect, bubbleLegend);
 
     this._registerHover('bubble', {
       mode: 'series', rect, xMin: 0, xMax: totalTicks, yMin, yMax,
