@@ -124,11 +124,14 @@ const ASSET_CONSTANT_PERPETUAL = {
 
 /**
  * Asset 3 — Linear Growth. Expected dividend rises linearly in t:
- * E[d_s] = a + b·s with (a, b) solved so FV_1 = 100 at T = 20.
- * Sum_{s=1}^{T}(a + b·s) = a·T + b·T(T+1)/2 = 100 ⇒ choose b = 0.3
- * (per spec) and a = (100 − b·T(T+1)/2) / T. With T = 20, a ≈ 1.85.
- * Simulator uses the no-discount closed form from the spec so each
- * agent's "true FV" is the running tail sum.
+ * E[d_s] = a + b·s with (a, b) = (2, 0.3) per v3 §5.13. The model-based
+ * FV is the Gordon-style perpetuity at the current expected dividend,
+ *     FṼ_{i,t} = (a + b·t) / r,
+ * which is what a rational trader would discount the growing dividend
+ * stream back to today at the risk-free rate r = ASSET_DISCOUNT_RATE.
+ * With (a, b, r) = (2, 0.3, 0.05) the curve rises from FV_1 = 46 at
+ * t = 1 to FV_T = 160 at t = 20; the simulator still terminates at
+ * T so fv[T+1] = 0 is kept to match the finite-round settlement.
  */
 const ASSET_LINEAR_GROWTH = {
   id:          'linearGrowth',
@@ -137,20 +140,13 @@ const ASSET_LINEAR_GROWTH = {
   description: 'Rising-dividend regime — E[d] grows linearly in t.',
   init(config) {
     const T = config.periods;
+    const a = 2;
     const b = 0.3;
-    // Solve a so that Σ_{s=1..T}(a + b·s) = ASSET_ANCHOR_FV.
-    const sumS = (T * (T + 1)) / 2;
-    const a = (ASSET_ANCHOR_FV - b * sumS) / T;
+    const r = ASSET_DISCOUNT_RATE;
     const fv = new Array(T + 2).fill(0);
-    let tail = 0;
-    for (let s = T; s >= 1; s--) tail += a + b * s;
-    fv[1] = tail;
-    for (let t = 2; t <= T; t++) {
-      fv[t] = fv[t - 1] - (a + b * (t - 1));
-    }
+    for (let t = 1; t <= T; t++) fv[t] = (a + b * t) / r;
     fv[T + 1] = 0;
-    // E[d_T] is the last rung — used as a coarse expectedDividend hint.
-    return { fv, a, b, expectedDividend: a + b * Math.ceil(T / 2), terminalValue: 0 };
+    return { fv, a, b, r, expectedDividend: a + b * Math.ceil(T / 2), terminalValue: 0 };
   },
   fundamentalValue(period, state) {
     return state.fv[period] != null ? Math.max(0, state.fv[period]) : 0;
@@ -326,14 +322,14 @@ const ASSET_AGENT_TEMPLATES = {
     typeLabel:    'Growth-type asset',
     horizon:      'The project\u2019s earning power improves over time for the full T-period horizon. No residual value after period T.',
     dividendRule: [
-      'Expected dividend at period s: E[d_s] ≈ 2 + 0.3·s',
+      'Expected dividend at period s: E[d_s] = 2 + 0.3·s',
       'Each realisation fluctuates around this mean (Gaussian, σ = 1).',
     ],
     extras: [
-      'Undiscounted simulator convention — use the tail-sum form below.',
+      'Capital opportunity cost / discount rate r = 5% per period.',
     ],
-    fvFormula: 'Model-based FV at period t: FV_t = Σ_{s=t..T} E[d_s] = Σ_{s=t..T} (2 + 0.3·s). Monotonically declining as t advances because fewer future rungs remain.',
-    heuristic: 'Naive agents extrapolate the rising dividend into rising prices and forget that the tail of remaining periods shrinks, over-paying late in the round.',
+    fvFormula: 'Model-based FV at period t: FV_t = (2 + 0.3·t) / r = (2 + 0.3·t) / 0.05 — Gordon-style perpetuity on the growing dividend. Monotonically rising in t (FV_1 = 46, FV_T = 160 at T = 20).',
+    heuristic: 'Naive agents extrapolate the rising dividend into ever-rising prices and forget the discount factor r — over-paying late when the perpetuity anchor flattens out.',
   },
   cyclicalSine: {
     typeLabel:    'Cyclical asset',
@@ -462,12 +458,14 @@ const ASSET_FV_FORMULAS = {
     + '<mfrac>' + _mEdt + '<mi>r</mi></mfrac>'
     + '</mrow>',
   ),
-  // FV_t = Σ_{s=t}^{T} E[d_s]        (v3 §5.13, undiscounted tail sum)
+  // FV_t = (2 + 0.3·t) / r            (v3 §5.13, Gordon perpetuity on E[d_t])
   linearGrowth: _assetMath(
     '<mrow>'
     + _mFv + '<mo>=</mo>'
-    + '<munderover><mo>Σ</mo><mrow><mi>s</mi><mo>=</mo><mi>t</mi></mrow><mi>T</mi></munderover>'
-    + _mEds
+    + '<mfrac>'
+    + '<mrow><mn>2</mn><mo>+</mo><mn>0.3</mn><mi>t</mi></mrow>'
+    + '<mi>r</mi>'
+    + '</mfrac>'
     + '</mrow>',
   ),
   // FV_t = 100 + 20·sin(2π(t−1)/10)  (v3 §5.19 specifies the path directly)
