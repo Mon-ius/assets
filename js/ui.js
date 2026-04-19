@@ -347,6 +347,8 @@ const UI = {
      ============================================================ */
   _chartHover: {},
   _hoverBound:  {},
+  _hoverRects:  {},          // cached bounding rects per canvas (invalidated on scroll/resize)
+  _hoverRectsBound: false,
   _tooltip:     null,
 
   _ensureTooltip() {
@@ -362,6 +364,47 @@ const UI = {
   _hideTooltip() {
     if (this._tooltip) this._tooltip.classList.remove('is-visible');
     this._lastTooltipKey = null;
+    this._lastHoverKey   = null;
+  },
+
+  /** Cached canvas rect — `getBoundingClientRect()` forces layout, so we
+      read it once per canvas and invalidate on scroll/resize rather than
+      on every mousemove. Registration also clears the cache because a
+      new render can shift the chart frame. */
+  _canvasRect(canvasKey, canvas) {
+    let r = this._hoverRects[canvasKey];
+    if (!r) {
+      r = canvas.getBoundingClientRect();
+      this._hoverRects[canvasKey] = r;
+    }
+    return r;
+  },
+
+  _bindHoverRectInvalidators() {
+    if (this._hoverRectsBound) return;
+    this._hoverRectsBound = true;
+    const clear = () => { this._hoverRects = {}; };
+    window.addEventListener('scroll',  clear, { passive: true, capture: true });
+    window.addEventListener('resize',  clear, { passive: true });
+  },
+
+  /** Nearest-x search on points sorted ascending by `.x`. Falls back to a
+      linear scan if a gap turns up a non-monotonic entry, so this is safe
+      to use on arrays produced by bucketByX / priceHistory (both sorted). */
+  _nearestByX(points, xVal) {
+    const n = points.length;
+    if (!n) return -1;
+    let lo = 0, hi = n - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1;
+      if (points[mid].x < xVal) lo = mid + 1;
+      else                      hi = mid;
+    }
+    // `lo` is the first index with x >= xVal. Check neighbour on the left.
+    const a = points[lo];
+    const b = lo > 0 ? points[lo - 1] : null;
+    if (!b) return lo;
+    return (Math.abs(a.x - xVal) < Math.abs(b.x - xVal)) ? lo : lo - 1;
   },
 
   /**
@@ -385,8 +428,12 @@ const UI = {
   _registerHover(canvasKey, info) {
     this._chartHover[canvasKey] = info;
     if (this._hoverBound[canvasKey]) return;
+    // First registration — seed the rect cache lazily; scroll/resize will
+    // invalidate, and a re-render leaves the canvas position unchanged.
+    this._hoverRects[canvasKey] = null;
     const canvas = this.canvases[canvasKey];
     if (!canvas) return;
+    this._bindHoverRectInvalidators();
     canvas.addEventListener('mousemove', e => this._onChartHover(canvasKey, e), { passive: true });
     canvas.addEventListener('mouseleave', () => {
       this._pendingHover = null;
@@ -414,12 +461,55 @@ const UI = {
     const info = this._chartHover[canvasKey];
     const canvas = this.canvases[canvasKey];
     if (!info || !canvas) return this._hideTooltip();
-    const cr   = canvas.getBoundingClientRect();
+    const cr   = this._canvasRect(canvasKey, canvas);
     const xPx  = clientX - cr.left;
     const yPx  = clientY - cr.top;
     const rect = info.rect;
     if (xPx < rect.x || xPx > rect.x + rect.w ||
         yPx < rect.y || yPx > rect.y + rect.h) return this._hideTooltip();
+
+    // Identity short-circuit: if this pointer lands in the same logical
+    // bucket as the last hover on this canvas, skip the whole content
+    // rebuild (including row allocation) and just reposition the tooltip.
+    // The key is a tiny string keyed on canvas + mode-specific integer
+    // indices — cheap to build, cheap to compare.
+    let hoverKey = canvasKey + '|' + info.mode + '|';
+    const xRange = info.xMax - info.xMin;
+    const xVal   = info.xMin + ((xPx - rect.x) / rect.w) * xRange;
+
+    if (info.mode === 'cell' && info.cells) {
+      const { cols, rows: nRows, cellW, cellH } = info.cells;
+      const col = Math.min(cols - 1,  Math.max(0, Math.floor((xPx - rect.x) / cellW)));
+      const row = Math.min(nRows - 1, Math.floor((yPx - rect.y) / cellH));
+      hoverKey += col + ',' + row;
+    } else if (info.mode === 'row' && info.rows) {
+      const rowIdx = Math.floor((yPx - rect.y) / info.rows.rowH);
+      // Bucket xVal by 1/2-pixel so adjacent fractional pointer positions
+      // collapse to the same key on dense x ranges.
+      const pxBucket = Math.floor(((xPx - rect.x) / rect.w) * (rect.w * 2));
+      hoverKey += rowIdx + ',' + pxBucket;
+    } else if (info.mode === 'multi') {
+      const buckets = info.buckets || [];
+      const idx = this._nearestByX(buckets, xVal);
+      hoverKey += 'b' + idx;
+    } else {
+      // series mode — key on the nearest-point index of every series.
+      const series = info.series || [];
+      for (let i = 0; i < series.length; i++) {
+        const pts = series[i].points;
+        if (!pts || !pts.length) { hoverKey += '-1,'; continue; }
+        hoverKey += this._nearestByX(pts, xVal) + ',';
+      }
+    }
+
+    const tip = this._ensureTooltip();
+    if (this._lastHoverKey === hoverKey && this._lastTooltipKey) {
+      // Same nearest point(s) — tooltip content is unchanged, just move it.
+      tip.classList.add('is-visible');
+      this._positionTooltip(tip, clientX, clientY);
+      return;
+    }
+    this._lastHoverKey = hoverKey;
 
     let header = '';
     let rows   = [];
@@ -432,7 +522,6 @@ const UI = {
       header = hit.header || '';
       rows   = hit.rows   || [];
     } else if (info.mode === 'row' && info.rows) {
-      const xVal = info.xMin + ((xPx - rect.x) / rect.w) * (info.xMax - info.xMin);
       const { rowH, lookup } = info.rows;
       const rowIdx = Math.floor((yPx - rect.y) / rowH);
       const hit = lookup(rowIdx, xVal);
@@ -440,15 +529,18 @@ const UI = {
       header = hit.header || '';
       rows   = hit.rows   || [];
     } else if (info.mode === 'multi') {
-      const xVal = info.xMin + ((xPx - rect.x) / rect.w) * (info.xMax - info.xMin);
       const buckets = info.buckets || [];
-      let best = null, bestD = Infinity;
-      for (const b of buckets) {
-        const d = Math.abs(b.x - xVal);
-        if (d < bestD) { bestD = d; best = b; }
-      }
+      const idx = this._nearestByX(buckets, xVal);
+      const best = idx >= 0 ? buckets[idx] : null;
       if (!best || !best.ys || !best.ys.length) return this._hideTooltip();
-      const ys = best.ys.slice().sort((a, z) => a - z);
+      // Lazy-sort the bucket once and stash the sorted copy on the bucket
+      // itself — buckets are freshly built each render, so the memo lasts
+      // exactly as long as it should.
+      let ys = best._ysSorted;
+      if (!ys) {
+        ys = best.ys.slice().sort((a, z) => a - z);
+        best._ysSorted = ys;
+      }
       const q = k => {
         const pos = (ys.length - 1) * k;
         const lo  = Math.floor(pos), hi = Math.ceil(pos);
@@ -459,13 +551,9 @@ const UI = {
       const col  = info.color || this.theme.accent;
       for (const s of info.baseSeries || []) {
         if (!s.points || !s.points.length) continue;
-        let b2 = null, bD = Infinity;
-        for (const p of s.points) {
-          if (p == null || p.y == null || Number.isNaN(p.y)) continue;
-          const d = Math.abs(p.x - xVal);
-          if (d < bD) { bD = d; b2 = p; }
-        }
-        if (b2) {
+        const j = this._nearestByX(s.points, xVal);
+        const b2 = j >= 0 ? s.points[j] : null;
+        if (b2 && b2.y != null && !Number.isNaN(b2.y)) {
           const v2 = s.yFmt ? s.yFmt(b2.y) : b2.y.toFixed(2);
           rows.push({ name: s.name, color: s.color, value: v2 });
         }
@@ -479,18 +567,13 @@ const UI = {
       const xTxt = info.xFmt ? info.xFmt(best.x) : String(best.x);
       header = (info.xLabel ? info.xLabel + ': ' : '') + xTxt;
     } else {
-      // Default: series mode — nearest x across all series.
-      const xVal = info.xMin + ((xPx - rect.x) / rect.w) * (info.xMax - info.xMin);
+      // series mode — nearest x across all series via binary search.
       let headerX = null;
       for (const s of info.series || []) {
         if (!s.points || !s.points.length) continue;
-        let best = null, bestD = Infinity;
-        for (const p of s.points) {
-          if (p == null || p.y == null || Number.isNaN(p.y)) continue;
-          const d = Math.abs(p.x - xVal);
-          if (d < bestD) { bestD = d; best = p; }
-        }
-        if (!best) continue;
+        const j = this._nearestByX(s.points, xVal);
+        const best = j >= 0 ? s.points[j] : null;
+        if (!best || best.y == null || Number.isNaN(best.y)) continue;
         if (headerX == null) headerX = best.x;
         const yTxt = s.yFmt ? s.yFmt(best.y)
                    : (typeof best.y === 'number' ? best.y.toFixed(2) : String(best.y));
@@ -501,11 +584,10 @@ const UI = {
       header = (info.xLabel ? info.xLabel + ': ' : '') + xTxt;
     }
 
-    // Cache key collapses identical pointer positions (hovering the
-    // same point) to a no-op innerHTML rebuild — avoids layout churn.
+    // Content cache key — collapses distinct nearest-point indices that
+    // nevertheless render to the same text (rare, but free to check).
     const cacheKey = canvasKey + '|' + header + '|' +
       rows.map(r => r.color + ':' + r.name + ':' + r.value).join(';');
-    const tip = this._ensureTooltip();
     if (this._lastTooltipKey !== cacheKey) {
       this._lastTooltipKey = cacheKey;
       const hdr = header ? `<div class="ch-tt-hdr">${header}</div>` : '';
@@ -518,9 +600,13 @@ const UI = {
     }
     tip.classList.add('is-visible');
 
-    // Position: prefer right+below, flip if clipped by viewport. Cache
-    // dims across moves with the same content so we skip offsetWidth /
-    // offsetHeight reads (each one forces a synchronous layout).
+    this._positionTooltip(tip, clientX, clientY);
+  },
+
+  /** Position the tooltip near the cursor, flipping sides when clipped by
+      the viewport. Cached dims avoid offsetWidth/offsetHeight reads (each
+      one forces a synchronous layout). */
+  _positionTooltip(tip, clientX, clientY) {
     if (!this._lastTooltipDims) {
       this._lastTooltipDims = { w: tip.offsetWidth || 160, h: tip.offsetHeight || 40 };
     }
