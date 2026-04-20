@@ -1491,9 +1491,11 @@ const UI = {
   /**
    * Render the 6-panel stats composite for `agentId` against the
    * currently-loaded view (UI._lastView) and return a single composite
-   * canvas (title row on top, 2×3 grid of mini-charts). Used by the
-   * Export flow to emit one PNG per agent per phase without having to
-   * visually flip the agents card to each agent in turn.
+   * canvas. Layout: title row on top (two text lines — identity + the
+   * experience triple {kᵢ, αᵢ, σᵢ, ωᵢ} + any narrative trait that the
+   * active asset's heuristic consumes), then a 2×3 grid of mini-charts.
+   * Used by the Export flow to emit one PNG per agent per phase without
+   * having to visually flip the agents card to each agent in turn.
    *
    * Reuses `_renderAgentStatsView` by pointing `_statsViewAgentId` at
    * the target agent and letting the existing per-panel renderer paint
@@ -1501,8 +1503,13 @@ const UI = {
    * the flip-back — `backface-visibility: hidden` hides them visually
    * but layout + getBoundingClientRect remain valid). The previous
    * selection is restored at the end.
+   *
+   * `context` (optional): { phaseLabel, round } — the first is printed
+   * after the identity line so analysts browsing the figures folder
+   * can see whether a PNG was taken before or after the round-R
+   * replacement; the second overrides the captured round number.
    */
-  captureAgentComposite(agentId) {
+  captureAgentComposite(agentId, context) {
     const view = document.getElementById('agent-stats-view');
     if (!view) return null;
     const prev = this._statsViewAgentId;
@@ -1527,7 +1534,7 @@ const UI = {
     const cols  = 2;
     const rows  = Math.ceil(items.length / cols);
     const pad   = 10;
-    const titleH = 28;
+    const titleH = 46;
     const capH   = 16;
     const totalW = cols * w0 + (cols + 1) * pad;
     const totalH = titleH + rows * (h0 + capH) + (rows + 1) * pad;
@@ -1540,18 +1547,56 @@ const UI = {
     cctx.fillStyle = this.theme.bg || '#fff';
     cctx.fillRect(0, 0, totalW, totalH);
 
+    // Identity line: agent ID, name, risk label, capture phase, round.
     cctx.textBaseline = 'top';
     cctx.fillStyle = this.theme.fg1 || this.theme.fg || '#000';
     cctx.font = '13px system-ui, -apple-system, sans-serif';
     const rp = agent && agent.riskPref
       ? (UI._riskLabel[agent.riskPref] || agent.riskPref) : '';
-    const titleParts = [
+    const capturedRound = (context && context.round != null)
+      ? context.round
+      : (this._lastView && this._lastView.round);
+    const identParts = [
       agent ? `Agent ${agent.id}` : `Agent ${agentId}`,
       agent && agent.name || null,
       rp || null,
-      agent && agent.roundsPlayed != null ? `R${agent.roundsPlayed}` : null,
+      context && context.phaseLabel ? context.phaseLabel : null,
+      capturedRound != null ? `captured @ round ${capturedRound}` : null,
     ].filter(Boolean);
-    cctx.fillText(titleParts.join(' · '), pad, pad + 4);
+    cctx.fillText(identParts.join(' · '), pad, pad + 2);
+
+    // Experience triple + narrative trait if the active asset uses one.
+    // Computed from the agent's endogenous roundsPlayed counter — so
+    // a round-3 "before" capture and a round-4 "after" capture for the
+    // same surviving veteran show two different triples and the reader
+    // can see the experience curve moving.
+    const k = agent ? (agent.roundsPlayed | 0) : 0;
+    const exp = (typeof experienceFactors === 'function')
+      ? experienceFactors(k)
+      : { k, alpha: 0, sigma: 0, omega: 0 };
+    const expParts = [
+      `kᵢ = ${k}`,
+      `αᵢ = ${exp.alpha.toFixed(2)}`,
+      `σᵢ = ${exp.sigma.toFixed(1)}`,
+      `ωᵢ = ${exp.omega.toFixed(2)}`,
+    ];
+    const traits = (agent && agent.narrativeTraits) || null;
+    const assetId = this._lastView && this._lastView.assetId;
+    if (traits) {
+      if (assetId === 'linearGrowth' && Number.isFinite(traits.g)) {
+        expParts.push(`gᵢ = ${traits.g.toFixed(2)}`);
+      } else if (assetId === 'cyclicalSine' && Number.isFinite(traits.c)) {
+        expParts.push(`cᵢ = ${traits.c.toFixed(2)}`);
+      } else if (assetId === 'randomWalk' && Number.isFinite(traits.u)) {
+        expParts.push(`uᵢ = ${traits.u.toFixed(2)}`);
+      } else if (assetId === 'jumpCrash') {
+        if (Number.isFinite(traits.h))     expParts.push(`hᵢ = ${traits.h.toFixed(2)}`);
+        if (Number.isFinite(traits.delta)) expParts.push(`δᵢ = ${traits.delta.toFixed(3)}`);
+      }
+    }
+    cctx.fillStyle = this.theme.fg2 || this.theme.label || '#666';
+    cctx.font = '12px "SF Mono", ui-monospace, Menlo, Consolas, monospace';
+    cctx.fillText(expParts.join('   '), pad, pad + 22);
 
     items.forEach((it, i) => {
       const col = i % cols;

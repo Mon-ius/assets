@@ -2061,8 +2061,8 @@ const App = {
           const tickBefore = Math.max(0, (replaceR - 1) * T * K);
           const tickAfter  = R * T * K;
           try {
-            const before = await this._capturePhaseFigures(tickBefore);
-            const after  = await this._capturePhaseFigures(tickAfter);
+            const before = await this._capturePhaseFigures(tickBefore, 'before replacement');
+            const after  = await this._capturePhaseFigures(tickAfter,  'after replacement');
             this._exportSessionFigures.push({
               session: sessionNum, before, after,
             });
@@ -2357,7 +2357,7 @@ const App = {
    *   agents — [{ basename, bytes, manifest }] one composite PNG per
    *            agent, filename-encoded with the agent's strategy
    */
-  async _capturePhaseFigures(phaseTick) {
+  async _capturePhaseFigures(phaseTick, phaseLabel) {
     const prevMode = this.replayMode;
     const prevTick = this.replayTick;
     try {
@@ -2391,7 +2391,7 @@ const App = {
       for (const id of agentIds) {
         idx++;
         const comp = (typeof UI !== 'undefined' && typeof UI.captureAgentComposite === 'function')
-          ? UI.captureAgentComposite(id) : null;
+          ? UI.captureAgentComposite(id, { phaseLabel }) : null;
         if (!comp) continue;
         const blob = await new Promise(resolve => {
           try { comp.toBlob(resolve, 'image/png'); }
