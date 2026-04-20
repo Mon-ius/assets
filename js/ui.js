@@ -1493,7 +1493,7 @@ const UI = {
     const color = this.agentColor(agentId);
     const render = (selector, opts) => this._renderStatsSparkline(
       view.querySelector(selector),
-      Object.assign({ xMin: 0, xMax: totalTicks, color, agentView: appView, config }, opts),
+      Object.assign({ xMin: 0, xMax: totalTicks, color, agentView: appView, config, agentId }, opts),
     );
 
     render('[data-stat="cash"] canvas',   { series: [{ points: cashPts,   color, width: 1.6 }],
@@ -1803,15 +1803,16 @@ const UI = {
       ctx.restore();
     }
 
-    // If a round-R replacement fired in this session, split each data
-    // series at the swap tick so the post-replacement segment renders
-    // in a visually distinct "mixed regime" style — the agent roster
-    // that produced those samples now includes fresh inexperienced
-    // traders, so the line should *look* different from the pre-swap
-    // portion even where the slot id has not changed.
+    // If *this* agent's slot was swapped at the R4 replacement, split
+    // its data series at the swap tick so the post-replacement segment
+    // renders in a visually distinct "mixed regime" style — same slot
+    // id, but a fresh inexperienced trader produced those samples.
+    // Veterans who played every round keep a uniform line.
     const replEvt = (opts.agentView && opts.agentView.events || [])
       .find(e => e && e.type === 'round_4_replacement');
-    const splitTick = replEvt ? (replEvt.tick | 0) : null;
+    const wasReplaced = !!(replEvt && Array.isArray(replEvt.replaced)
+      && replEvt.replaced.some(r => r && r.id === opts.agentId));
+    const splitTick = wasReplaced ? (replEvt.tick | 0) : null;
 
     for (const s of series) {
       if (!s.points.length) continue;
