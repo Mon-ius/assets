@@ -1803,11 +1803,49 @@ const UI = {
       ctx.restore();
     }
 
+    // If a round-R replacement fired in this session, split each data
+    // series at the swap tick so the post-replacement segment renders
+    // in a visually distinct "mixed regime" style — the agent roster
+    // that produced those samples now includes fresh inexperienced
+    // traders, so the line should *look* different from the pre-swap
+    // portion even where the slot id has not changed.
+    const replEvt = (opts.agentView && opts.agentView.events || [])
+      .find(e => e && e.type === 'round_4_replacement');
+    const splitTick = replEvt ? (replEvt.tick | 0) : null;
+
     for (const s of series) {
       if (!s.points.length) continue;
       const pts = s.step ? this._stepify(s.points) : s.points;
-      Viz.line(ctx, plot, pts, { xMin, xMax, yMin, yMax,
-        color: s.color, width: s.width || 1.4, dashed: !!s.dashed });
+      const baseStyle = {
+        xMin, xMax, yMin, yMax,
+        color:  s.color,
+        width:  s.width || 1.4,
+        dashed: !!s.dashed,
+      };
+
+      if (splitTick == null) {
+        Viz.line(ctx, plot, pts, baseStyle);
+        continue;
+      }
+
+      // A sample exactly at the split tick is included in both halves
+      // so the two segments meet without a visible gap.
+      const pre  = [];
+      const post = [];
+      for (const p of pts) {
+        if (p.x <  splitTick) pre.push(p);
+        else if (p.x >  splitTick) post.push(p);
+        else { pre.push(p); post.push(p); }
+      }
+      if (pre.length)  Viz.line(ctx, plot, pre, baseStyle);
+      if (post.length) Viz.line(ctx, plot, post, {
+        ...baseStyle,
+        // Force dashed + fade the colour so already-dashed reference
+        // lines don't collapse back to "same as pre"; solid data lines
+        // pick up the dash pattern as the primary regime cue.
+        dashed: true,
+        color:  this._fanColor(s.color, s.dashed ? 0.45 : 0.6),
+      });
     }
 
     if (lieMarkers && lieMarkers.length) {
