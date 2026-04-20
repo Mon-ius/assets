@@ -12,7 +12,7 @@ external libraries. Open `index.html` in any modern browser to run.
 
 ## Live demo
 
-<https://stock.m0nius.com>
+<https://assets.m0nius.com>
 
 ## What it does
 

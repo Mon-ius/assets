@@ -322,7 +322,7 @@ Fundamental value at the start of period *t* of any round is
 - No build, no tests, no package manager. Verify changes by opening
   `index.html` in a browser (`open index.html` on macOS) and exercising
   the sliders and Start/Pause/Reset.
-- Live site <https://stock.m0nius.com> is served via GitHub Pages
+- Live site <https://assets.m0nius.com> is served via GitHub Pages
   (`CNAME` in repo root). Pushes to `master` auto-deploy, so keep commits
   scoped tightly and do the browser check before pushing.
 - Prefer editing existing modules over adding new ones — the module boundaries
