@@ -429,6 +429,7 @@ const App = {
     document.getElementById('btn-reset').addEventListener('click', () => this.reset());
     const exportBtn = document.getElementById('btn-export');
     if (exportBtn) exportBtn.addEventListener('click', () => this.exportBatch());
+    this._updateExportButton();
     const themeBtn = document.getElementById('btn-theme');
     if (themeBtn) themeBtn.addEventListener('click', () => this._cycleTheme());
 
@@ -1722,15 +1723,21 @@ const App = {
     // "▶ Continue" resume — the user is asking for a fresh start, not
     // to reboot into the middle of a prior batch. In-batch reset()
     // (from _runBatchSession) runs with _pendingSession already null
-    // so the extra assignment is a no-op there.
+    // so the extra assignment is a no-op there. While we are at it we
+    // wipe any accumulated batch results so the Export button flips
+    // from red ("ready") back to green ("idle").
     if (!this._batchRunning) {
       this.currentSession = 0;
       if (this._pendingSession != null) {
         this._pendingSession = null;
         this._updateStartButton();
       }
+      this._exportSessions       = [];
+      this._exportSessionFigures = [];
+      this.batchResults          = [];
     }
     this.rebuild();
+    this._updateExportButton();
   },
 
   /**
@@ -1923,6 +1930,7 @@ const App = {
       const resumeIdx = this._pendingSession;
       this._pendingSession = null;
       this._batchRunning   = true;
+      this._updateExportButton();
       this._updateStartButton();
       this._runBatchSession(resumeIdx);
       return;
@@ -1947,8 +1955,7 @@ const App = {
     this._exportSessionFigures = [];
     this._batchRunning   = true;
     this._pendingSession = null;
-    const btnExport = document.getElementById('btn-export');
-    if (btnExport) btnExport.disabled = true;
+    this._updateExportButton();
     this._updateStartButton();
 
     this._runBatchSession(0);
@@ -1965,14 +1972,13 @@ const App = {
   _runBatchSession(s) {
     const SESSIONS = this._batchTotalSessions;
     const rates    = this._batchRates;
-    const btnExport = document.getElementById('btn-export');
     if (s >= SESSIONS) {
       this._batchRunning   = false;
       this._pendingSession = null;
       this.currentSession  = 0;
       this.treatmentSize   = this._rateToTreatment(rates[0]);
       console.table(this.batchResults);
-      if (btnExport) btnExport.disabled = false;
+      this._updateExportButton();
       this._updateStartButton();
       this.requestRender();
       return;
@@ -2087,6 +2093,7 @@ const App = {
           } else {
             this._batchRunning   = false;
             this._pendingSession = s + 1;
+            this._updateExportButton();
             this._updateStartButton();
             this.requestRender();
           }
@@ -2260,11 +2267,17 @@ const App = {
    * read from a single source of truth.
    */
   _buildBatchExport() {
-    if (!this._exportSessions || !this._exportSessions.length) return null;
+    // Always return a payload — even before any batch has run — so
+    // the green "idle" Export button can bundle the current config
+    // as a snapshot. When no sessions have finished yet the
+    // sessions / batchSummary arrays are empty and the downstream
+    // zip writer skips the figures/ tree entirely.
+    const sessions = Array.isArray(this._exportSessions) ? this._exportSessions : [];
+    const hasSessions = sessions.length > 0;
     // Unique asset ids that actually appeared across the batch (both
     // pre and post slots), preserving the order the sessions ran.
     const assetIdsUsed = [];
-    for (const s of this._exportSessions) {
+    for (const s of sessions) {
       const ids = [
         s.preReplacementAsset  && s.preReplacementAsset.id,
         s.postReplacementAsset && s.postReplacementAsset.id,
@@ -2275,10 +2288,12 @@ const App = {
       meta: {
         exportedAt:     new Date().toISOString(),
         plan:           this.plan,
-        treatmentOrder: [
-          this._exportSessions[0].treatment,
-          this._exportSessions.length > 5 ? this._exportSessions[5].treatment : null,
-        ],
+        treatmentOrder: hasSessions
+          ? [
+              sessions[0].treatment,
+              sessions.length > 5 ? sessions[5].treatment : null,
+            ]
+          : [null, null],
         config:     { ...this.config },
         tunables:   { ...this.tunables },
         population: { ...this.mix },
@@ -2292,8 +2307,8 @@ const App = {
         sessionAssetsPost: (this.sessionAssetsPost || []).slice(),
         assetIdsUsed,
       },
-      sessions:     this._exportSessions,
-      batchSummary: this.batchResults,
+      sessions,
+      batchSummary: hasSessions ? (this.batchResults || []) : [],
     };
   },
 
@@ -2615,7 +2630,14 @@ const App = {
 
     const btn = document.getElementById('btn-export');
     const prevLabel = btn ? btn.textContent : null;
-    if (btn) { btn.disabled = true; btn.textContent = '⏳ Bundling…'; }
+    // Freeze the button in a visible "working" state while we zip so
+    // repeat clicks are no-ops; the finally block below restores the
+    // correct idle/ready colour via _updateExportButton.
+    if (btn) {
+      btn.disabled    = true;
+      btn.textContent = '⏳ Bundling…';
+      btn.classList.remove('idle', 'ready');
+    }
 
     try {
       const json = JSON.stringify(data, null, 2);
@@ -2681,7 +2703,8 @@ const App = {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } finally {
-      if (btn) { btn.disabled = false; btn.textContent = prevLabel || '⬇ Export'; }
+      if (btn) btn.textContent = prevLabel || '⬇ Export';
+      this._updateExportButton();
     }
   },
 
@@ -2700,6 +2723,7 @@ const App = {
   pause() {
     this._batchRunning = false;
     this.engine.pause();
+    this._updateExportButton();
     this.requestRender();
   },
 
@@ -2726,6 +2750,39 @@ const App = {
       btn.title       = 'Start the 10-session batch';
       btn.disabled    = false;
       btn.classList.remove('continue');
+    }
+  },
+
+  /**
+   * Flip the Export button through its three states:
+   *   - idle    (green, clickable) — no batch in flight; clicking
+   *              bundles the current config (plus any partial batch
+   *              data) so the user can grab a snapshot immediately
+   *              without running start-continue-continue-continue.
+   *   - disabled (grey)             — a batch is actively running or
+   *              auto-paused between sessions. Export would give an
+   *              incomplete bundle so we hide the affordance.
+   *   - ready    (red, clickable)   — all 10 sessions finished; the
+   *              full per-session figure set is ready to download.
+   */
+  _updateExportButton() {
+    const btn = document.getElementById('btn-export');
+    if (!btn) return;
+    const total     = this._batchTotalSessions || 10;
+    const sessions  = Array.isArray(this._exportSessions) ? this._exportSessions : [];
+    const completed = sessions.length >= total;
+    const midBatch  = (this._batchRunning === true)
+                   || (this._pendingSession != null);
+
+    btn.classList.remove('idle', 'ready');
+    if (midBatch && !completed) {
+      btn.disabled = true;
+    } else if (completed) {
+      btn.disabled = false;
+      btn.classList.add('ready');
+    } else {
+      btn.disabled = false;
+      btn.classList.add('idle');
     }
   },
 

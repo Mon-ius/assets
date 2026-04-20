@@ -352,6 +352,37 @@ math[display="inline"] { white-space: nowrap; }
   0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--amber) 40%, transparent); }
   50%      { box-shadow: 0 0 0 6px color-mix(in srgb, var(--amber) 0%, transparent); }
 }
+/* Export button state palette. `.idle` — green, the resting state on
+   page load: clickable, bundles whatever config/sessions are in
+   memory. `.ready` — red with a soft pulse, fired only when all 10
+   sessions of a batch have finished. Mid-batch the button carries
+   neither class and relies on the base `:disabled` rule for its
+   greyed-out look. */
+#btn-export.idle {
+  background: var(--green);
+  border-color: var(--green);
+  color: #fff;
+}
+#btn-export.idle:hover {
+  background: color-mix(in srgb, var(--green) 85%, #000);
+  border-color: color-mix(in srgb, var(--green) 85%, #000);
+}
+#btn-export.ready {
+  background: var(--red);
+  border-color: var(--red);
+  color: #fff;
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--red) 40%, transparent);
+  animation: exportReadyPulse 1.6s ease-in-out infinite;
+}
+#btn-export.ready:hover {
+  background: color-mix(in srgb, var(--red) 85%, #000);
+  border-color: color-mix(in srgb, var(--red) 85%, #000);
+  animation: none;
+}
+@keyframes exportReadyPulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--red) 40%, transparent); }
+  50%      { box-shadow: 0 0 0 6px color-mix(in srgb, var(--red) 0%, transparent); }
+}
 .controls .theme-btn {
   width: 32px; height: 32px;
   padding: 0;
