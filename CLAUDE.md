@@ -100,9 +100,9 @@ Invariants that the replay system relies on:
 A single press of Start runs a **10-session batch** — 5 sessions with the
 first selected DLM treatment (T20 or T40) followed by 5 with the other.
 Each *session* is `roundsPerSession` consecutive *rounds* (fixed at
-`R = 4`, the DLM 2005 design). Each round is a complete `T = 10` period
-market that lasts `T × ticksPerPeriod = 180` ticks, so a session is
-`R × T × K = 720` ticks and a full batch is 7 200 ticks.
+`R = 4`, the DLM 2005 design). Each round is a complete `T = 20` period
+market that lasts `T × ticksPerPeriod = 360` ticks, so a session is
+`R × T × K = 1 440` ticks and a full batch is 14 400 ticks.
 
 `App.currentSession` tracks which session is active (1–10); it is set to
 0 between batches and on manual Reset. The per-round data collector in
@@ -287,7 +287,7 @@ by `Logger.logRoundFinalCash` at the end of period `T` of every round.
 
 Fundamental value at the start of period *t* of any round is
 `FV_t = dividendMean × (T − t + 1)` — a staircase from `FV_1 = 100` to
-`FV_T = 10` that resets at every round boundary.
+`FV_T = 5` that resets at every round boundary.
 
 ## Companion directories
 
