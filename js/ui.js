@@ -1840,11 +1840,14 @@ const UI = {
       if (pre.length)  Viz.line(ctx, plot, pre, baseStyle);
       if (post.length) Viz.line(ctx, plot, post, {
         ...baseStyle,
-        // Force dashed + fade the colour so already-dashed reference
-        // lines don't collapse back to "same as pre"; solid data lines
-        // pick up the dash pattern as the primary regime cue.
+        // Thinner, dashed, and heavily faded so the post-swap segment
+        // reads as an unmistakable "ghosted regime" — same metric, but
+        // produced by a roster that now includes fresh inexperienced
+        // traders. A subtle alpha fade isn't enough on dark-mode
+        // backgrounds, so we lean on three cues at once.
         dashed: true,
-        color:  this._fanColor(s.color, s.dashed ? 0.45 : 0.6),
+        width:  Math.max(0.8, (s.width || 1.4) * 0.75),
+        color:  this._fanColor(s.color, 0.30),
       });
     }
 
