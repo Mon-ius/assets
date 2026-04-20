@@ -383,6 +383,22 @@ math[display="inline"] { white-space: nowrap; }
   0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--red) 40%, transparent); }
   50%      { box-shadow: 0 0 0 6px color-mix(in srgb, var(--red) 0%, transparent); }
 }
+/* Single-play horizontal shake — used to warn the user that clicking
+   the green Export button on Plan II/III without an API key is a
+   no-op. The main.js handler removes + re-adds this class to retrigger
+   the animation on every offending click. */
+@keyframes shakeX {
+  0%, 100%               { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90%{ transform: translateX(-5px); }
+  20%, 40%, 60%, 80%     { transform: translateX(5px); }
+}
+.shake-warn {
+  animation: shakeX 0.48s cubic-bezier(0.36, 0.07, 0.19, 0.97) 1;
+}
+.input-key.shake-warn {
+  border-color: var(--red);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--red) 25%, transparent);
+}
 .controls .theme-btn {
   width: 32px; height: 32px;
   padding: 0;

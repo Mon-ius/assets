@@ -2655,13 +2655,25 @@ const App = {
     // full 10-session run with the auto-pause disabled, and tee up
     // the download to fire automatically when the last session ends.
     if (!completed) {
+      // Plan II/III need an API key. Rather than silently no-op, shake
+      // the Export button and the API-key input so the user sees where
+      // to look, and surface the reason through the AI status line.
+      if ((this.plan === 'II' || this.plan === 'III')) {
+        const key = this.aiConfig && (this.aiConfig.apiKey || '').trim();
+        if (!key) {
+          this._setAiStatus(`Plan ${this.plan} requires an API key — enter one above to run the batch.`);
+          this._shakeMissingApiKey();
+          return;
+        }
+      }
       this._autoRunAll            = true;
       this._pendingExportDownload = true;
       this.start();
       if (!this._batchRunning) {
-        // start() bailed out — almost always Plan II/III missing an
-        // API key. Clear the flags so a future Start-Continue run
-        // doesn't unexpectedly auto-download.
+        // Defensive: if some future start() branch bails without
+        // setting _batchRunning (e.g. a new prerequisite check),
+        // clear the flags so a later Start-Continue doesn't surprise-
+        // download.
         this._autoRunAll            = false;
         this._pendingExportDownload = false;
       }
@@ -2815,6 +2827,29 @@ const App = {
    *   - ready    (red, clickable)   — all 10 sessions finished; the
    *              full per-session figure set is ready to download.
    */
+  /**
+   * Visual warning that a green Export click was rejected because
+   * Plan II/III does not have an API key yet. Shakes the Export
+   * button plus any visible API-key inputs (the Plan II and Plan III
+   * panes each have their own; `offsetParent` filters out the one
+   * that is hidden behind the inactive plan gate). The class is
+   * removed and re-added with a forced reflow so a repeated click
+   * re-triggers the animation instead of sitting silent.
+   */
+  _shakeMissingApiKey() {
+    const targets = [];
+    const btn = document.getElementById('btn-export');
+    if (btn) targets.push(btn);
+    document.querySelectorAll('.ai-shared-key').forEach(el => {
+      if (el.offsetParent !== null) targets.push(el);
+    });
+    for (const el of targets) {
+      el.classList.remove('shake-warn');
+      void el.offsetWidth;           // force reflow to restart the animation
+      el.classList.add('shake-warn');
+    }
+  },
+
   _updateExportButton() {
     const btn = document.getElementById('btn-export');
     if (!btn) return;
