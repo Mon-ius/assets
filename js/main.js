@@ -2803,6 +2803,7 @@ const App = {
     this._restoreTickPacing();
     this.engine.pause();
     this._updateExportButton();
+    this._updateStartButton();
     this.requestRender();
   },
 
@@ -2818,11 +2819,23 @@ const App = {
     const btn = document.getElementById('btn-start');
     if (!btn) return;
     if (this._pendingSession != null) {
+      // Auto-paused at a session boundary — amber yellow, clickable.
       const s   = this._pendingSession + 1;            // human 1-based
       const tot = this._batchTotalSessions || 10;
       btn.textContent = '▶ Continue';
       btn.title       = `Session ${this._pendingSession} finished — click to start session ${s} of ${tot}`;
       btn.disabled    = false;
+      btn.classList.add('continue');
+    } else if (this._batchRunning) {
+      // Engine is animating the current session — keep the Continue
+      // label so clicks don't flicker the control back to "Start",
+      // but grey it out and disable it since the only valid next
+      // action is Pause.
+      const cur = this.currentSession || 1;
+      const tot = this._batchTotalSessions || 10;
+      btn.textContent = '▶ Continue';
+      btn.title       = `Session ${cur} of ${tot} running — use Pause to interrupt`;
+      btn.disabled    = true;
       btn.classList.add('continue');
     } else {
       btn.textContent = '▶ Start';

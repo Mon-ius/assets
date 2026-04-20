@@ -348,6 +348,19 @@ math[display="inline"] { white-space: nowrap; }
   border-color: color-mix(in srgb, var(--amber) 80%, #000);
   animation: none;
 }
+/* Disabled Continue state — engine is animating the current session.
+   Swap the amber accent for a flat grey + kill the pulse so the
+   button reads as "Continue, but not clickable right now" instead of
+   flickering back to a fresh-start green/Start label. Override the
+   base :disabled opacity so the grey stays readable. */
+.controls button.primary.continue:disabled {
+  background: var(--fg-3);
+  border-color: var(--fg-3);
+  color: #fff;
+  animation: none;
+  box-shadow: none;
+  opacity: 0.75;
+}
 @keyframes continuePulse {
   0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--amber) 40%, transparent); }
   50%      { box-shadow: 0 0 0 6px color-mix(in srgb, var(--amber) 0%, transparent); }
