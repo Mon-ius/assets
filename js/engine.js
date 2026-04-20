@@ -250,7 +250,8 @@ class Engine {
           const sessionId = (this.ctx && this.ctx.currentSession) | 0;
           if (postAsset && postAsset !== m.assetType) {
             const fromId = m.assetType && m.assetType.id;
-            m.setAsset(postAsset, sessionId, m.round + 1);
+            const engSeed = (this.ctx && this.ctx.seed) | 0;
+            m.setAsset(postAsset, sessionId, m.round + 1, engSeed);
             this.logger.logEvent({
               tick:  m.tick,
               type:  'asset_swap',
@@ -269,7 +270,8 @@ class Engine {
         // path-dependent assets (random walk, jump/crash) restart from
         // FV_1 = 100 every round inside the same session.
         const sessionIdRR = (this.ctx && this.ctx.currentSession) | 0;
-        m.resetAssetForRound(sessionIdRR, m.round);
+        const engSeedRR   = (this.ctx && this.ctx.seed) | 0;
+        m.resetAssetForRound(sessionIdRR, m.round, engSeedRR);
         this.logger.logEvent({ tick: m.tick, type: 'round_start', round: m.round });
       } else if (m.round === (this.config.roundsPerSession || 1) && m.period === this.config.periods) {
         // Final round, final period: capture payoff one last time

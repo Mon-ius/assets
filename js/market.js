@@ -150,30 +150,33 @@ class Market {
    * reads from that path instead of drawing a fresh realisation,
    * which keeps Figure 1's FV overlay and the simulated FV in lockstep.
    */
-  setAsset(assetType, session = 0, round = 1) {
+  setAsset(assetType, session = 0, round = 1, engineSeed = 0) {
     if (!assetType) return;
     this.assetType  = assetType;
     this.assetState = assetType.init(this.config);
-    this._preSamplePath(session, round);
+    this._preSamplePath(session, round, engineSeed);
   }
 
   /** Re-initialise the asset state at a round boundary (within a session). */
-  resetAssetForRound(session = 0, round = this.round) {
+  resetAssetForRound(session = 0, round = this.round, engineSeed = 0) {
     if (!this.assetType) return;
     this.assetState = this.assetType.init(this.config);
-    this._preSamplePath(session, round);
+    this._preSamplePath(session, round, engineSeed);
   }
 
   /* For randomWalk / jumpCrash, overwrite assetState.fv[1..T] with a
-   * deterministic sample realisation keyed by (assetId, session, round).
-   * drawDividend already reads from pre-filled fv[period+1] slots so no
-   * change is needed on the consumer side. No-op on deterministic
-   * assets (init() already fills their fv[] from closed form). */
-  _preSamplePath(session, round) {
+   * deterministic sample realisation keyed by
+   * (assetId, session, round, engineSeed). drawDividend already reads
+   * from pre-filled fv[period+1] slots so no change is needed on the
+   * consumer side. No-op on deterministic assets (init() already fills
+   * their fv[] from closed form). engineSeed comes from ctx.seed and
+   * makes the path vary across Reset/Start cycles; without it the
+   * per-session FV curve is constant across runs. */
+  _preSamplePath(session, round, engineSeed) {
     if (!this.assetType || !this.assetState) return;
     if (typeof preSampleAssetPath !== 'function'
         || typeof assetFvPathSeed !== 'function') return;
-    const seed = assetFvPathSeed(this.assetType.id, session, round);
+    const seed = assetFvPathSeed(this.assetType.id, session, round, engineSeed);
     preSampleAssetPath(this.assetType, this.assetState, this.config, seed);
   }
 

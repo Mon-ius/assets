@@ -84,7 +84,8 @@ const Replay = {
       if (isPathDependent(asset)
           && typeof sampleAssetFvPath === 'function'
           && typeof assetFvPathSeed === 'function') {
-        const seed = assetFvPathSeed(asset.id, session, r);
+        const engSeed = (ctx && ctx.seed) | 0;
+        const seed = assetFvPathSeed(asset.id, session, r, engSeed);
         return sampleAssetFvPath(asset, market.config, seed);
       }
       return deterministicPath(asset);

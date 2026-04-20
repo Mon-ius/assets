@@ -578,20 +578,26 @@ function _assetSampleRng(seed) {
   };
 }
 
-/* Deterministic (assetId, session, round) → 32-bit seed. Both the
- * engine and `_fvByRoundPeriod` derive their per-round seeds through
- * this helper so a path-dependent asset's simulated FV trajectory and
- * the chart overlay trace the same curve. Keep the mixing stable — any
- * change here silently breaks that equivalence. */
-function assetFvPathSeed(assetId, session, round) {
+/* Deterministic (assetId, session, round, engineSeed) → 32-bit seed.
+ * Both the engine and `_fvByRoundPeriod` derive their per-round seeds
+ * through this helper so a path-dependent asset's simulated FV
+ * trajectory and the chart overlay trace the same curve. The engine
+ * seed is mixed in last so each press of Reset / Start (which rolls
+ * a fresh `App.seed`) produces a genuinely new FV path for random
+ * walk and jump/crash — without it, sessions 1..10 and rounds 1..4
+ * are a tiny constant grid and the same orange curve shows up on
+ * every run. Keep the mixing stable — any change here silently
+ * breaks the engine/overlay equivalence. */
+function assetFvPathSeed(assetId, session, round, engineSeed = 0) {
   const id = assetId || 'x';
   let h = 2166136261;
   for (let i = 0; i < id.length; i++) {
     h = Math.imul(h ^ id.charCodeAt(i), 16777619);
   }
-  const s = ((session | 0) + 1) >>> 0;
-  const r = (round | 0) >>> 0;
-  return ((h ^ Math.imul(s, 0x9E3779B1) ^ Math.imul(r, 0x85EBCA6B)) >>> 0) || 1;
+  const s  = ((session | 0) + 1) >>> 0;
+  const r  = (round | 0) >>> 0;
+  const es = (engineSeed >>> 0);
+  return ((h ^ Math.imul(s, 0x9E3779B1) ^ Math.imul(r, 0x85EBCA6B) ^ Math.imul(es, 0xC2B2AE35)) >>> 0) || 1;
 }
 
 /* Mutate an already-init'd assetState so state.fv[1..T] carries a

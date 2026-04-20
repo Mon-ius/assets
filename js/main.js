@@ -1802,7 +1802,7 @@ const App = {
     // no batch is running). Must run before the engine is constructed
     // so the initial snapshot records the right FV path.
     const activeAsset = this._assetForSession(this.currentSession || 1);
-    if (activeAsset) this.market.setAsset(activeAsset, this.currentSession || 1, 1);
+    if (activeAsset) this.market.setAsset(activeAsset, this.currentSession || 1, 1, this.seed);
     // The per-session asset picker now carries a pre/post pair. The
     // engine reads postReplacementAsset off ctx and swaps the market's
     // active asset at the replacement-round boundary; when the two
@@ -1816,6 +1816,12 @@ const App = {
     const agentIds    = Object.keys(this.agents).map(Number);
     this.trustTracker = new TrustTracker(agentIds);
     this.ctx = {
+      // Engine seed — mixed into path-dependent asset RNGs so each
+      // Reset/Start rolls a genuinely new FV curve for random walk
+      // and jump/crash. Market and Replay both read from here to
+      // keep the engine-realised path and the Figure 1 overlay
+      // in lockstep.
+      seed:         this.seed,
       messageBus:   this.messageBus,
       trustTracker: this.trustTracker,
       extended:     this.extendedConfig,

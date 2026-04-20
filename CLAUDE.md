@@ -21,6 +21,18 @@ main.js       App state, control wiring, render scheduling (rAF-coalesced)
 engine.js     Simulation loop + seeded mulberry32 PRNG, dividend draws
   │
 market.js    ─ Order, Trade, OrderBook (price-time priority), Market
+assets.js    ─ Registry of six tradeable asset environments
+                (linear-declining, perpetual, cyclical, random-walk,
+                jump/crash, linear growth). Each spec exports
+                `init(config)`, `fundamentalValue(period, state)`, and
+                `drawDividend(period, state, rng, config, tunables)`.
+                `Market.setAsset()` installs the selected spec at each
+                round boundary; `state` is round-local and discarded on
+                reset. Five of six anchor `FV_1 = 100`; Linear Growth
+                uses a discounted tail-sum that gives `FV_1 ≈ 58.3`.
+                Per-session scheduling lives in `main.js`, driven by
+                Advanced → Session Replacement Rate and Pre/Post Asset
+                & FV Correlation.
 agents.js    ─ Agent base + Fundamentalist/Trend/Random/DLMTrader/Utility +
                 sampling helpers. At runtime all 100 slots are
                 `UtilityAgent`; the F/T/R/DLMTrader classes are retained
@@ -320,3 +332,15 @@ Fundamental value at the start of period *t* of any round is
   `<script>` tags from `index.html`.
 - Match the existing commenting style: module header block explaining the
   role of the file, short inline comments only where the *why* is non-obvious.
+- Canvas colors are driven by CSS custom properties in `styles.css` (the
+  light/dark/auto theme, with domain aliases like `--fv`, `--bubble`,
+  `--volume`, `--bid`, `--ask`). When adding theme-dependent drawing,
+  register the variable there and read it via `getComputedStyle` from
+  `viz.js` so theme toggles flow through without a dedicated re-render path.
+- The root `README.md` is user-facing marketing copy and has drifted from
+  runtime behavior. Specifically: its "Reference configurations" table
+  (6-agent presets like "2 Trend · 2 Random · 1 F · 1 E") and the `(ext.)`
+  chart-panel markers predate the N = 100 scaling. At runtime every slot
+  is a `UtilityAgent`, so those presets aren't reachable and the
+  "extended" panels always render. Trust this file and the current code
+  over the README for runtime behavior.
