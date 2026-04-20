@@ -1552,10 +1552,10 @@ const UI = {
    * but layout + getBoundingClientRect remain valid). The previous
    * selection is restored at the end.
    *
-   * `context` (optional): { phaseLabel, round } — the first is printed
-   * after the identity line so analysts browsing the figures folder
-   * can see whether a PNG was taken before or after the round-R
-   * replacement; the second overrides the captured round number.
+   * `context` (optional): { round } — overrides the captured round
+   * number printed in the identity line. Useful when the caller
+   * wants to pin a specific round label, otherwise the current
+   * `_lastView.round` is used.
    */
   captureAgentComposite(agentId, context) {
     const view = document.getElementById('agent-stats-view');
@@ -1595,7 +1595,7 @@ const UI = {
     cctx.fillStyle = this.theme.bg || '#fff';
     cctx.fillRect(0, 0, totalW, totalH);
 
-    // Identity line: agent ID, name, risk label, capture phase, round.
+    // Identity line: agent ID, name, risk label, captured round.
     cctx.textBaseline = 'top';
     cctx.fillStyle = this.theme.fg1 || this.theme.fg || '#000';
     cctx.font = '13px system-ui, -apple-system, sans-serif';
@@ -1608,7 +1608,6 @@ const UI = {
       agent ? `Agent ${agent.id}` : `Agent ${agentId}`,
       agent && agent.name || null,
       rp || null,
-      context && context.phaseLabel ? context.phaseLabel : null,
       capturedRound != null ? `captured @ round ${capturedRound}` : null,
     ].filter(Boolean);
     cctx.fillText(identParts.join(' · '), pad, pad + 2);
@@ -2040,29 +2039,47 @@ const UI = {
     if (rounds <= 1) return;
     const ticksPerRnd = config.periods * config.ticksPerPeriod;
 
-    // Check whether a replacement actually fired (the event may not
-    // exist yet if the session hasn't reached round 4).
-    const hasReplacement = (v.events || []).some(e => e.type === 'round_4_replacement');
+    // Resolve the replacement event (if any): its treatmentSize tells
+    // us how many inexperienced traders were spliced in, which we
+    // inline into the divider annotation so a single-figure export
+    // conveys the swap magnitude at a glance.
+    const replEvt = (v.events || []).find(e => e.type === 'round_4_replacement');
+    const hasReplacement = !!replEvt;
+    const replCount      = replEvt ? (replEvt.treatmentSize | 0) : 0;
 
     cx.save();
     for (let r = 1; r < rounds; r++) {
       const x = Viz.mapX(rect, r * ticksPerRnd, xMin, xMax);
       if (r === 3 && hasReplacement) {
-        // R3→R4 replacement boundary: dashed red line + label.
+        // R3→R4 replacement boundary: a bold dashed red line with a
+        // soft halo and a label naming the count of fresh traders
+        // spliced in. The halo uses a translucent red fill so the line
+        // reads as "an event" even when the chart is busy behind it.
+        cx.strokeStyle = this._fanColor(this.theme.red, 0.18);
+        cx.lineWidth   = 6;
+        cx.setLineDash([]);
+        cx.beginPath();
+        cx.moveTo(x + 0.5, rect.y);
+        cx.lineTo(x + 0.5, rect.y + rect.h);
+        cx.stroke();
+
         cx.strokeStyle = this.theme.red;
-        cx.lineWidth   = 1.5;
-        cx.setLineDash([5, 3]);
+        cx.lineWidth   = 2.5;
+        cx.setLineDash([7, 4]);
         cx.beginPath();
         cx.moveTo(x + 0.5, rect.y);
         cx.lineTo(x + 0.5, rect.y + rect.h);
         cx.stroke();
         cx.setLineDash([]);
-        // Small annotation at the top.
-        cx.font      = '9px "Helvetica Neue", Helvetica, Arial, sans-serif';
+        // Annotation: how many traders were replaced at this boundary.
+        const label = replCount > 0
+          ? `R4 swap · −${replCount} traders`
+          : 'R4 swap';
+        cx.font      = '10px "Helvetica Neue", Helvetica, Arial, sans-serif';
         cx.fillStyle = this.theme.red;
         cx.textAlign = 'center';
         cx.textBaseline = 'bottom';
-        cx.fillText('R4 swap', x, rect.y - 2);
+        cx.fillText(label, x, rect.y - 2);
       } else {
         // Normal round boundary.
         cx.strokeStyle = this.theme.frame;

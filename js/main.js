@@ -2067,30 +2067,26 @@ const App = {
         // yields the main thread to scroll input between each chunk
         // and lets the browser paint the transitional states.
         this._yield(async () => {
-          // Capture both phases of the session's charts while its
-          // Market + Logger state is still intact; the next
-          // _runBatchSession call would otherwise reset() and wipe
-          // them. `before_replacement` renders the view at the round
-          // boundary right before the treatment fires; `after_replacement`
-          // is the session's final tick.
+          // Capture the session's full chart set exactly once, at its
+          // final tick. The round-R swap point is already annotated on
+          // every chart by _drawRoundDividers (bold dashed red line +
+          // "−N traders" label), so there is no need for a separate
+          // before/after pair of folders.
           const sessionNum = this.currentSession;
           const R          = this.config.roundsPerSession || 1;
           const T          = this.config.periods;
           const K          = this.config.ticksPerPeriod;
-          const replaceR   = this.replacementRound || 4;
-          const tickBefore = Math.max(0, (replaceR - 1) * T * K);
-          const tickAfter  = R * T * K;
+          const tickEnd    = R * T * K;
           try {
-            const before = await this._capturePhaseFigures(tickBefore, 'before replacement');
-            const after  = await this._capturePhaseFigures(tickAfter,  'after replacement');
+            const figs = await this._captureSessionFigures(tickEnd);
             this._exportSessionFigures.push({
-              session: sessionNum, before, after,
+              session: sessionNum,
+              figures: figs,
             });
           } catch (_) {
             this._exportSessionFigures.push({
               session: sessionNum,
-              before:  { main: [], agents: [] },
-              after:   { main: [], agents: [] },
+              figures: { main: [], agents: [] },
             });
           }
           this._exportSessions.push(this._snapshotSession());
@@ -2377,28 +2373,33 @@ const App = {
   },
 
   /**
-   * Capture the main-chart canvases and a per-agent composite at one
-   * phase of a session. `phaseTick` selects the historical state to
-   * render by flipping App into replay mode — so the same routine
-   * drives both "before replacement" (round-R−1 boundary) and
-   * "after replacement" (end-of-session) captures from the same
-   * Market + Logger snapshot pool.
+   * Capture the main-chart canvases and a per-agent composite for a
+   * completed session. `captureTick` should be the final tick of the
+   * session so every round — including the post-replacement one — is
+   * rendered into the charts. The R4 replacement boundary is already
+   * annotated on every chart by _drawRoundDividers, which is why a
+   * single capture per session is enough.
    *
    * Returns { main, agents }:
    *   main   — [{ basename, bytes, manifest }] for every visible
    *            non-stats-panel canvas
    *   agents — [{ basename, bytes, manifest }] one composite PNG per
-   *            agent, filename-encoded with the agent's strategy
+   *            live agent at session end, filename-encoded with the
+   *            agent's strategy, roundsPlayed count, and experience
+   *            status (novice / exp / fresh). Fresh newcomers that
+   *            took over a slot at the round-R swap are marked with
+   *            `fresh` so they stand apart from the surviving
+   *            veterans with the same numeric id.
    */
-  async _capturePhaseFigures(phaseTick, phaseLabel) {
+  async _captureSessionFigures(captureTick) {
     const prevMode = this.replayMode;
     const prevTick = this.replayTick;
     try {
       this.replayMode = true;
-      this.replayTick = phaseTick;
+      this.replayTick = captureTick;
       // Force a synchronous render into every main canvas so toBlob
-      // reads the phase's state, not whatever the UI was showing when
-      // the batch auto-paused.
+      // reads the session-end state, not whatever the UI was showing
+      // when the batch auto-paused.
       this.render();
       await new Promise(r => requestAnimationFrame(
         () => requestAnimationFrame(() => r())));
@@ -2417,25 +2418,22 @@ const App = {
       }
 
       const agents = [];
-      // Iterate the replay-view's agent roster — which reflects who
-      // existed at this phase's tick. For "before replacement" that's
-      // the 100 originals; for "after replacement" it's the 60-80
-      // veterans + 20-40 fresh newcomers (fresh agents don't exist at
-      // the pre-replacement tick, so they are correctly omitted from
-      // the before_replacement/agents/ folder).
+      // Iterate the replay-view's agent roster at session end — 100
+      // slots, made up of the surviving veterans plus the fresh
+      // newcomers that replaced the R4 swap victims. Agents that were
+      // removed at the swap are not rendered (there is no 101st slot);
+      // their prior presence is still visible in the logger's event
+      // stream and in the round-4 mispricing chips on the charts.
       const phaseView = (typeof UI !== 'undefined') ? UI._lastView : null;
       const phaseAgents = (phaseView && phaseView.agents) || this.agents || {};
       const agentIds = Object.keys(phaseAgents)
         .map(id => +id)
         .sort((a, b) => a - b);
-      const isBefore = phaseLabel === 'before replacement';
-      const origSpecs = Array.isArray(this._sessionOriginalSpecs)
-        ? this._sessionOriginalSpecs : null;
       for (const id of agentIds) {
         const vAgent = phaseAgents[id];
         if (!vAgent) continue;
         const comp = (typeof UI !== 'undefined' && typeof UI.captureAgentComposite === 'function')
-          ? UI.captureAgentComposite(id, { phaseLabel }) : null;
+          ? UI.captureAgentComposite(id, {}) : null;
         if (!comp) continue;
         const blob = await new Promise(resolve => {
           try { comp.toBlob(resolve, 'image/png'); }
@@ -2445,17 +2443,13 @@ const App = {
         const bytes = new Uint8Array(await blob.arrayBuffer());
 
         // biasMode isn't in the engine's snapshot (it never changes
-        // during a session), so we fish it out of the right-hand-side
-        // for the phase: the original sample specs for "before"
-        // (pre-replacement biasMode of whoever held that slot), or the
-        // live agent for "after" (post-replacement biasMode, which may
-        // differ for replaced slots).
-        const specEntry = (isBefore && origSpecs)
-          ? origSpecs.find(s => s && (s.id | 0) === id) : null;
+        // during an agent's lifetime), so we read it from the live
+        // agent in that slot — which, post-replacement, may be a
+        // fresh newcomer with a different biasMode than whoever the
+        // session started with. That is the right value for a
+        // session-end figure.
         const liveAgent = this.agents && this.agents[id];
-        const biasSrc   = (isBefore && specEntry && specEntry.biasMode)
-          ? specEntry.biasMode
-          : (liveAgent && liveAgent.biasMode) || 'none';
+        const biasSrc   = (liveAgent && liveAgent.biasMode) || 'none';
 
         const k       = (vAgent.roundsPlayed | 0);
         const isFresh = !!vAgent.replacementFresh;
@@ -2499,9 +2493,10 @@ const App = {
    * a Utility agent's strategy under Plan I: risk preference, prior
    * bias direction, belief-updating mode, and reporting honesty. The
    * experience counter kᵢ and the fresh/exp/novice status live in a
-   * separate filename slot (see `_capturePhaseFigures`) so the same
-   * slot can carry the same strategy across "before" and "after"
-   * captures — only the k / status tokens differ.
+   * separate filename slot (see `_captureSessionFigures`) so a
+   * surviving veteran and the fresh newcomer that replaced a different
+   * slot can share the same strategy token — only the k / status
+   * tokens differ.
    */
   _agentStrategyLabel(agent) {
     if (!agent) return 'unknown';
@@ -2606,22 +2601,24 @@ const App = {
 
     out.push('Zip layout');
     out.push('----------');
-    out.push('  README.txt                                          — this file');
-    out.push('  data.json                                           — machine-readable batch export');
-    out.push('  figures.json                                        — manifest for every captured PNG');
-    out.push('  figures/session_NN/before_replacement/*.png         — main charts at end of round');
-    out.push(`                                                         ${meta.replacementRound - 1} (last pre-replacement tick)`);
-    out.push('  figures/session_NN/before_replacement/agents/*.png  — 6-panel stats composite per agent');
-    out.push('                                                         filename:');
-    out.push('                                                         agent_NNN_k<K>_<status>_<strategy>.png');
-    out.push('                                                         where K = roundsPlayed at capture time,');
-    out.push('                                                         status ∈ {fresh, novice, exp} — "fresh"');
-    out.push('                                                         marks the round-R replacement newcomers');
-    out.push('                                                         so they are easy to tell apart from the');
-    out.push('                                                         surviving veterans (same slot id, different');
-    out.push('                                                         strategy, kᵢ reset to 0).');
-    out.push('  figures/session_NN/after_replacement/*.png          — main charts at end of session');
-    out.push('  figures/session_NN/after_replacement/agents/*.png   — per-agent composites (full session)');
+    out.push('  README.txt                          — this file');
+    out.push('  data.json                           — machine-readable batch export');
+    out.push('  figures.json                        — manifest for every captured PNG');
+    out.push('  figures/session_NN/*.png            — main charts at session end. Every chart');
+    out.push('                                         carries a bold dashed red line at the');
+    out.push(`                                         round-${meta.replacementRound} boundary labelled`);
+    out.push('                                         "R4 swap · −N traders" so the replacement');
+    out.push('                                         event is visible in every figure without');
+    out.push('                                         needing a separate before/after capture.');
+    out.push('  figures/session_NN/agents/*.png     — 6-panel stats composite per agent at');
+    out.push('                                         session end (one per live slot).');
+    out.push('                                         filename:');
+    out.push('                                         agent_NNN_k<K>_<status>_<strategy>.png');
+    out.push('                                         where K = roundsPlayed at capture time,');
+    out.push('                                         status ∈ {fresh, novice, exp}. "fresh"');
+    out.push('                                         marks the round-R replacement newcomers,');
+    out.push('                                         distinguishing them from the surviving');
+    out.push('                                         veterans sharing the same numeric slot.');
     out.push('');
     return out.join('\n');
   },
@@ -2728,9 +2725,9 @@ const App = {
 
       const manifest = [];
       const sessionBuckets = this._exportSessionFigures || [];
-      const addPhase = (sessionNum, phaseKey, phase) => {
-        const folder = `figures/session_${String(sessionNum).padStart(2, '0')}/${phaseKey}`;
-        for (const cap of (phase.main || [])) {
+      const addFigures = (sessionNum, figs) => {
+        const folder = `figures/session_${String(sessionNum).padStart(2, '0')}`;
+        for (const cap of (figs.main || [])) {
           const pathInZip = `${folder}/${cap.basename}`;
           files.push({
             name:     `${base}/${pathInZip}`,
@@ -2738,11 +2735,11 @@ const App = {
             compress: false,
           });
           manifest.push({
-            session: sessionNum, phase: phaseKey, kind: 'chart',
+            session: sessionNum, kind: 'chart',
             file:    pathInZip, ...cap.manifest,
           });
         }
-        for (const cap of (phase.agents || [])) {
+        for (const cap of (figs.agents || [])) {
           const pathInZip = `${folder}/agents/${cap.basename}`;
           files.push({
             name:     `${base}/${pathInZip}`,
@@ -2750,14 +2747,13 @@ const App = {
             compress: false,
           });
           manifest.push({
-            session: sessionNum, phase: phaseKey, kind: 'agent',
+            session: sessionNum, kind: 'agent',
             file:    pathInZip, ...cap.manifest,
           });
         }
       };
       for (const bucket of sessionBuckets) {
-        if (bucket.before) addPhase(bucket.session, 'before_replacement', bucket.before);
-        if (bucket.after)  addPhase(bucket.session, 'after_replacement',  bucket.after);
+        if (bucket.figures) addFigures(bucket.session, bucket.figures);
       }
 
       files.push({
