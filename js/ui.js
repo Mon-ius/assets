@@ -2072,14 +2072,30 @@ const UI = {
         cx.stroke();
         cx.setLineDash([]);
         // Annotation: how many traders were replaced at this boundary.
+        // Large charts have room to paint the label *above* the plot
+        // rectangle; stats-panel sparklines (padT ≈ 10 px, used on the
+        // agent flip-back) don't, so we tuck the label inside the plot
+        // with a translucent backing strip so it stays legible without
+        // clipping against the canvas top edge.
         const label = replCount > 0
           ? `R4 swap · −${replCount} traders`
           : 'R4 swap';
         cx.font      = '10px "Helvetica Neue", Helvetica, Arial, sans-serif';
-        cx.fillStyle = this.theme.red;
         cx.textAlign = 'center';
-        cx.textBaseline = 'bottom';
-        cx.fillText(label, x, rect.y - 2);
+        if (rect.y >= 14) {
+          cx.textBaseline = 'bottom';
+          cx.fillStyle    = this.theme.red;
+          cx.fillText(label, x, rect.y - 2);
+        } else {
+          cx.textBaseline = 'top';
+          const metrics = cx.measureText(label);
+          const bgW = Math.ceil(metrics.width) + 8;
+          const bgX = x - bgW / 2;
+          cx.fillStyle = this._fanColor(this.theme.bg || '#ffffff', 0.9);
+          cx.fillRect(bgX, rect.y + 1, bgW, 12);
+          cx.fillStyle = this.theme.red;
+          cx.fillText(label, x, rect.y + 2);
+        }
       } else {
         // Normal round boundary.
         cx.strokeStyle = this.theme.frame;
