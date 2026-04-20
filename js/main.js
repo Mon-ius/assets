@@ -2384,12 +2384,23 @@ const App = {
       }
 
       const agents = [];
-      const agentIds = Object.keys(this.agents || {})
+      // Iterate the replay-view's agent roster — which reflects who
+      // existed at this phase's tick. For "before replacement" that's
+      // the 100 originals; for "after replacement" it's the 60-80
+      // veterans + 20-40 fresh newcomers (fresh agents don't exist at
+      // the pre-replacement tick, so they are correctly omitted from
+      // the before_replacement/agents/ folder).
+      const phaseView = (typeof UI !== 'undefined') ? UI._lastView : null;
+      const phaseAgents = (phaseView && phaseView.agents) || this.agents || {};
+      const agentIds = Object.keys(phaseAgents)
         .map(id => +id)
         .sort((a, b) => a - b);
-      let idx = 0;
+      const isBefore = phaseLabel === 'before replacement';
+      const origSpecs = Array.isArray(this._sessionOriginalSpecs)
+        ? this._sessionOriginalSpecs : null;
       for (const id of agentIds) {
-        idx++;
+        const vAgent = phaseAgents[id];
+        if (!vAgent) continue;
         const comp = (typeof UI !== 'undefined' && typeof UI.captureAgentComposite === 'function')
           ? UI.captureAgentComposite(id, { phaseLabel }) : null;
         if (!comp) continue;
@@ -2399,22 +2410,44 @@ const App = {
         });
         if (!blob) continue;
         const bytes = new Uint8Array(await blob.arrayBuffer());
-        const live  = this.agents[id];
-        const strat = this._agentStrategyLabel(live);
-        const name  = `agent_${String(id).padStart(3, '0')}_${strat}.png`;
+
+        // biasMode isn't in the engine's snapshot (it never changes
+        // during a session), so we fish it out of the right-hand-side
+        // for the phase: the original sample specs for "before"
+        // (pre-replacement biasMode of whoever held that slot), or the
+        // live agent for "after" (post-replacement biasMode, which may
+        // differ for replaced slots).
+        const specEntry = (isBefore && origSpecs)
+          ? origSpecs.find(s => s && (s.id | 0) === id) : null;
+        const liveAgent = this.agents && this.agents[id];
+        const biasSrc   = (isBefore && specEntry && specEntry.biasMode)
+          ? specEntry.biasMode
+          : (liveAgent && liveAgent.biasMode) || 'none';
+
+        const k       = (vAgent.roundsPlayed | 0);
+        const isFresh = !!vAgent.replacementFresh;
+        const status  = isFresh ? 'fresh' : (k > 0 ? 'exp' : 'novice');
+        const strat   = this._agentStrategyLabel({
+          riskPref:      vAgent.riskPref,
+          biasMode:      biasSrc,
+          beliefMode:    vAgent.beliefMode,
+          deceptionMode: vAgent.deceptionMode,
+        });
+        const name = `agent_${String(id).padStart(3, '0')}_k${k}_${status}_${strat}.png`;
         agents.push({
           basename: name,
           bytes,
           manifest: {
-            agentId:    id,
-            agentName:  live && live.displayName || null,
-            strategy:   strat,
-            riskPref:   live && live.riskPref   || null,
-            biasMode:   live && live.biasMode   || null,
-            beliefMode: live && live.beliefMode || null,
-            deceptionMode: live && live.deceptionMode || null,
-            roundsPlayed: live && live.roundsPlayed | 0,
-            replacementFresh: !!(live && live.replacementFresh),
+            agentId:          id,
+            agentName:        vAgent.name || (liveAgent && liveAgent.displayName) || null,
+            strategy:         strat,
+            riskPref:         vAgent.riskPref      || null,
+            biasMode:         biasSrc              || null,
+            beliefMode:       vAgent.beliefMode    || null,
+            deceptionMode:    vAgent.deceptionMode || null,
+            roundsPlayed:     k,
+            replacementFresh: isFresh,
+            experience:       status,
             width:  comp.width,
             height: comp.height,
           },
@@ -2429,11 +2462,13 @@ const App = {
   },
 
   /**
-   * Short, filename-safe label combining the three fields that define
+   * Short, filename-safe label combining the four fields that define
    * a Utility agent's strategy under Plan I: risk preference, prior
-   * bias direction, belief-updating mode, and reporting honesty. Fed
-   * into per-agent PNG filenames so an analyst can group captures by
-   * strategy straight from `ls`.
+   * bias direction, belief-updating mode, and reporting honesty. The
+   * experience counter kᵢ and the fresh/exp/novice status live in a
+   * separate filename slot (see `_capturePhaseFigures`) so the same
+   * slot can carry the same strategy across "before" and "after"
+   * captures — only the k / status tokens differ.
    */
   _agentStrategyLabel(agent) {
     if (!agent) return 'unknown';
@@ -2443,7 +2478,6 @@ const App = {
       'blf'  + ((agent.beliefMode    || 'naive').replace(/[^a-z]/gi, '')),
       'dec'  + ((agent.deceptionMode || 'honest').replace(/[^a-z]/gi, '')),
     ];
-    if (agent.replacementFresh) parts.push('fresh');
     return parts.join('-').toLowerCase();
   },
 
@@ -2545,7 +2579,14 @@ const App = {
     out.push('  figures/session_NN/before_replacement/*.png         — main charts at end of round');
     out.push(`                                                         ${meta.replacementRound - 1} (last pre-replacement tick)`);
     out.push('  figures/session_NN/before_replacement/agents/*.png  — 6-panel stats composite per agent');
-    out.push('                                                         filename: agent_NNN_<strategy>.png');
+    out.push('                                                         filename:');
+    out.push('                                                         agent_NNN_k<K>_<status>_<strategy>.png');
+    out.push('                                                         where K = roundsPlayed at capture time,');
+    out.push('                                                         status ∈ {fresh, novice, exp} — "fresh"');
+    out.push('                                                         marks the round-R replacement newcomers');
+    out.push('                                                         so they are easy to tell apart from the');
+    out.push('                                                         surviving veterans (same slot id, different');
+    out.push('                                                         strategy, kᵢ reset to 0).');
     out.push('  figures/session_NN/after_replacement/*.png          — main charts at end of session');
     out.push('  figures/session_NN/after_replacement/agents/*.png   — per-agent composites (full session)');
     out.push('');
