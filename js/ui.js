@@ -1489,6 +1489,88 @@ const UI = {
   },
 
   /**
+   * Render the 6-panel stats composite for `agentId` against the
+   * currently-loaded view (UI._lastView) and return a single composite
+   * canvas (title row on top, 2×3 grid of mini-charts). Used by the
+   * Export flow to emit one PNG per agent per phase without having to
+   * visually flip the agents card to each agent in turn.
+   *
+   * Reuses `_renderAgentStatsView` by pointing `_statsViewAgentId` at
+   * the target agent and letting the existing per-panel renderer paint
+   * into the stats-panel canvases (which already live in the DOM on
+   * the flip-back — `backface-visibility: hidden` hides them visually
+   * but layout + getBoundingClientRect remain valid). The previous
+   * selection is restored at the end.
+   */
+  captureAgentComposite(agentId) {
+    const view = document.getElementById('agent-stats-view');
+    if (!view) return null;
+    const prev = this._statsViewAgentId;
+    this._statsViewAgentId = agentId;
+    this._renderAgentStatsView();
+
+    const panels = Array.from(view.querySelectorAll('.stats-panel'));
+    const items  = panels.map(p => ({
+      canvas: p.querySelector('canvas'),
+      title:  (p.querySelector('figcaption') || {}).textContent || '',
+    })).filter(x => x.canvas && x.canvas.width > 0 && x.canvas.height > 0);
+    if (!items.length) {
+      this._statsViewAgentId = prev;
+      if (prev != null) this._renderAgentStatsView();
+      return null;
+    }
+
+    const agent = (this._lastView && this._lastView.agents || {})[agentId];
+    const dpr   = window.devicePixelRatio || 1;
+    const w0    = items[0].canvas.width  / dpr;
+    const h0    = items[0].canvas.height / dpr;
+    const cols  = 2;
+    const rows  = Math.ceil(items.length / cols);
+    const pad   = 10;
+    const titleH = 28;
+    const capH   = 16;
+    const totalW = cols * w0 + (cols + 1) * pad;
+    const totalH = titleH + rows * (h0 + capH) + (rows + 1) * pad;
+
+    const comp = document.createElement('canvas');
+    comp.width  = Math.round(totalW * dpr);
+    comp.height = Math.round(totalH * dpr);
+    const cctx  = comp.getContext('2d');
+    cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cctx.fillStyle = this.theme.bg || '#fff';
+    cctx.fillRect(0, 0, totalW, totalH);
+
+    cctx.textBaseline = 'top';
+    cctx.fillStyle = this.theme.fg1 || this.theme.fg || '#000';
+    cctx.font = '13px system-ui, -apple-system, sans-serif';
+    const rp = agent && agent.riskPref
+      ? (UI._riskLabel[agent.riskPref] || agent.riskPref) : '';
+    const titleParts = [
+      agent ? `Agent ${agent.id}` : `Agent ${agentId}`,
+      agent && agent.name || null,
+      rp || null,
+      agent && agent.roundsPlayed != null ? `R${agent.roundsPlayed}` : null,
+    ].filter(Boolean);
+    cctx.fillText(titleParts.join(' · '), pad, pad + 4);
+
+    items.forEach((it, i) => {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const x = pad + col * (w0 + pad);
+      const y = titleH + pad + row * (h0 + capH + pad);
+      cctx.fillStyle = this.theme.fg2 || this.theme.label || '#666';
+      cctx.font = '11px system-ui, -apple-system, sans-serif';
+      const cap = it.title.replace(/\s+/g, ' ').trim();
+      cctx.fillText(cap, x, y);
+      cctx.drawImage(it.canvas, x, y + capH, w0, h0);
+    });
+
+    this._statsViewAgentId = prev;
+    if (prev != null) this._renderAgentStatsView();
+    return comp;
+  },
+
+  /**
    * Fill the back-face "Agent model" panel with the model-based
    * formulation the agent is actually running for the round's active
    * asset. Text comes from `ASSET_AGENT_TEMPLATES` (assets.js) plus the

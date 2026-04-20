@@ -2047,15 +2047,31 @@ const App = {
         // yields the main thread to scroll input between each chunk
         // and lets the browser paint the transitional states.
         this._yield(async () => {
-          // Capture the session's charts while their canvases still
-          // carry this session's data — the next _runBatchSession call
-          // would otherwise reset() and wipe them.
+          // Capture both phases of the session's charts while its
+          // Market + Logger state is still intact; the next
+          // _runBatchSession call would otherwise reset() and wipe
+          // them. `before_replacement` renders the view at the round
+          // boundary right before the treatment fires; `after_replacement`
+          // is the session's final tick.
           const sessionNum = this.currentSession;
+          const R          = this.config.roundsPerSession || 1;
+          const T          = this.config.periods;
+          const K          = this.config.ticksPerPeriod;
+          const replaceR   = this.replacementRound || 4;
+          const tickBefore = Math.max(0, (replaceR - 1) * T * K);
+          const tickAfter  = R * T * K;
           try {
-            const figs = await this._captureSessionFigures();
-            this._exportSessionFigures.push({ session: sessionNum, figures: figs });
+            const before = await this._capturePhaseFigures(tickBefore);
+            const after  = await this._capturePhaseFigures(tickAfter);
+            this._exportSessionFigures.push({
+              session: sessionNum, before, after,
+            });
           } catch (_) {
-            this._exportSessionFigures.push({ session: sessionNum, figures: [] });
+            this._exportSessionFigures.push({
+              session: sessionNum,
+              before:  { main: [], agents: [] },
+              after:   { main: [], agents: [] },
+            });
           }
           this._exportSessions.push(this._snapshotSession());
           // Auto-pause at every session boundary: mark the next
@@ -2328,25 +2344,107 @@ const App = {
   },
 
   /**
-   * Snapshot every visible chart canvas into an array of capture objects.
-   * Called once per session at the onEnd boundary, while the DOM still
-   * reflects that session's final tick. Waits a double rAF so any render
-   * queued by engine.onEnd has actually landed on the canvases before
-   * toBlob() reads them.
+   * Capture the main-chart canvases and a per-agent composite at one
+   * phase of a session. `phaseTick` selects the historical state to
+   * render by flipping App into replay mode — so the same routine
+   * drives both "before replacement" (round-R−1 boundary) and
+   * "after replacement" (end-of-session) captures from the same
+   * Market + Logger snapshot pool.
+   *
+   * Returns { main, agents }:
+   *   main   — [{ basename, bytes, manifest }] for every visible
+   *            non-stats-panel canvas
+   *   agents — [{ basename, bytes, manifest }] one composite PNG per
+   *            agent, filename-encoded with the agent's strategy
    */
-  async _captureSessionFigures() {
-    await new Promise(r => requestAnimationFrame(
-      () => requestAnimationFrame(() => r())));
-    const canvases = Array.from(document.querySelectorAll('canvas'));
-    const out = [];
-    let captured = 0;
-    for (const c of canvases) {
-      const cap = await this._captureCanvas(c, captured + 1);
-      if (!cap) continue;
-      captured++;
-      out.push(cap);
+  async _capturePhaseFigures(phaseTick) {
+    const prevMode = this.replayMode;
+    const prevTick = this.replayTick;
+    try {
+      this.replayMode = true;
+      this.replayTick = phaseTick;
+      // Force a synchronous render into every main canvas so toBlob
+      // reads the phase's state, not whatever the UI was showing when
+      // the batch auto-paused.
+      this.render();
+      await new Promise(r => requestAnimationFrame(
+        () => requestAnimationFrame(() => r())));
+
+      const main = [];
+      let captured = 0;
+      const canvases = Array.from(document.querySelectorAll('canvas'));
+      for (const c of canvases) {
+        // Skip the 6 stats-panel canvases — they'll be drawn one
+        // agent at a time below.
+        if (c.closest('#agent-stats-view')) continue;
+        const cap = await this._captureCanvas(c, captured + 1);
+        if (!cap) continue;
+        captured++;
+        main.push(cap);
+      }
+
+      const agents = [];
+      const agentIds = Object.keys(this.agents || {})
+        .map(id => +id)
+        .sort((a, b) => a - b);
+      let idx = 0;
+      for (const id of agentIds) {
+        idx++;
+        const comp = (typeof UI !== 'undefined' && typeof UI.captureAgentComposite === 'function')
+          ? UI.captureAgentComposite(id) : null;
+        if (!comp) continue;
+        const blob = await new Promise(resolve => {
+          try { comp.toBlob(resolve, 'image/png'); }
+          catch (_) { resolve(null); }
+        });
+        if (!blob) continue;
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        const live  = this.agents[id];
+        const strat = this._agentStrategyLabel(live);
+        const name  = `agent_${String(id).padStart(3, '0')}_${strat}.png`;
+        agents.push({
+          basename: name,
+          bytes,
+          manifest: {
+            agentId:    id,
+            agentName:  live && live.displayName || null,
+            strategy:   strat,
+            riskPref:   live && live.riskPref   || null,
+            biasMode:   live && live.biasMode   || null,
+            beliefMode: live && live.beliefMode || null,
+            deceptionMode: live && live.deceptionMode || null,
+            roundsPlayed: live && live.roundsPlayed | 0,
+            replacementFresh: !!(live && live.replacementFresh),
+            width:  comp.width,
+            height: comp.height,
+          },
+        });
+      }
+      return { main, agents };
+    } finally {
+      this.replayMode = prevMode;
+      this.replayTick = prevTick;
+      this.render();
     }
-    return out;
+  },
+
+  /**
+   * Short, filename-safe label combining the three fields that define
+   * a Utility agent's strategy under Plan I: risk preference, prior
+   * bias direction, belief-updating mode, and reporting honesty. Fed
+   * into per-agent PNG filenames so an analyst can group captures by
+   * strategy straight from `ls`.
+   */
+  _agentStrategyLabel(agent) {
+    if (!agent) return 'unknown';
+    const parts = [
+      agent.riskPref      || 'neutral',
+      'bias' + ((agent.biasMode      || 'none').replace(/[^a-z]/gi, '')),
+      'blf'  + ((agent.beliefMode    || 'naive').replace(/[^a-z]/gi, '')),
+      'dec'  + ((agent.deceptionMode || 'honest').replace(/[^a-z]/gi, '')),
+    ];
+    if (agent.replacementFresh) parts.push('fresh');
+    return parts.join('-').toLowerCase();
   },
 
   /**
@@ -2441,11 +2539,15 @@ const App = {
 
     out.push('Zip layout');
     out.push('----------');
-    out.push('  README.txt              — this file');
-    out.push('  data.json               — full machine-readable batch export');
-    out.push('  figures.json            — manifest for every captured PNG');
-    out.push('  figures/session_NN/     — HiDPI chart PNGs captured at the');
-    out.push('                            end of session NN (1..10)');
+    out.push('  README.txt                                          — this file');
+    out.push('  data.json                                           — machine-readable batch export');
+    out.push('  figures.json                                        — manifest for every captured PNG');
+    out.push('  figures/session_NN/before_replacement/*.png         — main charts at end of round');
+    out.push(`                                                         ${meta.replacementRound - 1} (last pre-replacement tick)`);
+    out.push('  figures/session_NN/before_replacement/agents/*.png  — 6-panel stats composite per agent');
+    out.push('                                                         filename: agent_NNN_<strategy>.png');
+    out.push('  figures/session_NN/after_replacement/*.png          — main charts at end of session');
+    out.push('  figures/session_NN/after_replacement/agents/*.png   — per-agent composites (full session)');
     out.push('');
     return out.join('\n');
   },
@@ -2486,17 +2588,36 @@ const App = {
 
       const manifest = [];
       const sessionBuckets = this._exportSessionFigures || [];
-      for (const bucket of sessionBuckets) {
-        const folder = `figures/session_${String(bucket.session).padStart(2, '0')}`;
-        for (const cap of (bucket.figures || [])) {
+      const addPhase = (sessionNum, phaseKey, phase) => {
+        const folder = `figures/session_${String(sessionNum).padStart(2, '0')}/${phaseKey}`;
+        for (const cap of (phase.main || [])) {
           const pathInZip = `${folder}/${cap.basename}`;
           files.push({
             name:     `${base}/${pathInZip}`,
             data:     cap.bytes,
             compress: false,
           });
-          manifest.push({ session: bucket.session, file: pathInZip, ...cap.manifest });
+          manifest.push({
+            session: sessionNum, phase: phaseKey, kind: 'chart',
+            file:    pathInZip, ...cap.manifest,
+          });
         }
+        for (const cap of (phase.agents || [])) {
+          const pathInZip = `${folder}/agents/${cap.basename}`;
+          files.push({
+            name:     `${base}/${pathInZip}`,
+            data:     cap.bytes,
+            compress: false,
+          });
+          manifest.push({
+            session: sessionNum, phase: phaseKey, kind: 'agent',
+            file:    pathInZip, ...cap.manifest,
+          });
+        }
+      };
+      for (const bucket of sessionBuckets) {
+        if (bucket.before) addPhase(bucket.session, 'before_replacement', bucket.before);
+        if (bucket.after)  addPhase(bucket.session, 'after_replacement',  bucket.after);
       }
 
       files.push({
