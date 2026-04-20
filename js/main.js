@@ -1732,9 +1732,11 @@ const App = {
         this._pendingSession = null;
         this._updateStartButton();
       }
-      this._exportSessions       = [];
-      this._exportSessionFigures = [];
-      this.batchResults          = [];
+      this._exportSessions        = [];
+      this._exportSessionFigures  = [];
+      this.batchResults           = [];
+      this._autoRunAll            = false;
+      this._pendingExportDownload = false;
     }
     this.rebuild();
     this._updateExportButton();
@@ -1978,9 +1980,19 @@ const App = {
       this.currentSession  = 0;
       this.treatmentSize   = this._rateToTreatment(rates[0]);
       console.table(this.batchResults);
+      const autoDownload   = !!this._pendingExportDownload;
+      this._autoRunAll             = false;
+      this._pendingExportDownload  = false;
       this._updateExportButton();
       this._updateStartButton();
       this.requestRender();
+      // If this batch was kicked off by the green Export button, fire
+      // the download now that every session's figures are captured.
+      // Scheduled on the next frame so the button's red "ready" state
+      // paints once before the bundling overlay takes over.
+      if (autoDownload) {
+        requestAnimationFrame(() => { this.exportBatch(); });
+      }
       return;
     }
       // Rates are fractions in [0.1, 0.5]; the engine consumes an
@@ -2088,7 +2100,11 @@ const App = {
           // fresh batch. The final session falls through to the
           // s >= SESSIONS branch of _runBatchSession and exits
           // the batch cleanly.
-          if (s + 1 >= SESSIONS) {
+          if (s + 1 >= SESSIONS || this._autoRunAll) {
+            // Chain straight into the next session. The Continue-hint
+            // auto-pause is skipped when the green Export button kicked
+            // off this batch — the user asked for a one-shot run, not
+            // a guided 10-step tour.
             this._runBatchSession(s + 1);
           } else {
             this._batchRunning   = false;
@@ -2625,6 +2641,35 @@ const App = {
    * canvas.toBlob + CompressionStream both resolve via promises.
    */
   async exportBatch() {
+    const total     = this._batchTotalSessions || 10;
+    const sessions  = Array.isArray(this._exportSessions) ? this._exportSessions : [];
+    const completed = sessions.length >= total;
+    const midBatch  = (this._batchRunning === true)
+                   || (this._pendingSession != null);
+
+    // Mid-batch clicks (should be gated by disabled button, but guard
+    // anyway): nothing sensible to do — the batch is still in flight.
+    if (midBatch && !completed) return;
+
+    // Green-state click: no batch has finished yet. Kick off a
+    // full 10-session run with the auto-pause disabled, and tee up
+    // the download to fire automatically when the last session ends.
+    if (!completed) {
+      this._autoRunAll            = true;
+      this._pendingExportDownload = true;
+      this.start();
+      if (!this._batchRunning) {
+        // start() bailed out — almost always Plan II/III missing an
+        // API key. Clear the flags so a future Start-Continue run
+        // doesn't unexpectedly auto-download.
+        this._autoRunAll            = false;
+        this._pendingExportDownload = false;
+      }
+      return;
+    }
+
+    // Red-state click (or auto-fire from _runBatchSession at the end
+    // of a green-triggered batch): bundle and download.
     const data = this._buildBatchExport();
     if (!data) return;
 
@@ -2721,7 +2766,12 @@ const App = {
 
 
   pause() {
-    this._batchRunning = false;
+    this._batchRunning          = false;
+    // Manual pause cancels any auto-run-and-download that was in
+    // flight — otherwise a future Start would unexpectedly boot a
+    // fresh batch with the download still armed.
+    this._autoRunAll            = false;
+    this._pendingExportDownload = false;
     this.engine.pause();
     this._updateExportButton();
     this.requestRender();

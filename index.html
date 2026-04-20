@@ -57,7 +57,7 @@
     <button id="btn-start" class="primary">▶ Start</button>
     <button id="btn-pause">⏸ Pause</button>
     <button id="btn-reset" title="Roll a new random seed and redraw the population">↺ Reset</button>
-    <button id="btn-export" class="idle" title="Download a timestamped zip: README.txt + data.json + per-session HiDPI chart PNGs. Green = ready (exports current config even before a batch runs); grey = a batch is in progress; red = all 10 sessions finished, full bundle ready.">⬇ Export</button>
+    <button id="btn-export" class="idle" title="Download a timestamped zip: README.txt + data.json + per-session HiDPI chart PNGs. Green = click to auto-run all 10 sessions and download when they finish (no Start/Continue chain needed); grey = a batch is in progress; red = batch finished, click to re-download the bundle.">⬇ Export</button>
     <button id="btn-theme" class="theme-btn" title="Toggle theme (auto / light / dark)" aria-label="Toggle theme">◑</button>
   </div>
 </header>
@@ -2479,6 +2479,6 @@ Action Rules
 <script data-cfasync="false" src="js/ui.js?v=36"></script>
 <script data-cfasync="false" src="js/replay.js?v=24"></script>
 <script data-cfasync="false" src="js/ziputil.js?v=1"></script>
-<script data-cfasync="false" src="js/main.js?v=36"></script>
+<script data-cfasync="false" src="js/main.js?v=37"></script>
 </body>
 </html>
