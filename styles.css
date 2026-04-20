@@ -1102,12 +1102,12 @@ body:not(.plan-iii) .plan-iii-only { display: none !important; }
 
 /* Per-tile tooltip — same look as the .param-row tip but scoped to
    an individual .dlm-treatment-opt, so Prior Bias / Prior Noise /
-   Complex Dividends / Regulator each surface their own explanation
-   on hover even though the data-tip lives on the inner tile (two
-   tiles sharing one .param-row means the row-level tip can't be
-   used). Suppressed when the element also declares data-tip-id so
-   the JS rich tooltip is the single source. Falls back to the shared
-   mobile disable rule below. */
+   Regulator each surface their own explanation on hover even though
+   the data-tip lives on the inner tile (two tiles sharing one
+   .param-row means the row-level tip can't be used). Suppressed
+   when the element also declares data-tip-id so the JS rich tooltip
+   is the single source. Falls back to the shared mobile disable
+   rule below. */
 .dlm-treatment-opt[data-tip] { position: relative; }
 .dlm-treatment-opt[data-tip-id]::after { display: none !important; }
 .dlm-treatment-opt[data-tip]::after {
@@ -1381,22 +1381,8 @@ body:not(.plan-iii) .plan-iii-only { display: none !important; }
   background: color-mix(in srgb, var(--blue, #3b82f6) 10%, var(--bg-1));
   color: var(--fg-0);
 }
-/* Per-option accent overrides in the Advanced settings panel.
-   "Complex Dividends" gets purple to mark the bounded-rationality
-   dividend distribution. The population-scale slider tile uses the
-   shared .scale-tile rules further below (teal accent). */
-.dlm-treatment-opt:has(#p-applyComplexDividends):hover {
-  border-color: var(--purple);
-}
-.dlm-treatment-opt:has(#p-applyComplexDividends:checked) {
-  border-color: var(--purple);
-  background: color-mix(in srgb, var(--purple) 12%, var(--bg-1));
-}
-.dlm-treatment-opt:has(#p-applyComplexDividends:checked) .slide-track {
-  background: var(--purple);
-}
-/* Regulator tile — same outer shape as the Complex Dividends and
-   Prior Bias / Prior Noise tiles (.dlm-treatment-opt) so the row
+/* Regulator tile — same outer shape as the Prior Bias / Prior Noise
+   tiles (.dlm-treatment-opt) so the row
    sits visually flush with its siblings, but laid out as a stack
    (label + readout on top, slider below) so the threshold control
    reads as one unit. The header reuses .param-head / .pval exactly

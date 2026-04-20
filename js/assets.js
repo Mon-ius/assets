@@ -52,27 +52,6 @@ function normalDraw(rng, mean = 0, sigma = 1) {
   return mean + sigma * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
 }
 
-/* Complex-dividend distribution — five-point mean-preserving spread of
- * the Asset 1 coin flip, E[d] = 5. Only Asset 1 honours the Advanced
- * → Complex Dividends toggle; every other asset ignores it. */
-const COMPLEX_LINEAR_DIVIDENDS = [
-  { value:  0, prob: 0.30 },
-  { value:  2, prob: 0.25 },
-  { value:  5, prob: 0.20 },
-  { value: 10, prob: 0.15 },
-  { value: 20, prob: 0.10 },
-];
-
-function drawFromDistribution(rng, buckets) {
-  const r = rng();
-  let acc = 0;
-  for (const b of buckets) {
-    acc += b.prob;
-    if (r < acc) return b.value;
-  }
-  return buckets[buckets.length - 1].value;
-}
-
 /**
  * Asset 1 — Linear Declining (the DLM baseline, scaled to T=20).
  * FV_t = 5 · (T − t + 1), so FV_1 = 100, FV_20 = 5.
@@ -112,10 +91,7 @@ const ASSET_LINEAR_DECLINING = {
       narrative: 0,
     };
   },
-  drawDividend(period, state, rng, config, tunables) {
-    if (tunables && tunables.applyComplexDividends) {
-      return drawFromDistribution(rng, COMPLEX_LINEAR_DIVIDENDS);
-    }
+  drawDividend(period, state, rng /*, config, tunables */) {
     return rng() < 0.5 ? 10 : 0;
   },
 };

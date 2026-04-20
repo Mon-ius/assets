@@ -162,24 +162,23 @@ The engine and agents read from `ctx.tunables` when present and fall back to
 `UTILITY_DEFAULTS` via the `tunable()` helper when a key is missing — so
 tunables that aren't exposed as sliders still have a safe default.
 
-The Advanced settings panel exposes three boolean toggles — **Prior
-Bias**, **Prior Noise**, and **Complex Dividends** — wired to
-`App.tunables.applyBias` / `App.tunables.applyNoise` /
-`App.tunables.applyComplexDividends`, plus a single **Regulator**
-slider (0–100%) gated by the `.plan-llm-only` CSS class so it only
-renders when the body carries `plan-ii` or `plan-iii`. The slider
-value drives both `App.tunables.regulatorThreshold` (= value/100) and
+The Advanced settings panel exposes two boolean toggles — **Prior
+Bias** and **Prior Noise** — wired to `App.tunables.applyBias` and
+`App.tunables.applyNoise`, plus a single **Regulator** slider (0–100%)
+gated by the `.plan-llm-only` CSS class so it only renders when the
+body carries `plan-ii` or `plan-iii`. The slider value drives both
+`App.tunables.regulatorThreshold` (= value/100) and
 `App.tunables.applyRegulator` (= value > 0); zero is the canonical
 disabled state and is also the default, so a fresh load posts no
-regulator interventions until the user moves the slider. Prior Bias and Prior Noise act on
-the prior: it becomes `FV̂ × (1 + bias + noise)` where `bias` is the
-agent's persistent `biasMode × biasAmount` tilt and `noise` is an
-i.i.d. per-tick draw from `U[-valuationNoise, +valuationNoise]`.
-When all three are off the prior collapses to the exact FV (pure
-Plan I baseline). Toggle state is captured in every engine snapshot
-and surfaces in the reasoning trace (`biasActive`, `noiseActive`,
-`complexActive`), the replay view (`v.tunables`), and the Plan II/III
-LLM prompt (under "YOUR PRIVATE STATE").
+regulator interventions until the user moves the slider. Prior Bias
+and Prior Noise act on the prior: it becomes `FV̂ × (1 + bias + noise)`
+where `bias` is the agent's persistent `biasMode × biasAmount` tilt
+and `noise` is an i.i.d. per-tick draw from
+`U[-valuationNoise, +valuationNoise]`. When both are off the prior
+collapses to the exact FV (pure Plan I baseline). Toggle state is
+captured in every engine snapshot and surfaces in the reasoning trace
+(`biasActive`, `noiseActive`), the replay view (`v.tunables`), and
+the Plan II/III LLM prompt (under "YOUR PRIVATE STATE").
 
 **Regulator** is a Plan II/III feature: when the slider value > 0 the
 engine computes the bubble ratio `|P_t − FV_t| / FV_t` at every period
@@ -196,25 +195,6 @@ payoff has not changed. Plan I has no LLM channel, so under Plan I the
 toggle is recorded in the snapshot but does not change agent behavior;
 the warning event still fires so a replay shows where the regulator
 *would* have intervened.
-
-**Complex Dividends** replaces the paper's `{0, 20}¢` coin flip with a
-5-point distribution `{0, 4, 10, 20, 40}¢` with probabilities
-`{0.30, 0.25, 0.20, 0.15, 0.10}`. The expected dividend is still
-`μ_d = 10¢` so the true FV_t is unchanged, but the weighted sum is
-non-trivial to read off the table. This models bounded rationality:
-when the toggle is ON each `UtilityAgent.updateBelief` stops using
-the exact FV and instead forms `FV̂_t = μ̂_i · (T − t + 1)` where
-`μ̂_i = x̄_n · (1 + ξ_i)`, `x̄_n` is the agent's empirical mean of
-the dividends it has actually observed (filtered by `roundsPlayed`
-so round-4 fresh replacements start with an empty sample), and
-`ξ_i ~ U[-σ_n, +σ_n]` with `σ_n = 0.35/√(n+1)` is a per-tick
-computational-noise term that shrinks as samples accumulate. A
-novice with zero draws is off by up to ±35%; a veteran with many
-draws converges to the truth — exactly the "experience kills the
-bubble" channel DLM documents, here given a computational
-interpretation. The distribution constant lives in
-`COMPLEX_DIVIDEND_DISTRIBUTION` in `js/market.js`; `Market.payDividend`
-reads the tunable off `ctx` and switches draws accordingly.
 
 The **Risk preferences** subsection uses three linked sliders
 (α<sub>L</sub>/α<sub>N</sub>/α<sub>A</sub>) that always sum to 100 and drive

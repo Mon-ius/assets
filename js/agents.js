@@ -671,40 +671,8 @@ class UtilityAgent extends Agent {
       : market.fundamentalValue();
     const plan = (ctx && ctx.plan) || 'I';
 
-    // Bounded-rationality FV estimate (Advanced → "Complex Dividends").
-    // When that toggle is ON the dividend draws come from a non-trivial
-    // 5-point distribution whose mean happens to still be μ_d — but the
-    // agent does *not* get to use the true mean. Instead it estimates
-    // μ̂_i from its own empirical dividend history (filtered to rounds
-    // it has actually observed, so a fresh round-4 replacement starts
-    // with an empty sample) plus a per-tick computational-noise term
-    // ξ ~ U[−σ_n, +σ_n] with σ_n = 0.35/√(n+1). A novice with zero
-    // draws is off by up to ±35%; a veteran with many draws converges
-    // on the true mean. The subjective FV used for the prior is then
-    // FV̂_t = μ̂_i · (T − t + 1), mirroring the paper's backward
-    // induction but anchored to the agent's finite-sample belief.
-    const useComplex = !!(ctx && ctx.tunables && ctx.tunables.applyComplexDividends);
-    let fvEffective = fv;
-    if (useComplex) {
-      const divHist   = market.dividendHistory || [];
-      const firstSeen = market.round - (this.roundsPlayed | 0);
-      let sum = 0, n = 0;
-      for (let i = 0; i < divHist.length; i++) {
-        if (divHist[i].round >= firstSeen) { sum += divHist[i].value; n++; }
-      }
-      const sampleMean = n > 0 ? sum / n : market.config.dividendMean;
-      const sigma      = 0.35 / Math.sqrt(n + 1);
-      const compNoise  = sigma * (2 * rng() - 1);
-      const muHat      = Math.max(0, sampleMean * (1 + compNoise));
-      const remaining  = Math.max(0, market.config.periods - market.period + 1);
-      fvEffective      = muHat * remaining;
-    }
-
     // v3 §7 implementation flow:
-    //   Step 1 — FṼ_{i,t} (model-based value). Already in fvEffective:
-    //            fv for the deterministic default and the
-    //            bounded-rationality empirical estimate when Complex
-    //            Dividends is on.
+    //   Step 1 — FṼ_{i,t} (model-based value) from `fv` above.
     //   Step 2 — prior = α_i · FṼ + (1 − α_i) · H + ε_i, where
     //            H is the §4 four-term heuristic and ε_i ~ N(0, σ_i²).
     //            Experience factors (α_i, σ_i, ω_i) are taken from
@@ -735,7 +703,7 @@ class UtilityAgent extends Agent {
     // The full breakdown is stashed on the reasoning trace below.
     const heur = (typeof heuristicValue === 'function')
       ? heuristicValue(this, market, ctx)
-      : { H: fvEffective, anchor: fvEffective, trend: 0, dividend: 0, narrative: 0 };
+      : { H: fv, anchor: fv, trend: 0, dividend: 0, narrative: 0 };
 
     const useBias  = ctx && ctx.tunables && ctx.tunables.applyBias;
     const useNoise = ctx && ctx.tunables && ctx.tunables.applyNoise;
@@ -747,7 +715,7 @@ class UtilityAgent extends Agent {
     const epsilon = useNoise && typeof gaussianDraw === 'function'
       ? gaussianDraw(rng, expFactor.sigma)
       : 0;
-    const priorBlend = expFactor.alpha * fvEffective
+    const priorBlend = expFactor.alpha * fv
                      + (1 - expFactor.alpha) * heur.H;
     const prior = Math.max(0, priorBlend * (1 + bias) + epsilon);
     this.trueValuation = prior;
@@ -790,7 +758,7 @@ class UtilityAgent extends Agent {
     this.subjectiveValuation = Math.max(0, subjective);
     // Stash the §7 breakdown for the reasoning trace + UI.
     this._lastBelief = {
-      fvTilde:   fvEffective,
+      fvTilde:   fv,
       heuristic: heur,
       alpha:     expFactor.alpha,
       sigma:     expFactor.sigma,
@@ -948,7 +916,6 @@ class UtilityAgent extends Agent {
       },
       biasActive:    !!(ctx && ctx.tunables && ctx.tunables.applyBias),
       noiseActive:   !!(ctx && ctx.tunables && ctx.tunables.applyNoise),
-      complexActive: !!(ctx && ctx.tunables && ctx.tunables.applyComplexDividends),
       biasMode:      this.biasMode,
       biasAmount:    this.biasAmount,
       beliefMode:    this.beliefMode,
@@ -1007,7 +974,6 @@ class UtilityAgent extends Agent {
       llmReason:        reason,
       biasActive:       false,
       noiseActive:      false,
-      complexActive:    !!(ctx && ctx.tunables && ctx.tunables.applyComplexDividends),
       biasMode:         this.biasMode,
       biasAmount:       this.biasAmount,
       beliefMode:       this.beliefMode,

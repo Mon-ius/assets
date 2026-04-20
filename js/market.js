@@ -87,21 +87,6 @@ class OrderBook {
   clear() { this.bids = []; this.asks = []; }
 }
 
-/* Complex-dividend distribution used when the Advanced → "Complex
- * Dividends" toggle is ON. Five outcomes with non-equal probabilities;
- * the weighted mean is exactly 10¢ (= 0·0.30 + 4·0.25 + 10·0.20 + 20·0.15
- * + 40·0.10), matching `dividendMean` so FV_t = 10·(T−t+1) is unchanged.
- * The whole point is that the distribution's *shape* is non-trivial: a
- * human subject cannot read that mean off the table at a glance, which
- * motivates the matching bounded-rationality prior in UtilityAgent. */
-const COMPLEX_DIVIDEND_DISTRIBUTION = [
-  { value:  0, prob: 0.30 },
-  { value:  4, prob: 0.25 },
-  { value: 10, prob: 0.20 },
-  { value: 20, prob: 0.15 },
-  { value: 40, prob: 0.10 },
-];
-
 /**
  * Market — owns the book, the dividend process, and the append-only
  * time-series arrays used for charts and replay.
@@ -283,10 +268,8 @@ class Market {
    * default Linear-Declining asset this reproduces DLM 2005's {0, 10}¢
    * coin flip at T = 20; the other five asset types (Constant/Perpetual,
    * Linear Growth, Cyclical, Random Walk, Jump/Crash) each implement
-   * their own dividend process from the spec. The Advanced → "Complex
-   * Dividends" toggle is still honoured inside the Linear-Declining
-   * asset (it swaps the coin flip for a 5-point mean-preserving
-   * distribution); every other asset ignores it.
+   * their own dividend process from the spec. The legacy no-asset
+   * fallback (pre-registry code path) uses the paper's coin flip.
    */
   payDividend(agents, rng = Math.random, ctx = null) {
     const tunables = (ctx && ctx.tunables) || null;
@@ -294,19 +277,8 @@ class Market {
     if (this.assetType && this.assetState) {
       d = this.assetType.drawDividend(this.period, this.assetState, rng, this.config, tunables);
     } else {
-      const useComplex = !!(tunables && tunables.applyComplexDividends);
-      if (useComplex) {
-        const r = rng();
-        let acc = 0;
-        d = COMPLEX_DIVIDEND_DISTRIBUTION[COMPLEX_DIVIDEND_DISTRIBUTION.length - 1].value;
-        for (const bucket of COMPLEX_DIVIDEND_DISTRIBUTION) {
-          acc += bucket.prob;
-          if (r < acc) { d = bucket.value; break; }
-        }
-      } else {
-        const hi = this.config.dividendMean * 2;
-        d = rng() < 0.5 ? 0 : hi;
-      }
+      const hi = this.config.dividendMean * 2;
+      d = rng() < 0.5 ? 0 : hi;
     }
     for (const a of Object.values(agents)) a.cash += d * a.inventory;
     this.dividendHistory.push({ period: this.period, round: this.round, value: d });

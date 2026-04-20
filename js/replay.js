@@ -161,7 +161,6 @@ const Replay = {
       tunables: {
         applyBias:              !!(ctx && ctx.tunables && ctx.tunables.applyBias),
         applyNoise:             !!(ctx && ctx.tunables && ctx.tunables.applyNoise),
-        applyComplexDividends:  !!(ctx && ctx.tunables && ctx.tunables.applyComplexDividends),
         applyRegulator:         !!(ctx && ctx.tunables && ctx.tunables.applyRegulator),
         regulatorThreshold:     (ctx && ctx.tunables && ctx.tunables.regulatorThreshold) || 0.5,
         applyBoundedRationality: !!(ctx && ctx.tunables && ctx.tunables.applyBoundedRationality),
@@ -200,7 +199,7 @@ const Replay = {
         utilityHistory:      [],
         decisionEvaluations: [],
         trust:               null,
-        tunables:            { applyBias: false, applyNoise: false, applyComplexDividends: false, applyRegulator: false, regulatorThreshold: 0.5, applyBoundedRationality: false },
+        tunables:            { applyBias: false, applyNoise: false, applyRegulator: false, regulatorThreshold: 0.5, applyBoundedRationality: false },
         isReplay:            true,
       };
     }
@@ -233,7 +232,7 @@ const Replay = {
       utilityHistory:       logger.utilityHistory.slice(0, snap.utilityLength || 0),
       decisionEvaluations:  logger.decisionEvaluations.slice(0, snap.evaluationLength || 0),
       trust:                snap.trust || null,
-      tunables:             snap.tunables || { applyBias: false, applyNoise: false, applyComplexDividends: false, applyRegulator: false, regulatorThreshold: 0.5, applyBoundedRationality: false },
+      tunables:             snap.tunables || { applyBias: false, applyNoise: false, applyRegulator: false, regulatorThreshold: 0.5, applyBoundedRationality: false },
       regulatorWarning:     snap.regulatorWarning || null,
       isReplay:             true,
     };

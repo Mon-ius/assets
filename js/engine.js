@@ -655,7 +655,6 @@ class Engine {
       tunables: {
         applyBias:              !!(this.ctx.tunables && this.ctx.tunables.applyBias),
         applyNoise:             !!(this.ctx.tunables && this.ctx.tunables.applyNoise),
-        applyComplexDividends:  !!(this.ctx.tunables && this.ctx.tunables.applyComplexDividends),
         applyRegulator:         !!(this.ctx.tunables && this.ctx.tunables.applyRegulator),
         regulatorThreshold:     (this.ctx.tunables && this.ctx.tunables.regulatorThreshold) || 0.5,
         applyBoundedRationality: !!(this.ctx.tunables && this.ctx.tunables.applyBoundedRationality),

@@ -74,28 +74,11 @@ const UI = {
   },
 
   // Step 1 — model-based fundamental value FṼ_{i,t}, per v5 §5.{4,10,16,22,28,34}.
-  // When Complex Dividends is ON the simulator switches every agent onto
-  // the bounded-rationality μ̂-path (§ Parameters panel), regardless of
-  // asset; show that form instead.
-  _fvMathML(assetId, tun) {
+  _fvMathML(assetId) {
     const M = window.Mml;
     if (!M) return '';
     const FV = UI._mmlFvTilde();
     const T  = M.mi('T'); const t = M.mi('t'); const r = M.mi('r');
-
-    if (tun && tun.applyComplexDividends) {
-      // FṼ_{i,t} = μ̂_i · (T − t + 1),  μ̂_i = x̄_{n_i} · (1 + ξ_i),  σ_n = 0.35/√(n+1)
-      return M.wrap(M.row(
-        FV, M.mo('='),
-        M.sub(M.hat(M.mi('μ')), M.mi('i')), M.mo('·'),
-        M.mo('('), T, M.mo('−'), t, M.mo('+'), M.mn('1'), M.mo(')'), M.mo(','),
-        M.sub(M.hat(M.mi('μ')), M.mi('i')), M.mo('='),
-        M.sub(M.bar(M.mi('x')), M.row(M.mi('n'), M.mi('i'))),
-        M.mo('·'), M.mo('('), M.mn('1'), M.mo('+'), M.sub(M.mi('ξ'), M.mi('i')), M.mo(')'), M.mo(','),
-        M.sub(M.mi('σ'), M.mi('n')), M.mo('='),
-        M.frac(M.mn('0.35'), M.sqrt(M.row(M.mi('n'), M.mo('+'), M.mn('1')))),
-      ));
-    }
 
     const kt = UI._mmlKt();
     switch (assetId) {
@@ -1529,7 +1512,7 @@ const UI = {
       ? experienceFactors(rp)
       : { k: rp, alpha: 0.4, sigma: 15, omega: 0.6 };
 
-    const fvMml   = UI._fvMathML(assetId, tun);
+    const fvMml   = UI._fvMathML(assetId);
     const heurMml = UI._heuristicMathML(assetId);
     const priorMml = UI._priorMathML(tun);
     const postMml  = UI._posteriorMathML();
@@ -3523,7 +3506,6 @@ const UI = {
       const priorFlags = [];
       if (r.biasActive)    priorFlags.push(`bias:${r.biasMode || '—'}(${r.biasAmount != null ? r.biasAmount.toFixed(2) : '—'})`);
       if (r.noiseActive)   priorFlags.push('noise');
-      if (r.complexActive) priorFlags.push('complex-div');
       const priorBlock = priorFlags.length
         ? `<div class="trace-row muted">prior adj: ${priorFlags.join(' + ')}</div>`
         : '';
