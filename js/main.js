@@ -1737,6 +1737,7 @@ const App = {
       this.batchResults           = [];
       this._autoRunAll            = false;
       this._pendingExportDownload = false;
+      this._restoreTickPacing();
     }
     this.rebuild();
     this._updateExportButton();
@@ -1983,6 +1984,7 @@ const App = {
       const autoDownload   = !!this._pendingExportDownload;
       this._autoRunAll             = false;
       this._pendingExportDownload  = false;
+      this._restoreTickPacing();
       this._updateExportButton();
       this._updateStartButton();
       this.requestRender();
@@ -2668,6 +2670,23 @@ const App = {
       }
       this._autoRunAll            = true;
       this._pendingExportDownload = true;
+      // Snapshot the user's current pacing so we can restore it once
+      // the batch completes. Turbo values: no inter-frame delay,
+      // 720 ticks per frame = one full session (R × T × K ticks) per
+      // animation frame, so all ten sessions chew through in ~10-15
+      // frames on Plan I. Plan II/III is still paced by the LLM
+      // round-trips (each period boundary awaits a network call),
+      // but at least the human doesn't have to sit through a
+      // speed-14 animation for every round.
+      const R = this.config.roundsPerSession || 1;
+      const T = this.config.periods          || 10;
+      const K = this.config.ticksPerPeriod   || 18;
+      this._savedTickPacing = {
+        tickInterval:  this.config.tickInterval,
+        ticksPerFrame: this.config.ticksPerFrame,
+      };
+      this.config.tickInterval  = 0;
+      this.config.ticksPerFrame = R * T * K;
       this.start();
       if (!this._batchRunning) {
         // Defensive: if some future start() branch bails without
@@ -2676,6 +2695,7 @@ const App = {
         // download.
         this._autoRunAll            = false;
         this._pendingExportDownload = false;
+        this._restoreTickPacing();
       }
       return;
     }
@@ -2784,6 +2804,7 @@ const App = {
     // fresh batch with the download still armed.
     this._autoRunAll            = false;
     this._pendingExportDownload = false;
+    this._restoreTickPacing();
     this.engine.pause();
     this._updateExportButton();
     this.requestRender();
@@ -2827,6 +2848,18 @@ const App = {
    *   - ready    (red, clickable)   — all 10 sessions finished; the
    *              full per-session figure set is ready to download.
    */
+  /**
+   * Put the engine's tick pacing back to whatever the user had on the
+   * Speed slider before the green Export button cranked it to turbo.
+   * Safe to call even when no snapshot was taken — it just no-ops.
+   */
+  _restoreTickPacing() {
+    if (!this._savedTickPacing) return;
+    this.config.tickInterval  = this._savedTickPacing.tickInterval;
+    this.config.ticksPerFrame = this._savedTickPacing.ticksPerFrame;
+    this._savedTickPacing = null;
+  },
+
   /**
    * Visual warning that a green Export click was rejected because
    * Plan II/III does not have an API key yet. Shakes the Export
