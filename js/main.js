@@ -1944,6 +1944,7 @@ const App = {
     this._batchRates     = this.sessionRates.slice();
     this.batchResults    = [];
     this._exportSessions = [];
+    this._exportSessionFigures = [];
     this._batchRunning   = true;
     this._pendingSession = null;
     const btnExport = document.getElementById('btn-export');
@@ -2045,7 +2046,17 @@ const App = {
         // empty ones all at once. Splitting the chain across rIC/rAF
         // yields the main thread to scroll input between each chunk
         // and lets the browser paint the transitional states.
-        this._yield(() => {
+        this._yield(async () => {
+          // Capture the session's charts while their canvases still
+          // carry this session's data — the next _runBatchSession call
+          // would otherwise reset() and wipe them.
+          const sessionNum = this.currentSession;
+          try {
+            const figs = await this._captureSessionFigures();
+            this._exportSessionFigures.push({ session: sessionNum, figures: figs });
+          } catch (_) {
+            this._exportSessionFigures.push({ session: sessionNum, figures: [] });
+          }
           this._exportSessions.push(this._snapshotSession());
           // Auto-pause at every session boundary: mark the next
           // session as pending and flip the Start button into a
@@ -2270,7 +2281,7 @@ const App = {
     };
   },
 
-  /** Serialise one canvas into { name, bytes, manifest } if it is
+  /** Serialise one canvas into { basename, bytes, manifest } if it is
    *  currently visible and has been drawn to. Returns null for canvases
    *  the user has not yet scrolled into view (the browser hasn't
    *  executed the render pass for those, so they would export blank).
@@ -2302,10 +2313,9 @@ const App = {
     const bytes = new Uint8Array(await blob.arrayBuffer());
 
     return {
-      name:  `figures/${String(index).padStart(2, '0')}_${id}.png`,
+      basename: `${String(index).padStart(2, '0')}_${id}.png`,
       bytes,
       manifest: {
-        file:     `figures/${String(index).padStart(2, '0')}_${id}.png`,
         canvasId: canvas.id || null,
         title:    title  ? title.textContent.trim().replace(/\s+/g, ' ')  : null,
         figNum:   figNum ? figNum.textContent.trim() : null,
@@ -2318,20 +2328,143 @@ const App = {
   },
 
   /**
+   * Snapshot every visible chart canvas into an array of capture objects.
+   * Called once per session at the onEnd boundary, while the DOM still
+   * reflects that session's final tick. Waits a double rAF so any render
+   * queued by engine.onEnd has actually landed on the canvases before
+   * toBlob() reads them.
+   */
+  async _captureSessionFigures() {
+    await new Promise(r => requestAnimationFrame(
+      () => requestAnimationFrame(() => r())));
+    const canvases = Array.from(document.querySelectorAll('canvas'));
+    const out = [];
+    let captured = 0;
+    for (const c of canvases) {
+      const cap = await this._captureCanvas(c, captured + 1);
+      if (!cap) continue;
+      captured++;
+      out.push(cap);
+    }
+    return out;
+  },
+
+  /**
+   * Human-readable summary of the batch's configuration. Lives at the
+   * zip root so an analyst who opens the archive without the simulator
+   * still has enough context to reproduce the run (plan, population,
+   * risk mix, asset + replacement schedule, active prior toggles).
+   * Intentionally plain text — no markdown — so it reads cleanly in
+   * any editor or `less`.
+   */
+  _buildReadme(data) {
+    const pad = (s, n) => (s + '').padEnd(n, ' ');
+    const pct = (x) => `${Math.round((+x) * 1000) / 10}%`;
+    const out = [];
+    const meta = data.meta || {};
+    const cfg  = meta.config   || {};
+    const tun  = meta.tunables || {};
+    const pop  = meta.population || {};
+    const risk = meta.riskMix || {};
+    const rm   = (m) => m === 'I' ? 'Plan I (algorithm only — no LLM)'
+               : m === 'II' ? 'Plan II (LLM with explicit CRRA form)'
+               : m === 'III' ? 'Plan III (LLM with risk-label only)'
+               : `Plan ${m}`;
+
+    out.push('FV Replication Market — Batch Export');
+    out.push('=====================================');
+    out.push('');
+    out.push(`Exported at:     ${meta.exportedAt}`);
+    out.push(`Plan:            ${rm(meta.plan)}`);
+    out.push(`Sessions:        ${(data.sessions || []).length}`);
+    out.push(`Rounds/session:  ${cfg.roundsPerSession}`);
+    out.push(`Periods/round:   ${cfg.periods}`);
+    out.push(`Ticks/period:    ${cfg.ticksPerPeriod}`);
+    out.push(`Dividend mean:   ${cfg.dividendMean}`);
+    out.push(`Replacement round: ${meta.replacementRound}`);
+    const to = meta.treatmentOrder || [];
+    if (to[0] || to[1]) {
+      out.push(`Treatment order: ${[to[0], to[1]].filter(Boolean).join(' → ')}`);
+    }
+    out.push('');
+
+    out.push('Population (N = sum of slots; utility agents make up the rest)');
+    out.push('--------------------------------------------------------------');
+    out.push(`  Fundamentalist  F: ${pop.F ?? 0}`);
+    out.push(`  Trend           T: ${pop.T ?? 0}`);
+    out.push(`  Random          R: ${pop.R ?? 0}`);
+    out.push(`  Utility         U: ${pop.U ?? 0}`);
+    out.push('');
+
+    out.push('Risk-preference mix (utility agents)');
+    out.push('------------------------------------');
+    out.push(`  Loving  αL: ${pct(risk.L || 0)}`);
+    out.push(`  Neutral αN: ${pct(risk.N || 0)}`);
+    out.push(`  Averse  αA: ${pct(risk.A || 0)}`);
+    out.push('');
+
+    out.push('Prior toggles & regulator');
+    out.push('-------------------------');
+    out.push(`  Prior Bias:      ${tun.applyBias  ? 'on' : 'off'} (amount ${tun.biasAmount})`);
+    out.push(`  Prior Noise:     ${tun.applyNoise ? 'on' : 'off'} (U[-${tun.valuationNoise}, +${tun.valuationNoise}])`);
+    const regOn = !!tun.applyRegulator && (+tun.regulatorThreshold) > 0;
+    out.push(`  Regulator:       ${regOn ? `on (threshold ${pct(tun.regulatorThreshold)})` : 'disabled'}`);
+    out.push(`  Bounded Rational: ${tun.applyBoundedRationality ? 'on' : 'off'}`);
+    out.push('');
+
+    out.push('Experience curve anchors');
+    out.push('------------------------');
+    out.push(`  α₀ = ${tun.expAlpha0}   γ_α = ${tun.expGammaAlpha}`);
+    out.push(`  σ₀ = ${tun.expSigma0}   γ_σ = ${tun.expGammaSigma}`);
+    out.push(`  ω₀ = ${tun.expOmega0}`);
+    out.push('');
+
+    out.push('Heuristic-mix weights');
+    out.push('---------------------');
+    out.push(`  β_anchor    = ${tun.betaAnchor}`);
+    out.push(`  β_trend     = ${tun.betaTrend}`);
+    out.push(`  β_dividend  = ${tun.betaDividend}`);
+    out.push(`  β_narrative = ${tun.betaNarrative}`);
+    out.push('');
+
+    out.push('Session schedule (pre → post asset, replacement rate, corr)');
+    out.push('------------------------------------------------------------');
+    out.push('  #   Treatment  PreAsset                 PostAsset                Rate    Corr');
+    (data.sessions || []).forEach((s) => {
+      const pre  = s.preReplacementAsset  && s.preReplacementAsset.label  || '—';
+      const post = s.postReplacementAsset && s.postReplacementAsset.label || '—';
+      const rate = (s.replacementRate != null) ? pct(s.replacementRate) : '—';
+      const corr = (s.sessionAssetCorr != null) ? s.sessionAssetCorr.toFixed(3) : '—';
+      out.push(`  ${pad(s.session, 3)} ${pad(s.treatment, 10)} ${pad(pre, 24)} ${pad(post, 24)} ${pad(rate, 7)} ${corr}`);
+    });
+    out.push('');
+
+    out.push('Zip layout');
+    out.push('----------');
+    out.push('  README.txt              — this file');
+    out.push('  data.json               — full machine-readable batch export');
+    out.push('  figures.json            — manifest for every captured PNG');
+    out.push('  figures/session_NN/     — HiDPI chart PNGs captured at the');
+    out.push('                            end of session NN (1..10)');
+    out.push('');
+    return out.join('\n');
+  },
+
+  /**
    * Build the full batch archive and trigger a browser download.
    *
    * Contents:
-   *   data.json           — the batch object (meta + sessions + summary)
-   *   figures/            — one PNG per currently-rendered chart canvas,
-   *                         captured at the HiDPI backing-store size so
-   *                         the export retains device-pixel resolution
-   *   figures.json        — manifest mapping each PNG to its figure
-   *                         number, title, and CSS/backing dimensions
+   *   README.txt              — human-readable config summary
+   *   data.json               — the batch object (meta + sessions + summary)
+   *   figures/session_NN/*.png — one PNG per visible chart, captured at
+   *                              the end of every session (HiDPI)
+   *   figures.json            — manifest mapping each PNG to its figure
+   *                              number, title, session, and dimensions
    *
-   * Text entries (data.json, figures.json) go through deflate; PNGs
-   * are stored raw since they are already DEFLATE-compressed inside
-   * the IDAT chunks. Async because canvas.toBlob + CompressionStream
-   * both resolve via promises.
+   * Text entries (README.txt, data.json, figures.json) go through
+   * deflate; PNGs are stored raw since they are already
+   * DEFLATE-compressed inside the IDAT chunks. Async because
+   * canvas.toBlob + CompressionStream both resolve via promises.
    */
   async exportBatch() {
     const data = this._buildBatchExport();
@@ -2346,25 +2479,24 @@ const App = {
       const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
       const base = `batch_plan${this.plan}_${timestamp}`;
 
-      const files = [{
-        name:     `${base}/data.json`,
-        data:     json,
-        compress: true,
-      }];
+      const files = [
+        { name: `${base}/README.txt`, data: this._buildReadme(data), compress: true },
+        { name: `${base}/data.json`,  data: json, compress: true },
+      ];
 
       const manifest = [];
-      const canvases = Array.from(document.querySelectorAll('canvas'));
-      let captured = 0;
-      for (let i = 0; i < canvases.length; i++) {
-        const cap = await this._captureCanvas(canvases[i], captured + 1);
-        if (!cap) continue;
-        captured++;
-        files.push({
-          name:     `${base}/${cap.name}`,
-          data:     cap.bytes,
-          compress: false,
-        });
-        manifest.push(cap.manifest);
+      const sessionBuckets = this._exportSessionFigures || [];
+      for (const bucket of sessionBuckets) {
+        const folder = `figures/session_${String(bucket.session).padStart(2, '0')}`;
+        for (const cap of (bucket.figures || [])) {
+          const pathInZip = `${folder}/${cap.basename}`;
+          files.push({
+            name:     `${base}/${pathInZip}`,
+            data:     cap.bytes,
+            compress: false,
+          });
+          manifest.push({ session: bucket.session, file: pathInZip, ...cap.manifest });
+        }
       }
 
       files.push({
