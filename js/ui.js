@@ -1399,20 +1399,68 @@ const UI = {
     const agent = (appView.agents || {})[agentId];
     const nameEl = view.querySelector('.stats-view-name');
     const metaEl = view.querySelector('.stats-view-meta');
-    if (nameEl) nameEl.textContent = (agent && agent.name) || ('agent_' + agentId);
+    if (nameEl) {
+      // Mirror the exported composite's identity line so the live
+      // header reads the same thing as the PNG does.
+      const namePieces = [
+        agent ? `Agent ${agent.id}` : `Agent ${agentId}`,
+        agent && agent.name || null,
+      ].filter(Boolean);
+      nameEl.textContent = namePieces.join(' · ');
+    }
     if (metaEl) {
-      const parts = [];
+      // Two-line meta block: risk / reporting context on line 1,
+      // experience triple {kᵢ, αᵢ, σᵢ, ωᵢ} plus the narrative trait
+      // the active asset's heuristic consumes on line 2 — same
+      // shape as the per-agent composite's title area, so the live
+      // Stats view and the exported PNG agree field-for-field.
+      const line1 = [];
       if (agent) {
         if (agent.riskPref) {
           const rp = UI._riskLabel[agent.riskPref] || agent.riskPref;
           const rho = Number.isFinite(agent.rho) ? ` · ρᵢ = ${agent.rho.toFixed(2)}` : '';
-          parts.push(rp + rho);
+          line1.push(rp + rho);
         } else if (agent.type) {
-          parts.push(UI._typeLabel[agent.type] || agent.type);
+          line1.push(UI._typeLabel[agent.type] || agent.type);
         }
-        if (agent.roundsPlayed != null) parts.push(`R${agent.roundsPlayed}`);
       }
-      metaEl.textContent = parts.join(' · ') || '—';
+      if (appView.round != null && appView.period != null) {
+        line1.push(`round ${appView.round} · period ${appView.period}`);
+      }
+
+      const k   = agent ? (agent.roundsPlayed | 0) : 0;
+      const exp = (typeof experienceFactors === 'function')
+        ? experienceFactors(k)
+        : { k, alpha: 0, sigma: 0, omega: 0 };
+      const line2 = [
+        `kᵢ = ${k}`,
+        `αᵢ = ${exp.alpha.toFixed(2)}`,
+        `σᵢ = ${exp.sigma.toFixed(1)}`,
+        `ωᵢ = ${exp.omega.toFixed(2)}`,
+      ];
+      const traits = (agent && agent.narrativeTraits) || null;
+      if (traits) {
+        if (appView.assetId === 'linearGrowth' && Number.isFinite(traits.g)) {
+          line2.push(`gᵢ = ${traits.g.toFixed(2)}`);
+        } else if (appView.assetId === 'cyclicalSine' && Number.isFinite(traits.c)) {
+          line2.push(`cᵢ = ${traits.c.toFixed(2)}`);
+        } else if (appView.assetId === 'randomWalk' && Number.isFinite(traits.u)) {
+          line2.push(`uᵢ = ${traits.u.toFixed(2)}`);
+        } else if (appView.assetId === 'jumpCrash') {
+          if (Number.isFinite(traits.h))     line2.push(`hᵢ = ${traits.h.toFixed(2)}`);
+          if (Number.isFinite(traits.delta)) line2.push(`δᵢ = ${traits.delta.toFixed(3)}`);
+        }
+      }
+
+      metaEl.innerHTML = '';
+      const line1El = document.createElement('span');
+      line1El.className = 'stats-view-meta-line';
+      line1El.textContent = line1.join(' · ') || '—';
+      metaEl.appendChild(line1El);
+      const line2El = document.createElement('span');
+      line2El.className = 'stats-view-meta-exp';
+      line2El.textContent = line2.join('   ');
+      metaEl.appendChild(line2El);
     }
 
     const uHist = (appView.utilityHistory   || []).filter(r => r.agentId === agentId);

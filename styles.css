@@ -2585,8 +2585,19 @@ body.n-small .agents-flip-inner { min-height: 0; }
   color: var(--fg-1);
 }
 .stats-view-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   font-size: 12px;
   color: var(--fg-2);
+}
+.stats-view-meta-line {
+  font-size: 12px;
+  color: var(--fg-2);
+}
+.stats-view-meta-exp {
+  font: 11px "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  color: var(--fg-3, var(--fg-2));
 }
 .stats-grid {
   display: grid;
