@@ -428,7 +428,7 @@ const App = {
     document.getElementById('btn-pause').addEventListener('click', () => this.pause());
     document.getElementById('btn-reset').addEventListener('click', () => this.reset());
     const exportBtn = document.getElementById('btn-export');
-    if (exportBtn) exportBtn.addEventListener('click', () => this.exportBatchJSON());
+    if (exportBtn) exportBtn.addEventListener('click', () => this.exportBatch());
     const themeBtn = document.getElementById('btn-theme');
     if (themeBtn) themeBtn.addEventListener('click', () => this._cycleTheme());
 
@@ -2228,13 +2228,12 @@ const App = {
   },
 
   /**
-   * Build the full batch export object and trigger a browser download.
-   * The file contains every session's trades, prices, dividends,
-   * messages, agent states, and — for Plans II/III — the complete
-   * LLM prompt/response audit trail.
+   * Build the full batch export object — data only, no download.
+   * Factored out so both the JSON blob and the chart-bundle zip
+   * read from a single source of truth.
    */
-  exportBatchJSON() {
-    if (!this._exportSessions || !this._exportSessions.length) return;
+  _buildBatchExport() {
+    if (!this._exportSessions || !this._exportSessions.length) return null;
     // Unique asset ids that actually appeared across the batch (both
     // pre and post slots), preserving the order the sessions ran.
     const assetIdsUsed = [];
@@ -2245,7 +2244,7 @@ const App = {
       ].filter(Boolean);
       for (const id of ids) if (!assetIdsUsed.includes(id)) assetIdsUsed.push(id);
     }
-    const data = {
+    return {
       meta: {
         exportedAt:     new Date().toISOString(),
         plan:           this.plan,
@@ -2269,16 +2268,127 @@ const App = {
       sessions:     this._exportSessions,
       batchSummary: this.batchResults,
     };
-    const json = JSON.stringify(data, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
-    a.download = `batch_plan${this.plan}_${new Date().toISOString().slice(0, 19).replace(/[:-]/g, '')}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  },
+
+  /** Serialise one canvas into { name, bytes, manifest } if it is
+   *  currently visible and has been drawn to. Returns null for canvases
+   *  the user has not yet scrolled into view (the browser hasn't
+   *  executed the render pass for those, so they would export blank).
+   *  Heuristic: `getBoundingClientRect()` with non-zero width/height
+   *  matches the "currently laid out" canvases regardless of theme or
+   *  scroll position; the stats-panel canvases on the back of a card
+   *  flip drop out naturally because `display: none` collapses their
+   *  bounding rect. */
+  async _captureCanvas(canvas, index) {
+    const rect = canvas.getBoundingClientRect();
+    if (!canvas.width || !canvas.height) return null;
+    if (rect.width <= 0 || rect.height <= 0) return null;
+
+    const id  = canvas.id || (canvas.dataset && canvas.dataset.stat)
+              || `canvas-${index}`;
+    const fig = canvas.closest('section.figure, figure.stats-panel, figure');
+    const title = fig
+      ? (fig.querySelector('.fig-title')
+      || fig.querySelector('figcaption')
+      || fig.querySelector('h2,h3,h4'))
+      : null;
+    const figNum = fig ? fig.querySelector('.fig-num') : null;
+
+    const blob = await new Promise(resolve => {
+      try { canvas.toBlob(resolve, 'image/png'); }
+      catch (_) { resolve(null); }
+    });
+    if (!blob) return null;
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+
+    return {
+      name:  `figures/${String(index).padStart(2, '0')}_${id}.png`,
+      bytes,
+      manifest: {
+        file:     `figures/${String(index).padStart(2, '0')}_${id}.png`,
+        canvasId: canvas.id || null,
+        title:    title  ? title.textContent.trim().replace(/\s+/g, ' ')  : null,
+        figNum:   figNum ? figNum.textContent.trim() : null,
+        width:    canvas.width,
+        height:   canvas.height,
+        cssWidth:  Math.round(rect.width),
+        cssHeight: Math.round(rect.height),
+      },
+    };
+  },
+
+  /**
+   * Build the full batch archive and trigger a browser download.
+   *
+   * Contents:
+   *   data.json           — the batch object (meta + sessions + summary)
+   *   figures/            — one PNG per currently-rendered chart canvas,
+   *                         captured at the HiDPI backing-store size so
+   *                         the export retains device-pixel resolution
+   *   figures.json        — manifest mapping each PNG to its figure
+   *                         number, title, and CSS/backing dimensions
+   *
+   * Text entries (data.json, figures.json) go through deflate; PNGs
+   * are stored raw since they are already DEFLATE-compressed inside
+   * the IDAT chunks. Async because canvas.toBlob + CompressionStream
+   * both resolve via promises.
+   */
+  async exportBatch() {
+    const data = this._buildBatchExport();
+    if (!data) return;
+
+    const btn = document.getElementById('btn-export');
+    const prevLabel = btn ? btn.textContent : null;
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Bundling…'; }
+
+    try {
+      const json = JSON.stringify(data, null, 2);
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+      const base = `batch_plan${this.plan}_${timestamp}`;
+
+      const files = [{
+        name:     `${base}/data.json`,
+        data:     json,
+        compress: true,
+      }];
+
+      const manifest = [];
+      const canvases = Array.from(document.querySelectorAll('canvas'));
+      let captured = 0;
+      for (let i = 0; i < canvases.length; i++) {
+        const cap = await this._captureCanvas(canvases[i], captured + 1);
+        if (!cap) continue;
+        captured++;
+        files.push({
+          name:     `${base}/${cap.name}`,
+          data:     cap.bytes,
+          compress: false,
+        });
+        manifest.push(cap.manifest);
+      }
+
+      files.push({
+        name: `${base}/figures.json`,
+        data: JSON.stringify({
+          exportedAt:       data.meta.exportedAt,
+          devicePixelRatio: window.devicePixelRatio || 1,
+          figures:          manifest,
+        }, null, 2),
+        compress: true,
+      });
+
+      const zipBlob = await Zip.build(files);
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href     = url;
+      a.download = `${base}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = prevLabel || '⬇ Export'; }
+    }
   },
 
   /**
