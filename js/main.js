@@ -2100,16 +2100,39 @@ const App = {
   _snapshotSession() {
     const sessionNum = this.currentSession;
     const R = this.config.roundsPerSession;
+    const replaceR = this.replacementRound || 4;
 
-    // Per-round breakdown — metrics + replacement info + final cash.
+    // Session asset pair + replacement rate. These come from the
+    // scheduler (App.sessionAssets / .sessionAssetsPost / .sessionRates)
+    // rather than the live Market so the pre-replacement asset is
+    // still recoverable after the engine swapped the market to `post`.
+    const preAsset  = this._assetForSession(sessionNum);
+    const postAsset = this._postAssetForSession(sessionNum);
+    const rateIdx   = Math.max(0, Math.min(9, (sessionNum | 0) - 1));
+    const rateSrc   = (Array.isArray(this._batchRates) && this._batchRates.length === 10)
+      ? this._batchRates : this.sessionRates;
+    const rawRate   = rateSrc ? Number(rateSrc[rateIdx]) : NaN;
+    const replacementRate = Number.isFinite(rawRate)
+      ? Math.round(rawRate * 10000) / 10000 : null;
+    const corrRaw   = this._sessionAssetCorr(sessionNum);
+    const sessionAssetCorr = Number.isFinite(corrRaw)
+      ? Math.round(corrRaw * 10000) / 10000 : null;
+
+    // Per-round breakdown — metrics + replacement info + final cash,
+    // plus which asset was live during the round so analysis can
+    // separate pre-swap from post-swap periods without consulting the
+    // session-level asset pair.
     const rounds = [];
     const replEvt = this.logger.events.find(e => e.type === 'round_4_replacement');
-    const replaceR = this.replacementRound || 4;
     for (let r = 1; r <= R; r++) {
       const label = `R${r}_S${sessionNum}`;
+      const activeAsset = (r < replaceR ? preAsset : postAsset) || preAsset;
       rounds.push({
         round: r,
         label,
+        asset:          activeAsset
+          ? { id: activeAsset.id, label: activeAsset.label, shortLabel: activeAsset.shortLabel || null }
+          : null,
         metrics:        this.batchResults.find(b => b.label === label) || null,
         replacement:    r === replaceR && replEvt
           ? { treatmentSize: replEvt.treatmentSize, replaced: replEvt.replaced }
@@ -2136,12 +2159,39 @@ const App = {
       initialInventory: a.initialInventory,
     }));
 
+    // All regulator_warning events fired this session. Plan I cannot
+    // trigger them (no LLM channel) so under Plan I this is always [].
+    const regulatorWarnings = this.logger.events
+      .filter(e => e.type === 'regulator_warning')
+      .map(e => ({
+        tick:     e.tick,
+        round:    e.round,
+        period:   e.period,
+        ratio:    e.ratio,
+        threshold: e.threshold,
+        lastPrice: e.lastPrice,
+        fv:        e.fv,
+      }));
+
     return {
       session:    sessionNum,
       treatment:  `T${this.treatmentSize}`,
       treatmentPct: this.TOTAL_N > 0
         ? Math.round((this.treatmentSize / this.TOTAL_N) * 1000) / 10
         : 0,
+      replacementRate,
+      replacementRound: replaceR,
+      // Pre and post-replacement asset pair for this session. When the
+      // user hasn't split the pair both point at the same asset id.
+      preReplacementAsset:  preAsset
+        ? { id: preAsset.id, label: preAsset.label, shortLabel: preAsset.shortLabel || null } : null,
+      postReplacementAsset: postAsset
+        ? { id: postAsset.id, label: postAsset.label, shortLabel: postAsset.shortLabel || null } : null,
+      // Pearson r between the pre and post assets' Figure 1 FV curves —
+      // drives the experience-transfer blend in utility.js. 1 when the
+      // pair matches, ~0 when a flat curve (Perpetual / RW expected)
+      // meets anything else.
+      sessionAssetCorr,
       plan:       this.plan,
       seed:       this.seed,
       agentSpecs: (this._sessionOriginalSpecs || this.agentSpecs).map(s => ({ ...s })),
@@ -2181,6 +2231,7 @@ const App = {
         deceptionMode:    m.deceptionMode,
         deceptive:        !!m.deceptive,
       })),
+      regulatorWarnings,
       llmCalls: this.logger.llmCalls.slice(),
     };
   },
@@ -2193,6 +2244,16 @@ const App = {
    */
   exportBatchJSON() {
     if (!this._exportSessions || !this._exportSessions.length) return;
+    // Unique asset ids that actually appeared across the batch (both
+    // pre and post slots), preserving the order the sessions ran.
+    const assetIdsUsed = [];
+    for (const s of this._exportSessions) {
+      const ids = [
+        s.preReplacementAsset  && s.preReplacementAsset.id,
+        s.postReplacementAsset && s.postReplacementAsset.id,
+      ].filter(Boolean);
+      for (const id of ids) if (!assetIdsUsed.includes(id)) assetIdsUsed.push(id);
+    }
     const data = {
       meta: {
         exportedAt:     new Date().toISOString(),
@@ -2205,6 +2266,14 @@ const App = {
         tunables:   { ...this.tunables },
         population: { ...this.mix },
         riskMix:    { ...this.riskMix },
+        // Per-session scheduler inputs — mirrors Advanced → Session
+        // Replacement Rate and Pre/Post Asset & FV Correlation so the
+        // batch configuration is recoverable from the JSON alone.
+        replacementRound:  this.replacementRound,
+        sessionRates:      (this.sessionRates      || []).slice(),
+        sessionAssets:     (this.sessionAssets     || []).slice(),
+        sessionAssetsPost: (this.sessionAssetsPost || []).slice(),
+        assetIdsUsed,
       },
       sessions:     this._exportSessions,
       batchSummary: this.batchResults,
