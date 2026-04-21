@@ -332,6 +332,10 @@ const App = {
       tip.innerHTML = '';
       tip.appendChild(tpl.content.cloneNode(true));
       if (hydrate) hydrate(tip);
+      // Templates may carry [data-exp] spans (ω₀ tooltip) whose values
+      // track the Session Replacement Rate sliders — refresh them now
+      // since the clone arrives with stale defaults baked into HTML.
+      this._updateExperienceFormulas();
       // Templates may contain KaTeX `$…$` spans (experience-curve
       // derivations, replacement-blend formulas). Run the same
       // KaTeX auto-render pass the rest of the body gets, so the
@@ -844,6 +848,13 @@ const App = {
     // (Experiment) pane. Each tab switch above will re-render its
     // own pane on demand.
     this._renderMath(document.body);
+
+    // Experience-factor formula cards and prose spans are populated
+    // from the Session Replacement Rate sliders on every change via
+    // `_syncTunableConfigs`; do one pass here so the Architecture tab
+    // and Slide 9 show the correct α₀/σ₀/ω₀ from the moment the page
+    // loads rather than the placeholder copy baked into the HTML.
+    this._updateExperienceFormulas();
   },
 
   /**
@@ -1640,6 +1651,51 @@ const App = {
       HEURISTIC_BETAS.dividend  = this.tunables.betaDividend;
       HEURISTIC_BETAS.narrative = this.tunables.betaNarrative;
     }
+    this._updateExperienceFormulas();
+  },
+
+  /**
+   * Rebuild the Experience-Factor KaTeX cards and prose spans from the
+   * current Session Replacement Rate sliders (α₀, γ_α, σ₀, γ_σ, ω₀) so
+   * the Architecture tab, Slide 9, and the ω₀ tooltip always display
+   * the same numbers that ExperienceConfig uses. Δ_ω and k_ω stay
+   * hardcoded in utility.js and are shown as such.
+   */
+  _updateExperienceFormulas() {
+    const t  = this.tunables || {};
+    const a0 = Number.isFinite(+t.expAlpha0)      ? +t.expAlpha0      : 1.00;
+    const ga = Number.isFinite(+t.expGammaAlpha)  ? +t.expGammaAlpha  : 0.15;
+    const s0 = Number.isFinite(+t.expSigma0)      ? +t.expSigma0      : 5;
+    const gs = Number.isFinite(+t.expGammaSigma)  ? +t.expGammaSigma  : 0.30;
+    const o0 = Number.isFinite(+t.expOmega0)      ? +t.expOmega0      : 0.60;
+    const dO = 0.10;  // Δ_ω, hardcoded in ExperienceConfig
+    const kO = 3;     // k_ω saturation horizon
+
+    const f2 = v => v.toFixed(2);
+    const f1 = v => v.toFixed(1);
+    const kSatAlpha = ga > 0 ? Math.max(0, Math.ceil((1 - a0) / ga)) : 0;
+    const omegaSat  = Math.min(1, o0 + dO * kO);
+
+    const anchors = document.getElementById('formula-exp-anchors');
+    if (anchors) {
+      anchors.innerHTML = `$$ \\alpha_0 = ${f2(a0)},\\;\\gamma_\\alpha = ${f2(ga)}, \\qquad \\sigma_0 = ${f1(s0)},\\;\\gamma_\\sigma = ${f2(gs)}, \\qquad \\omega_0 = ${f2(o0)},\\;\\Delta_\\omega = ${f2(dO)},\\;k_\\omega = ${kO} $$`;
+      this._renderMath(anchors);
+    }
+    const rule = document.getElementById('formula-exp-rule');
+    if (rule) {
+      rule.innerHTML = `$$ \\alpha_i = \\min\\!\\bigl(1,\\; ${f2(a0)} + ${f2(ga)}\\,k_i\\bigr), \\quad \\sigma_i = ${f1(s0)}\\cdot e^{-${f2(gs)}\\,k_i}, \\quad \\omega_i = ${f2(o0)} + ${f2(dO)}\\,\\min(${kO}, k_i), \\quad k_i \\leftarrow k_i + 1 \\text{ at each round boundary} $$`;
+      this._renderMath(rule);
+    }
+
+    document.querySelectorAll('[data-exp]').forEach(el => {
+      switch (el.getAttribute('data-exp')) {
+        case 'alpha0':     el.textContent = f2(a0);        break;
+        case 'sigma0':     el.textContent = f1(s0);        break;
+        case 'omega0':     el.textContent = f2(o0);        break;
+        case 'omega-sat':  el.textContent = f2(omegaSat);  break;
+        case 'ksat-alpha': el.textContent = String(kSatAlpha); break;
+      }
+    });
   },
 
   /**
