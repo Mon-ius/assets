@@ -1027,7 +1027,8 @@ const UI = {
     if (panel) panel.classList.toggle('preview', editable);
     this._toggleAgentStageLabel(editable);
 
-    const html = Object.values(v.agents).map(a => {
+    const agentList = Object.values(v.agents);
+    const htmls = agentList.map(a => {
       const lastDecision = { type: a.lastAction || 'hold', passive: !!a.lastPassive };
       const actionClass  = this._actionClass(lastDecision);
       const actionLabel  = this._actionLabel(lastDecision);
@@ -1239,47 +1240,59 @@ const UI = {
             ${cardBack}
           </div>
         </div>`;
-    }).join('');
-
-    // Detach flipped card DOM nodes before innerHTML so their
-    // interactions (text selection, etc.) survive the per-frame rebuild.
-    // The back face is static between period boundaries, so keeping the
-    // old node is correct.  Scroll positions are snapshotted explicitly
-    // because some browsers reset scrollTop on absolutely-positioned
-    // overflow elements when the node is removed from / reinserted into
-    // the DOM tree.
-    const preserved = {};
-    const scrollSnap = {};
-    this.els.agentsGrid.querySelectorAll('.agent-card-wrap.flipped').forEach(wrap => {
-      const aid = wrap.dataset.agentId;
-      preserved[aid] = wrap;
-      const back = wrap.querySelector('.card-back');
-      scrollSnap[aid] = {
-        back: back ? back.scrollTop : 0,
-        texts: [...wrap.querySelectorAll('.llm-text')].map(el => el.scrollTop),
-      };
-      wrap.remove();
     });
 
-    this.els.agentsGrid.innerHTML = html;
-
-    // Re-insert preserved flipped cards and restore scroll positions.
-    for (const [id, oldWrap] of Object.entries(preserved)) {
-      const fresh = this.els.agentsGrid.querySelector(
-        `.agent-card-wrap[data-agent-id="${id}"]`,
-      );
-      if (fresh) {
-        fresh.replaceWith(oldWrap);
-        const ss = scrollSnap[id];
-        if (ss) {
-          const back = oldWrap.querySelector('.card-back');
-          if (back) back.scrollTop = ss.back;
-          const texts = oldWrap.querySelectorAll('.llm-text');
-          ss.texts.forEach((top, i) => {
-            if (texts[i]) texts[i].scrollTop = top;
-          });
+    // Incremental grid update.  The prior implementation rebuilt the
+    // entire grid via innerHTML every rAF and used a snapshot/restore
+    // dance to preserve the flipped card's card-back scrollTop — but
+    // that dance lost the user's in-flight wheel/trackpad scroll every
+    // frame (rAF reads scrollTop before the current frame's wheel delta
+    // has been committed to layout, so the restored value was always
+    // one frame stale — typically 0 — and the big card-back scrollbar
+    // snapped back to the top 60 times a second). The fix: leave any
+    // wrap that is currently flipped completely untouched across
+    // renders, so its DOM node is never detached and its scroll state
+    // is owned by the browser. Non-flipped wraps are swapped in place
+    // so their metric values keep updating per frame as before.
+    const grid = this.els.agentsGrid;
+    if (grid.children.length === 0) {
+      // First render (or after a full reset) — no existing wraps to
+      // preserve, so the fastest path is the single innerHTML write.
+      grid.innerHTML = htmls.join('');
+    } else {
+      const flipped = UI._flipped;
+      const tmp = document.createElement('template');
+      const seen = new Set();
+      let prevSibling = null;
+      for (let i = 0; i < agentList.length; i++) {
+        const a = agentList[i];
+        seen.add(String(a.id));
+        const existing = grid.querySelector(
+          `.agent-card-wrap[data-agent-id="${a.id}"]`,
+        );
+        if (flipped.has(a.id) && existing) {
+          // Flipped: leave the DOM node alone entirely. Its card-back
+          // and llm-text scrollTops are owned by the browser and
+          // nothing in the render path touches them.
+          prevSibling = existing;
+          continue;
         }
+        tmp.innerHTML = htmls[i];
+        const fresh = tmp.content.firstElementChild;
+        if (existing) {
+          existing.replaceWith(fresh);
+        } else if (prevSibling && prevSibling.nextSibling) {
+          grid.insertBefore(fresh, prevSibling.nextSibling);
+        } else {
+          grid.appendChild(fresh);
+        }
+        prevSibling = fresh;
       }
+      // Drop any stale wraps whose agent id no longer exists in the
+      // current view (e.g. after a population resize).
+      grid.querySelectorAll('.agent-card-wrap').forEach(w => {
+        if (!seen.has(w.dataset.agentId)) w.remove();
+      });
     }
 
     // Wire event delegation once — avoids per-card handler accumulation.
