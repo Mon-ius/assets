@@ -924,10 +924,10 @@ class UtilityAgent extends Agent {
     for (const c of candidates) if (c.eu > chosen.eu) chosen = c;
 
     const reasoning = {
-      ruleUsed:         `utility_max_${this.riskPref}`,
+      ruleUsed:         `risk preference: risk-${this.riskPref}`,
       estimatedValue:   this.subjectiveValuation,
       expectedProfit:   (chosen.wealthIf != null ? chosen.wealthIf : w0) - w0,
-      triggerCondition: `argmax EU over ${candidates.length} candidates`,
+      triggerCondition: `max EU over ${candidates.length} actions`,
       utility: {
         riskPref:        this.riskPref,
         initialWealth:   this.initialWealth,
