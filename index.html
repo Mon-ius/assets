@@ -972,7 +972,9 @@
         <dt><code>Live — tick <em>N</em></code></dt>
         <dd>readout of the current cursor position; shows <code>Replay — tick <em>N</em></code> when paused off the live edge</dd>
         <dt><span class="rl-kind rl-bid">BID</span> / <span class="rl-kind rl-ask">ASK</span> / <span class="rl-kind rl-hold">HOLD</span></dt>
-        <dd>decision kind pill on each trace card — agent submitted a buy, a sell, or stayed out; the pill reads <code>BID <em>q</em> @ <em>p</em></code> (order size · price), with a trailing <code>✓</code> if the order filled this tick</dd>
+        <dd>decision kind pill on each trace card — agent submitted a buy, a sell, or stayed out; the pill reads <code>BID <em>q</em> @ <em>p</em></code> (order size · price)</dd>
+        <dt><code>✓</code> fill marker</dt>
+        <dd>appended to the pill (e.g. <code>BID 1 @ 5.96 ✓</code>) when this order crossed the book and executed within the same tick it was submitted; if the mark is absent the order was placed but rested (or was cancelled) — inspect the next few ticks on the slider to see whether it eventually filled</dd>
         <dt>card header</dt>
         <dd><code>#<em>id</em> <em>Name</em> · <em>typeLabel</em></code> — numeric agent id, sampled personal name, and strategy class (e.g. <code>utility</code>, <code>dlm</code>)</dd>
         <dt><code>rule</code></dt>
