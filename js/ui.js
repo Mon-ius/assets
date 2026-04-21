@@ -1252,13 +1252,28 @@ const UI = {
     // snapped back to the top 60 times a second). The fix: leave any
     // wrap that is currently flipped completely untouched across
     // renders, so its DOM node is never detached and its scroll state
-    // is owned by the browser. Non-flipped wraps are swapped in place
-    // so their metric values keep updating per frame as before.
+    // is owned by the browser.
+    //
+    // For *non-flipped* wraps we also skip the DOM swap when the
+    // rendered HTML string is byte-identical to the previous frame's.
+    // Without that guard, the View Stats / View Prompt buttons' DOM
+    // nodes were replaced ~60 times a second; the browser's :hover
+    // state doesn't carry over to a fresh node, so the buttons
+    // flash-restarted their 0.12s background/color transition on every
+    // mousemove while the cursor was hovering them. Caching the last
+    // HTML per agent id collapses steady-state renders to no-ops and
+    // keeps the same DOM node under the cursor across frames.
     const grid = this.els.agentsGrid;
+    if (!UI._lastAgentHtml) UI._lastAgentHtml = new Map();
+    const lastHtml = UI._lastAgentHtml;
     if (grid.children.length === 0) {
       // First render (or after a full reset) — no existing wraps to
       // preserve, so the fastest path is the single innerHTML write.
       grid.innerHTML = htmls.join('');
+      lastHtml.clear();
+      for (let i = 0; i < agentList.length; i++) {
+        lastHtml.set(String(agentList[i].id), htmls[i]);
+      }
     } else {
       const flipped = UI._flipped;
       const tmp = document.createElement('template');
@@ -1266,7 +1281,8 @@ const UI = {
       let prevSibling = null;
       for (let i = 0; i < agentList.length; i++) {
         const a = agentList[i];
-        seen.add(String(a.id));
+        const key = String(a.id);
+        seen.add(key);
         const existing = grid.querySelector(
           `.agent-card-wrap[data-agent-id="${a.id}"]`,
         );
@@ -1274,6 +1290,13 @@ const UI = {
           // Flipped: leave the DOM node alone entirely. Its card-back
           // and llm-text scrollTops are owned by the browser and
           // nothing in the render path touches them.
+          prevSibling = existing;
+          continue;
+        }
+        if (existing && lastHtml.get(key) === htmls[i]) {
+          // Nothing changed for this agent — skip the DOM swap so the
+          // button the user is hovering keeps its identity (and its
+          // :hover state) across frames.
           prevSibling = existing;
           continue;
         }
@@ -1287,11 +1310,16 @@ const UI = {
           grid.appendChild(fresh);
         }
         prevSibling = fresh;
+        lastHtml.set(key, htmls[i]);
       }
       // Drop any stale wraps whose agent id no longer exists in the
-      // current view (e.g. after a population resize).
+      // current view (e.g. after a population resize) and forget their
+      // cached HTML so a re-add produces a clean swap.
       grid.querySelectorAll('.agent-card-wrap').forEach(w => {
-        if (!seen.has(w.dataset.agentId)) w.remove();
+        if (!seen.has(w.dataset.agentId)) {
+          lastHtml.delete(w.dataset.agentId);
+          w.remove();
+        }
       });
     }
 
