@@ -891,6 +891,16 @@ const App = {
     const aiEndpoints = document.querySelectorAll('.ai-shared-endpoint');
     const aiModels    = document.querySelectorAll('.ai-shared-model');
 
+    const _modelLabels = document.querySelectorAll('label[for="ai-model-ii"], label[for="ai-model-iii"]');
+    const _syncModelLabel = (modelId) => {
+      if (typeof AI === 'undefined' || !_modelLabels.length) return;
+      const providerKey = this.aiConfig.provider || AI.DEFAULT_PROVIDER;
+      const spec = (AI.getModels(providerKey) || []).find(m => m.id === modelId);
+      const tpm = (spec && AI._fmtTPM) ? AI._fmtTPM(spec.tpm) : '';
+      const suffix = tpm ? ` (~${tpm}TPM)` : '';
+      _modelLabels.forEach(l => { l.textContent = `Model${suffix}`; });
+    };
+
     const _syncModels = (providerKey) => {
       if (typeof AI === 'undefined') return;
       const models = AI.getModels(providerKey);
@@ -898,17 +908,14 @@ const App = {
       const ep     = AI.getDefaultEndpoint(providerKey);
       const kp     = AI.getKeyPlaceholder(providerKey);
       const optHtml = models
-        .map(m => {
-          const tpm = AI._fmtTPM ? AI._fmtTPM(m.tpm) : '';
-          const suffix = tpm ? ` (~${tpm}TPM)` : '';
-          return `<option value="${m.id}">${m.label}${suffix}</option>`;
-        })
+        .map(m => `<option value="${m.id}">${m.label}</option>`)
         .join('');
       aiModels.forEach(sel => { sel.innerHTML = optHtml; sel.value = def; });
       aiEndpoints.forEach(el => el.placeholder = ep);
       aiKeys.forEach(el => el.placeholder = kp);
       this.aiConfig.model = def;
       this.aiConfig.provider = providerKey;
+      _syncModelLabel(def);
     };
 
     if (aiProviders.length && typeof AI !== 'undefined') {
@@ -940,6 +947,7 @@ const App = {
       const v = (e.target.value || '').trim();
       this.aiConfig.model = v;
       aiModels.forEach(o => { if (o !== e.target) o.value = e.target.value; });
+      _syncModelLabel(v);
     }));
 
     // Nav-tab click handler — swaps which .tab-pane is visible and
