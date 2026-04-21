@@ -50,7 +50,7 @@ const App = {
     periods:          20,
     ticksPerPeriod:   18,
     dividendMean:     10,
-    tickInterval:     340,
+    tickInterval:     275,
     ticksPerFrame:    1,
   },
 
@@ -561,12 +561,15 @@ const App = {
     if (themeBtn) themeBtn.addEventListener('click', () => this._cycleTheme());
 
     document.getElementById('speed').addEventListener('input', e => {
-      // speed 1 → ~953ms, speed 20 → ~60ms (single tick per frame).
-      // speed 21-50 → fixed 16ms interval, batching multiple ticks per
-      // frame so the simulation accelerates smoothly up to 50×.
+      // Speeds 1-20 run one tick per animation frame with a geometric
+      // interval ramp: speed 1 → 5000ms (≈90s per period at K=18, slow
+      // enough to stay under provider TPM limits when every agent fires
+      // an LLM call at the period boundary); speed 14 → ~275ms (the
+      // default); speed 20 → ~72ms. Speeds 21-50 pin the interval at
+      // 16ms and batch multiple ticks per frame for non-LLM sweeps.
       const s = Number(e.target.value);
       if (s <= 20) {
-        this.config.tickInterval = Math.max(40, Math.round(1000 - s * 47));
+        this.config.tickInterval = Math.max(40, Math.round(5000 * Math.pow(0.80, s - 1)));
         this.config.ticksPerFrame = 1;
       } else {
         this.config.tickInterval = 16;  // ~60 fps
