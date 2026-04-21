@@ -3814,11 +3814,6 @@ const UI = {
         ? `<div class="trace-row muted llm-reason">LLM: ${UI._escHtml(r.llmReason)}</div>`
         : '';
 
-      // Extended: messages heard this period.
-      const msgBlock = (r.receivedMsgs && r.receivedMsgs.length)
-        ? `<div class="trace-row muted">heard ${r.receivedMsgs.map(m => `${m.from}:${m.claim.toFixed(0)}(${m.sig})`).join(', ')}</div>`
-        : '';
-
       return `
         <div class="trace-card">
           <div class="trace-head">
@@ -3832,7 +3827,6 @@ const UI = {
           ${uBlock}
           ${llmBlock}
           ${priorBlock}
-          ${msgBlock}
         </div>`;
     }).join('');
   },
