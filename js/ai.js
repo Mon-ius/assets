@@ -54,14 +54,27 @@ const AI = {
    * for each supported LLM provider. The UI builds the provider
    * dropdown from PROVIDERS and swaps the model list on change.
    */
+  /**
+   * `tpm` on each model is an *approximate* average tokens-per-minute
+   * ceiling at the provider's default paid tier — it is not authoritative
+   * and will be wrong on free/org-adjusted tiers. Units are literal tokens
+   * per minute; `_fmtTPM` below renders them as "30k" / "2M" in the UI.
+   * The per-tick utility-agent prompt is ~2–4k tokens, so 100 agents at
+   * speed 1 (5 s/tick ⇒ 12 ticks/min) needs ~2.4M–4.8M TPM; only the
+   * nano/Flash tiers comfortably sustain that. Mini/Sonnet handle Plan II
+   * at reduced agent counts. Opus/Pro/gpt-5.4 are fine for single-round
+   * inspection runs only.
+   */
   PROVIDERS: {
     openai: {
       label: 'OpenAI ChatGPT',
       endpoint: 'https://openai-20250719-f7491cbb.rootdirectorylab.com/v1/chat/completions',
       keyPlaceholder: 'sk-...',
       models: [
-        { id: 'gpt-4o',   label: 'GPT-4o' },
-        { id: 'gpt-5.4',  label: 'GPT-5.4' },
+        { id: 'gpt-4o',       label: 'GPT-4o',       tpm:    30000 },
+        { id: 'gpt-5.4',      label: 'GPT-5.4',      tpm:    30000 },
+        { id: 'gpt-5.4-mini', label: 'GPT-5.4 mini', tpm:   200000 },
+        { id: 'gpt-5.4-nano', label: 'GPT-5.4 nano', tpm:  2000000 },
       ],
       default: 'gpt-4o',
     },
@@ -70,8 +83,8 @@ const AI = {
       endpoint: 'https://gemini-20250719-bdb3d11b.rootdirectorylab.com/v1beta',
       keyPlaceholder: 'AIza...',
       models: [
-        { id: 'gemini-3-flash-preview',    label: 'Gemini 3 Flash Preview' },
-        { id: 'gemini-3.1-pro-preview',    label: 'Gemini 3.1 Pro Preview' },
+        { id: 'gemini-3-flash-preview',    label: 'Gemini 3 Flash Preview',  tpm: 1000000 },
+        { id: 'gemini-3.1-pro-preview',    label: 'Gemini 3.1 Pro Preview',  tpm:   32000 },
       ],
       default: 'gemini-3-flash-preview',
     },
@@ -80,11 +93,19 @@ const AI = {
       endpoint: 'https://anthropic-20250719-b6006324.rootdirectorylab.com/v1/messages',
       keyPlaceholder: 'sk-ant-...',
       models: [
-        { id: 'claude-opus-4-6',   label: 'Claude Opus 4.6' },
-        { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
+        { id: 'claude-opus-4-6',   label: 'Claude Opus 4.6',   tpm:  30000 },
+        { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6', tpm:  80000 },
       ],
       default: 'claude-sonnet-4-6',
     },
+  },
+
+  /** Render a TPM integer as "30k" / "2M" for dropdown labels. */
+  _fmtTPM(tpm) {
+    if (!tpm && tpm !== 0) return '';
+    if (tpm >= 1000000) return (tpm / 1000000).toFixed(tpm % 1000000 ? 1 : 0) + 'M';
+    if (tpm >= 1000)    return Math.round(tpm / 1000) + 'k';
+    return String(tpm);
   },
 
   DEFAULT_PROVIDER: 'openai',

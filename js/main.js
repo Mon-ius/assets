@@ -898,7 +898,11 @@ const App = {
       const ep     = AI.getDefaultEndpoint(providerKey);
       const kp     = AI.getKeyPlaceholder(providerKey);
       const optHtml = models
-        .map(m => `<option value="${m.id}">${m.label}</option>`)
+        .map(m => {
+          const tpm = AI._fmtTPM ? AI._fmtTPM(m.tpm) : '';
+          const suffix = tpm ? ` — ~${tpm} TPM` : '';
+          return `<option value="${m.id}">${m.label}${suffix}</option>`;
+        })
         .join('');
       aiModels.forEach(sel => { sel.innerHTML = optHtml; sel.value = def; });
       aiEndpoints.forEach(el => el.placeholder = ep);
