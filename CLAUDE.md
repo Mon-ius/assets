@@ -35,9 +35,10 @@ assets.js    ─ Registry of six tradeable asset environments
                 & FV Correlation.
 agents.js    ─ Agent base + Fundamentalist/Trend/Random/DLMTrader/Utility +
                 sampling helpers. At runtime all 100 slots are
-                `UtilityAgent`; the F/T/R/DLMTrader classes are retained
-                for the legacy presets and the Strict-DLM/AIPE paradigms
-                described below. Decisions return order objects with a
+                `UtilityAgent`; the F/T/R/DLMTrader classes remain in
+                the file as historical reference for the Strict-DLM /
+                AIPE conceptual decomposition but are not instantiated
+                at runtime. Decisions return order objects with a
                 reasoning trace attached. `DLMTrader` has a single class
                 with a two-branch `decide()` gated on an endogenous
                 `roundsPlayed` counter — it starts at 0 and is incremented
@@ -78,6 +79,11 @@ mathml.js     Single source of truth for every math symbol in the UI.
               `<span data-sym="key">` placeholders that `hydrateSymbols()`
               fills on `DOMContentLoaded`. New symbols go in the `Sym` map
               here, never inline in ui.js.
+ziputil.js    Dependency-free PKZIP writer (uses the browser's
+              `CompressionStream('deflate-raw')` for DEFLATE; falls back
+              to STORED when unavailable). Used by `main.js` to bundle
+              export downloads. Preserves the no-deps promise — do not
+              swap in a library.
 ui.js         DOM + canvas rendering; consumes views only, never touches
               Market/Engine/Agent directly — so live and replay rendering
               go through identical code paths
@@ -301,7 +307,9 @@ Fundamental value at the start of period *t* of any round is
 
 - No build, no tests, no package manager. Verify changes by opening
   `index.html` in a browser (`open index.html` on macOS) and exercising
-  the sliders and Start/Pause/Reset.
+  the sliders and Start/Pause/Reset. There is no logging infrastructure
+  — the browser DevTools console is the only error surface, so check it
+  whenever the UI silently breaks.
 - Live site <https://assets.m0nius.com> is served via GitHub Pages
   (`CNAME` in repo root). Pushes to `master` auto-deploy, so keep commits
   scoped tightly and do the browser check before pushing.
