@@ -608,9 +608,22 @@ const AI = {
     //   reported value v̂ = max(0, V · φ) with communication style
     //       σ ∈ {H honest, B biased, D strategic}
     //   market signal m̄ = mean of reported values
+    // It then layers empty-book / price-discovery rules on top:
+    //   LIQUIDITY AND MARKET INITIATION — HOLD on an empty book is not
+    //     optimal; submit a BID or ASK_1 based on your valuation
+    //   PRICE FORMATION WHEN MARKET IS EMPTY — bid = V·(1−ε),
+    //     ask = V·(1+ε) with ε ∈ [0.01, 0.05]
+    //   MANDATORY PARTICIPATION RULE — at least one agent must
+    //     initiate trading at the start of each round
     // so the LLM can reason about the gap between price and FV through
     // the same mechanics the utility.js / messaging.js code implements
-    // under Plan I, rather than reciting the textbook answer.
+    // under Plan I, rather than reciting the textbook answer. The
+    // action offer in the user prompt already falls back to an
+    // FV-anchored BID/ASK_1 (with the engine-drawn xMul ∈ [1.01, 1.10])
+    // whenever the book is one-sided or empty, so the LLM can honor
+    // the mandatory-participation rule by picking BID/ASK_1 directly;
+    // _translateLLMAction in agents.js uses the same FV anchor so the
+    // executed price matches what the prompt promised.
     const systemBase =
 `You are a trader in an experimental double-auction asset market. Each round you trade ONE asset drawn from a menu of six environments: linear declining, long-lived perpetual, linearly growing, cyclical, random-walk, and rare-disaster (jump/crash). The Asset Environment block in your user prompt names the current round’s environment and gives you the public rule (dividend process, horizon, discount rate) — so the model-based fundamental value FV_t is derivable from the rule alone.
 

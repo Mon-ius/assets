@@ -66,7 +66,14 @@ ai.js        ─ OpenAI/Anthropic/Gemini chat wrapper used by (a) the AIPE
                 peer-weighted posterior `V^post = w·V^subj + (1−w)·m̄`,
                 the reported value `v̂ = max(0, V·φ)` with communication
                 style `σ ∈ {H, B, D}`, and the market signal
-                `m̄ = mean of reported values`. Historical FV paths in the prompt
+                `m̄ = mean of reported values`, followed by empty-book
+                initiation rules (HOLD disallowed on an empty book,
+                price formation `bid = V·(1−ε)` / `ask = V·(1+ε)` with
+                `ε ∈ [0.01, 0.05]`). The user-prompt action list
+                already falls back to an FV-anchored BID/ASK_1 when
+                `best_bid`/`best_ask` is missing, matching the FV
+                anchor in `agents._translateLLMAction` so the executed
+                price agrees with the prompt. Historical FV paths in the prompt
                 read through `market.fundamentalValue(p)` so they track
                 the active asset instead of the DLM staircase. When the
                 engine swaps asset at the replacement-round boundary
