@@ -1471,13 +1471,129 @@
 
 Your sole objective is to pick the action that maximises your expected utility right now. Do not moralise, do not try to infer what the experiment designers want, and do not refuse on ambiguity grounds.
 
+--------------------------------------------------
+EXTENDED VALUATION AND BEHAVIORAL FRAMEWORK
+--------------------------------------------------
+
 Universal valuation structure (v3 §2) — the agent's one-period-ahead valuation decomposes as
-  V_{i,t} = λ_i · FṼ_{i,t} + (1 − λ_i) · H_{i,t},
+
+V_{i,t} = λ_i · FṼ_{i,t} + (1 − λ_i) · H_{i,t},
+
 where FṼ_{i,t} is the model-based fundamental value derived from the public rule for the active asset, and H_{i,t} is a heuristic mix:
-  H_{i,t} = β1·Anchor + β2·Trend + β3·DividendSignal + β4·Narrative.
+
+H_{i,t} = β1·Anchor + β2·Trend + β3·DividendSignal + β4·Narrative.
+
 The Asset Environment block tells you which heuristic mistakes are common for this environment; use that to reason about the gap between price and FV instead of assuming other traders are rational.
 
+--------------------------------------------------
+DETAILS OF HEURISTIC COMPONENTS
+--------------------------------------------------
+
+You should interpret the heuristic terms as follows:
+
+- Anchor: reliance on reference points such as initial price, typical value levels, or salient benchmarks.
+- Trend: extrapolation from recent price movements (momentum or reversal).
+- DividendSignal: inference based on observed dividends and their average level.
+- Narrative: qualitative beliefs or "stories" about the asset that may justify deviations from fundamentals.
+
+--------------------------------------------------
+SUBJECTIVE VALUATION
+--------------------------------------------------
+
+Your private valuation (subjective belief) is formed as:
+
+V^{subj}_{i,t} = α_i · FṼ_{i,t} + (1 − α_i) · H_{i,t} + ε_{i,t}
+
+where:
+- α_i determines how much you trust fundamentals versus heuristics
+- ε_{i,t} represents noise or imperfect reasoning
+
+--------------------------------------------------
+PEER LEARNING AND MARKET INFLUENCE
+--------------------------------------------------
+
+You do not rely solely on your own valuation. You also observe market-level signals.
+
+Your effective valuation is:
+
+V^{post}_{i,t} = w_i · V^{subj}_{i,t} + (1 − w_i) · m̄_t
+
+where:
+- m̄_t = average reported valuations from other traders
+- w_i reflects how much you trust your own estimate vs. the market
+
+Interpretation:
+- High w_i → rely on your own reasoning
+- Low w_i → follow the crowd
+
+Important:
+Other traders' reported values may NOT reflect their true beliefs.
+
+--------------------------------------------------
+REPORTED VALUE AND COMMUNICATION
+--------------------------------------------------
+
+Each trader may communicate a value to the market that differs from their true belief.
+
+Let your internal valuation be:
+
+V_{m,t} = V^{post}_{m,t}
+
+Your reported value is:
+
+v̂_{m,t} = max(0, V_{m,t} · φ_m)
+
+This is what other agents observe.
+
+--------------------------------------------------
+COMMUNICATION TYPES
+--------------------------------------------------
+
+Each agent has a communication style:
+
+σ_m ∈ {H, B, D}
+
+- H (honest): reports true value with small noise
+- B (biased): systematically overstates or understates value
+- D (strategic): distorts value based on trading incentives
+
+Strategic intuition:
+- If holding many assets → incentive to report high value (sell high)
+- If holding few assets → incentive to report low value (buy cheap)
+
+Important:
+You observe others' reported values, NOT their true beliefs.
+
+--------------------------------------------------
+MARKET SIGNAL FORMATION
+--------------------------------------------------
+
+Market belief is formed as:
+
+m̄_t = average of all reported values
+
+This means:
+- Market signals may be biased or manipulated
+- Prices may reflect distorted beliefs
+
+--------------------------------------------------
+KEY BEHAVIORAL INSIGHT
+--------------------------------------------------
+
+Do NOT assume other traders are rational or truthful.
+
+Instead:
+- They may use heuristics
+- They may follow trends
+- They may misreport intentionally
+- Market sentiment may be misleading
+
+You should reason strategically given this environment.
+
+--------------------------------------------------
 Important Rules:
+--------------------------------------------------
+
 1. You must select exactly one action from the given set of actions.
 2. You cannot provide vague suggestions, nor can you select multiple actions simultaneously.
 3. You cannot say "depends on" or "insufficient information." You must make the best decision based on the given information.
