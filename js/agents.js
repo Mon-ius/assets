@@ -927,7 +927,7 @@ class UtilityAgent extends Agent {
       ruleUsed:         `risk preference: risk-${this.riskPref}`,
       estimatedValue:   this.subjectiveValuation,
       expectedProfit:   (chosen.wealthIf != null ? chosen.wealthIf : w0) - w0,
-      triggerCondition: `max EU over`,
+      triggerCondition: `max EU over: ${candidates.length} actions`,
       utility: {
         riskPref:        this.riskPref,
         initialWealth:   this.initialWealth,

@@ -3868,7 +3868,14 @@ const UI = {
             const value = r.ruleUsed.slice(idx + 1).trim();
             return `${label} <strong>${value}</strong>`;
           })()}</div>
-          <div class="trace-row">trigger: <strong>${r.triggerCondition || '—'}</strong></div>
+          <div class="trace-row">${(() => {
+            const tc = r.triggerCondition || '—';
+            const idx = tc.indexOf(':');
+            if (idx < 0) return `<strong>${tc}</strong>`;
+            const label = tc.slice(0, idx + 1);
+            const value = tc.slice(idx + 1).trim();
+            return `${label} <strong>${value}</strong>`;
+          })()}</div>
           <div class="trace-row">est. FV <strong>${valStr}</strong></div>
           <div class="trace-row">cash <strong>${t.state.cash.toFixed(0)}</strong> · shares <strong>${t.state.inventory}</strong></div>
           ${uBlock}
