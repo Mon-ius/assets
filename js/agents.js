@@ -997,19 +997,14 @@ class UtilityAgent extends Agent {
     const ask  = market.book.bestAsk();
     const cash = this.cash;
     const inv  = this.inventory;
-    // x is a random percent the LLM draws in [1, 3]; used to scale
-    // best_bid / best_ask for the BID and ASK_1 actions. Tolerate a
-    // few common emit shapes (raw percent like "2", decimal like
-    // "0.02", or near-1 multiplier like "1.02") and clamp to a sane
-    // band so a parse glitch can't post a 1¢ bid or a 5000¢ ask.
-    const _normPct = (raw) => {
-      if (!Number.isFinite(raw) || raw <= 0) return 2;
-      if (raw >= 1 && raw <= 100) return raw;
-      if (raw < 1) return raw * 100;
-      return 2;
-    };
-    const xPct = _normPct(llmEntry && llmEntry.x);
-    const xMul = 1 + (Math.min(3, Math.max(1, xPct)) / 100);
+    // x is the multiplier the engine pre-drew in ai.js (range
+    // [1.01, 1.03], i.e. a 1-3% spread). It was already spliced into
+    // the prompt with the resolved bid/ask prices, and the same value
+    // is threaded back here so the executed price matches what the
+    // LLM was shown. Defaults to 1.02 only if the field is missing.
+    const xMul = (llmEntry && Number.isFinite(llmEntry.x) && llmEntry.x > 0)
+      ? llmEntry.x
+      : 1.02;
     const reasoning = {
       ruleUsed:         `llm_action`,
       estimatedValue:   this.subjectiveValuation,

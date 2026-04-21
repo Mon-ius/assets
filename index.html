@@ -1581,11 +1581,11 @@ You want to maximize the following intuitive utilities:
 - agent 6: claimed value 74 cents
 
 【You must choose one of the following actions】
-0. First, generate a random percentage between 1% and 3%, x.
+0. A random percentage x = 2.00% (drawn uniformly from [1%, 3%]) has been generated for this period; the BID and ASK_1 prices below are the result of applying x to best_bid / best_ask.
 1. BUY_NOW: Immediately buy 1 unit at the current lowest ask price (best_ask).
 2. SELL_NOW: Immediately sell 1 unit at the current highest bid price (best_bid).
-3. BID: Submit bid = best_bid*x.
-4. ASK_1: Submit ask = best_ask/x.
+3. BID: Submit bid = best_bid*x = 90.
+4. ASK_1: Submit ask = best_ask/x = 92.
 5. HOLD: Do not trade.
 The action you choose must maximize your wealth given the possible wealths generated from the five actions.
 
@@ -1600,7 +1600,6 @@ Then output only one final action.
 
 【Strict Output Format】
 Reason: &lt;Explain in 3-6 sentences why this action maximizes your wealth&gt;
-X: &lt;your random percentage in [1, 3], e.g. 2.0&gt;
 Action: &lt;BUY_NOW / SELL_NOW / BID / ASK_1 / HOLD&gt;</pre>
         </div>
 
