@@ -17,7 +17,7 @@ external libraries. Open `index.html` in any modern browser to run.
 ## What it does
 
 - Simulates a continuous double auction where a finite-life asset is traded
-  over **T periods** (default 10). Dividend per period is drawn uniformly from
+  over **T periods** (default 20). Dividend per period is drawn uniformly from
   `{0, 2·μ}`, so the theoretical fundamental value at the start of period *t*
   is
   ```

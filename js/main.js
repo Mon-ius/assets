@@ -1246,7 +1246,7 @@ const App = {
    * replacement fraction constant across the batch).
    */
   SESSION_RATE_MIN:  0.10,
-  SESSION_RATE_MAX:  0.50,
+  SESSION_RATE_MAX:  1.00,
   SESSION_RATE_STEP: 0.01,
   SESSION_RATE_DEFAULT: 0.50,
   _ensureSessionRates() {
@@ -1514,7 +1514,7 @@ const App = {
    */
   _syncSessionMixUi() {
     this._ensureSessionRates();
-    const hi = this.SESSION_RATE_MAX || 0.5;
+    const hi = this.SESSION_RATE_MAX || 1.0;
     const summary = document.getElementById('session-mix-summary');
     // The slider bar operates in percent (see _rebuildSessionRateGrid),
     // but the Trade-settings chips and the aggregate readout still
@@ -2735,7 +2735,7 @@ const App = {
       // but at least the human doesn't have to sit through a
       // speed-14 animation for every round.
       const R = this.config.roundsPerSession || 1;
-      const T = this.config.periods          || 10;
+      const T = this.config.periods          || 20;
       const K = this.config.ticksPerPeriod   || 18;
       this._savedTickPacing = {
         tickInterval:  this.config.tickInterval,
