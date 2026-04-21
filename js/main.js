@@ -900,7 +900,7 @@ const App = {
       const optHtml = models
         .map(m => {
           const tpm = AI._fmtTPM ? AI._fmtTPM(m.tpm) : '';
-          const suffix = tpm ? ` — ~${tpm} TPM` : '';
+          const suffix = tpm ? ` (~${tpm}TPM)` : '';
           return `<option value="${m.id}">${m.label}${suffix}</option>`;
         })
         .join('');
