@@ -561,14 +561,20 @@ const App = {
     if (themeBtn) themeBtn.addEventListener('click', () => this._cycleTheme());
 
     document.getElementById('speed').addEventListener('input', e => {
-      // Speeds 1-20 run one tick per animation frame with a geometric
-      // interval ramp: speed 1 → 5000ms (≈90s per period at K=18, slow
-      // enough to stay under provider TPM limits when every agent fires
-      // an LLM call at the period boundary); speed 14 → ~275ms (the
-      // default); speed 20 → ~72ms. Speeds 21-50 pin the interval at
-      // 16ms and batch multiple ticks per frame for non-LLM sweeps.
+      // Three regimes, all on a single slider (step 0.1):
+      //   0.1 ≤ s < 1   — sub-1 slow zone for Plan II/III TPM headroom.
+      //                   Geometric ramp from 30000ms at s=0.1 (≈9min
+      //                   per period at K=18) down to 5000ms at s=1.
+      //   1   ≤ s ≤ 20  — normal zone, 1 tick per frame.
+      //                   Geometric: 5000ms × 0.80^(s−1), so s=14 is
+      //                   ~275ms (default) and s=20 is ~72ms.
+      //   20  <  s ≤ 50 — turbo zone, 16ms/frame with batched ticks.
       const s = Number(e.target.value);
-      if (s <= 20) {
+      if (s < 1) {
+        const t = (s - 0.1) / 0.9;  // 0 at s=0.1, 1 at s=1
+        this.config.tickInterval = Math.round(30000 * Math.pow(5000 / 30000, t));
+        this.config.ticksPerFrame = 1;
+      } else if (s <= 20) {
         this.config.tickInterval = Math.max(40, Math.round(5000 * Math.pow(0.80, s - 1)));
         this.config.ticksPerFrame = 1;
       } else {
