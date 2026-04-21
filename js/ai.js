@@ -76,7 +76,7 @@ const AI = {
         { id: 'gpt-5.4-mini', label: 'GPT-5.4 mini', tpm:   200000 },
         { id: 'gpt-5.4-nano', label: 'GPT-5.4 nano', tpm:  2000000 },
       ],
-      default: 'gpt-4o',
+      default: 'gpt-5.4-nano',
     },
     gemini: {
       label: 'Google Gemini',
