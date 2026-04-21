@@ -2727,6 +2727,7 @@ const App = {
                : m === 'II' ? 'Plan II (LLM with explicit CRRA form)'
                : m === 'III' ? 'Plan III (LLM with risk-label only)'
                : `Plan ${m}`;
+    const isLLM = (meta.plan === 'II' || meta.plan === 'III');
 
     out.push('FV Replication Market — Batch Export');
     out.push('=====================================');
@@ -2760,29 +2761,40 @@ const App = {
     out.push(`  Averse  αA: ${pct(risk.A || 0)}`);
     out.push('');
 
-    out.push('Prior toggles & regulator');
-    out.push('-------------------------');
-    out.push(`  Prior Bias:      ${tun.applyBias  ? 'on' : 'off'} (amount ${tun.biasAmount})`);
-    out.push(`  Prior Noise:     ${tun.applyNoise ? 'on' : 'off'} (U[-${tun.valuationNoise}, +${tun.valuationNoise}])`);
-    const regOn = !!tun.applyRegulator && (+tun.regulatorThreshold) > 0;
-    out.push(`  Regulator:       ${regOn ? `on (threshold ${pct(tun.regulatorThreshold)})` : 'disabled'}`);
-    out.push(`  Bounded Rational: ${tun.applyBoundedRationality ? 'on' : 'off'}`);
-    out.push('');
+    if (isLLM) {
+      out.push('Plan II/III runtime toggles');
+      out.push('---------------------------');
+      const regOn = !!tun.applyRegulator && (+tun.regulatorThreshold) > 0;
+      out.push(`  Regulator:       ${regOn ? `on (threshold ${pct(tun.regulatorThreshold)})` : 'disabled'}`);
+      out.push(`  Bounded Rational: ${tun.applyBoundedRationality ? 'on' : 'off'}`);
+      out.push('  (Prior Bias/Noise, experience anchors α₀/σ₀/ω₀/γ_α/γ_σ,');
+      out.push('   and β-heuristic weights are Plan I knobs and are not');
+      out.push('   consumed under Plan II/III — the LLM returns the action');
+      out.push('   directly, so subjective valuations and per-tick utility');
+      out.push('   scores are not computed for Plan II/III runs.)');
+      out.push('');
+    } else {
+      out.push('Prior toggles & regulator');
+      out.push('-------------------------');
+      out.push(`  Prior Bias:      ${tun.applyBias  ? 'on' : 'off'} (amount ${tun.biasAmount})`);
+      out.push(`  Prior Noise:     ${tun.applyNoise ? 'on' : 'off'} (U[-${tun.valuationNoise}, +${tun.valuationNoise}])`);
+      out.push('');
 
-    out.push('Experience curve anchors');
-    out.push('------------------------');
-    out.push(`  α₀ = ${tun.expAlpha0}   γ_α = ${tun.expGammaAlpha}`);
-    out.push(`  σ₀ = ${tun.expSigma0}   γ_σ = ${tun.expGammaSigma}`);
-    out.push(`  ω₀ = ${tun.expOmega0}`);
-    out.push('');
+      out.push('Experience curve anchors');
+      out.push('------------------------');
+      out.push(`  α₀ = ${tun.expAlpha0}   γ_α = ${tun.expGammaAlpha}`);
+      out.push(`  σ₀ = ${tun.expSigma0}   γ_σ = ${tun.expGammaSigma}`);
+      out.push(`  ω₀ = ${tun.expOmega0}`);
+      out.push('');
 
-    out.push('Heuristic-mix weights');
-    out.push('---------------------');
-    out.push(`  β_anchor    = ${tun.betaAnchor}`);
-    out.push(`  β_trend     = ${tun.betaTrend}`);
-    out.push(`  β_dividend  = ${tun.betaDividend}`);
-    out.push(`  β_narrative = ${tun.betaNarrative}`);
-    out.push('');
+      out.push('Heuristic-mix weights');
+      out.push('---------------------');
+      out.push(`  β_anchor    = ${tun.betaAnchor}`);
+      out.push(`  β_trend     = ${tun.betaTrend}`);
+      out.push(`  β_dividend  = ${tun.betaDividend}`);
+      out.push(`  β_narrative = ${tun.betaNarrative}`);
+      out.push('');
+    }
 
     out.push('Session schedule (pre → post asset, replacement rate, corr)');
     out.push('------------------------------------------------------------');
@@ -2794,6 +2806,11 @@ const App = {
       const corr = (s.sessionAssetCorr != null) ? s.sessionAssetCorr.toFixed(3) : '—';
       out.push(`  ${pad(s.session, 3)} ${pad(s.treatment, 10)} ${pad(pre, 24)} ${pad(post, 24)} ${pad(rate, 7)} ${corr}`);
     });
+    if (isLLM) {
+      out.push('  (Corr column is the FV-curve Pearson r between pre/post');
+      out.push('   assets; it drives the Plan I experience-transfer blend');
+      out.push('   only and is recorded but not consumed under Plan II/III.)');
+    }
     out.push('');
 
     out.push('Zip layout');
@@ -2807,8 +2824,14 @@ const App = {
     out.push('                                         "R4 swap · −N traders" so the replacement');
     out.push('                                         event is visible in every figure without');
     out.push('                                         needing a separate before/after capture.');
-    out.push('  figures/session_NN/agents/*.png     — 6-panel stats composite per agent at');
+    out.push(`  figures/session_NN/agents/*.png     — ${isLLM ? '3' : '6'}-panel stats composite per agent at`);
     out.push('                                         session end (one per live slot).');
+    if (isLLM) {
+      out.push('                                         Plan II/III drops the Subj V, Report V');
+      out.push('                                         and Normalized-utility panels because');
+      out.push('                                         the LLM returns the action directly');
+      out.push('                                         without computing those quantities.');
+    }
     out.push('                                         filename:');
     out.push('                                         agent_NNN_k<K>_<status>_<strategy>.png');
     out.push('                                         where K = roundsPlayed at capture time,');
