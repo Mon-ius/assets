@@ -60,8 +60,13 @@ ai.js        ─ OpenAI/Anthropic/Gemini chat wrapper used by (a) the AIPE
                 and splices an 【Asset Environment】 block — dividend
                 rule, horizon, model-based FV formula, common heuristic
                 mistake — into the user prompt. The system prompt
-                carries the v3 §2 decomposition
-                `V = λ·FṼ + (1−λ)·H`; historical FV paths in the prompt
+                carries the full v3 behavioral framework: the §2
+                decomposition `V = λ·FṼ + (1−λ)·H`, the subjective
+                valuation `V^subj = α·FṼ + (1−α)·H + ε`, the
+                peer-weighted posterior `V^post = w·V^subj + (1−w)·m̄`,
+                the reported value `v̂ = max(0, V·φ)` with communication
+                style `σ ∈ {H, B, D}`, and the market signal
+                `m̄ = mean of reported values`. Historical FV paths in the prompt
                 read through `market.fundamentalValue(p)` so they track
                 the active asset instead of the DLM staircase. When the
                 engine swaps asset at the replacement-round boundary

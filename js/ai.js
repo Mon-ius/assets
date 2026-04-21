@@ -599,12 +599,18 @@ const AI = {
     // described in the v3 spec (linear declining, perpetual, linear
     // growth, cyclical, random walk, jump/crash). The per-agent user
     // prompt supplies the concrete asset template; the system prompt
-    // establishes the universal valuation framework (FV = expected
-    // discounted sum of future dividends) and the universal heuristic
-    // decomposition H = β1·Anchor + β2·Trend + β3·DividendSignal +
-    // β4·Narrative so the model can compare its model-based FV to a
-    // behaviourally realistic heuristic instead of reciting the
-    // textbook answer.
+    // establishes the full v3 behavioral framework:
+    //   §2 one-period-ahead decomposition V = λ·FṼ + (1−λ)·H
+    //   §4 heuristic mix H = β1·Anchor + β2·Trend + β3·DividendSignal
+    //       + β4·Narrative
+    //   subjective valuation V^{subj} = α·FṼ + (1−α)·H + ε
+    //   peer-weighted posterior V^{post} = w·V^{subj} + (1−w)·m̄
+    //   reported value v̂ = max(0, V · φ) with communication style
+    //       σ ∈ {H honest, B biased, D strategic}
+    //   market signal m̄ = mean of reported values
+    // so the LLM can reason about the gap between price and FV through
+    // the same mechanics the utility.js / messaging.js code implements
+    // under Plan I, rather than reciting the textbook answer.
     const systemBase =
 `You are a trader in an experimental double-auction asset market. Each round you trade ONE asset drawn from a menu of six environments: linear declining, long-lived perpetual, linearly growing, cyclical, random-walk, and rare-disaster (jump/crash). The Asset Environment block in your user prompt names the current round’s environment and gives you the public rule (dividend process, horizon, discount rate) — so the model-based fundamental value FV_t is derivable from the rule alone.
 
