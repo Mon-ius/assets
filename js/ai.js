@@ -94,8 +94,9 @@ const AI = {
       endpoint: 'https://anthropic-20250719-b6006324.rootdirectorylab.com/v1/messages',
       keyPlaceholder: 'sk-ant-...',
       models: [
-        { id: 'claude-opus-4-7',   label: 'Claude Opus 4.7',   tpm:  30000 },
-        { id: 'claude-sonnet-4-7', label: 'Claude Sonnet 4.7', tpm:  80000 },
+        { id: 'claude-opus-4-7',      label: 'Claude Opus 4.7',   tpm:   30000 },
+        { id: 'claude-sonnet-4-7',    label: 'Claude Sonnet 4.7', tpm:   80000 },
+        { id: 'claude-haiku-4-5',     label: 'Claude Haiku 4.5',  tpm:  400000 },
       ],
       default: 'claude-sonnet-4-7',
     },
