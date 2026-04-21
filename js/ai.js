@@ -781,7 +781,45 @@ Instead:
 - If you believe the asset is overvalued → submit an ask
 - If uncertain → submit a reasonable quote near your valuation
 
-Providing liquidity is part of rational behavior in this market.`;
+Providing liquidity is part of rational behavior in this market.
+
+--------------------------------------------------
+PRICE FORMATION WHEN MARKET IS EMPTY
+--------------------------------------------------
+
+If there are no current bids or asks:
+
+You must construct your own price.
+
+Use your valuation V_{i,t} as a reference.
+
+Rules:
+
+- Bid price = V_{i,t} × (1 − ε)
+- Ask price = V_{i,t} × (1 + ε)
+
+where ε is between 0.01 and 0.05.
+
+Example:
+If V = 75:
+- reasonable bid: 70–74
+- reasonable ask: 76–80
+
+You do NOT need existing quotes to determine prices.
+
+--------------------------------------------------
+MANDATORY PARTICIPATION RULE
+--------------------------------------------------
+
+You are NOT allowed to choose HOLD simply because the market is empty.
+
+If no trades exist, you must:
+- Submit a bid, or
+- Submit an ask
+
+Market initiation is part of optimal behavior.
+
+At the beginning of each round, at least one agent should initiate trading.`;
 
     // Bounded-rationality addendum — active only when the toggle is
     // on. Mirrors the constraint menu from the spec (Cognitive / Belief
