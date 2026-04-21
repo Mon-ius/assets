@@ -401,7 +401,7 @@
            Paper constants — fixed-by-design values from Dufwenberg,
            Lindqvist & Moore (2005), §I. Read-only card nested inside
            Experiment settings: the paper's experimental design pins
-           them (10-period asset life, {0, 20}¢ dividend, μ_d = 10¢,
+           them in the paper (10-period asset life, {0, 20}¢ dividend, μ_d = 10¢,
            backward-induction FV), so they cannot be edited and each
            item carries the quoted source line. Folded by default to
            keep the Advanced Settings tile rows above the fold; the
@@ -425,22 +425,22 @@
             <div class="const-item">
               <dt><span data-sym="bigT"></span> <span class="const-val">= 10</span></dt>
               <dd class="const-label">Asset life, in periods (per round)</dd>
-              <dd class="const-note">&ldquo;An asset's life span is ten periods.&rdquo;<span class="const-src">§I, p. 1732</span></dd>
+              <dd class="const-note">&ldquo;An asset's life span is ten periods.&rdquo; This simulator doubles the horizon to <span data-sym="bigT"></span> = 20 periods for a finer-grained staircase while preserving FV<sub>1</sub> = 100¢ (paired with the halved dividend below).<span class="const-src">§I, p. 1732 &middot; scaled in main.js</span></dd>
             </div>
             <div class="const-item">
-              <dt>dividend <span class="const-val">∈ {0, 20}¢</span></dt>
+              <dt>dividend <span class="const-val">∈ {0, 10}¢</span></dt>
               <dd class="const-label">Per-period draw, equiprobable</dd>
-              <dd class="const-note">&ldquo;In each period, it pays a dividend of 0 or 20 U.S. cents, with equal probability.&rdquo;<span class="const-src">§I, p. 1732</span></dd>
+              <dd class="const-note">&ldquo;In each period, it pays a dividend of 0 or 20 U.S. cents, with equal probability.&rdquo; This simulator halves the support to {0, 10}¢ so the per-period expected dividend drops to 5¢ — keeping FV<sub>1</sub> = 100¢ under the doubled <span data-sym="bigT"></span> = 20.<span class="const-src">§I, p. 1732 &middot; scaled in assets.js</span></dd>
             </div>
             <div class="const-item">
-              <dt><span data-sym="muD"></span> <span class="const-val">= 10¢</span></dt>
+              <dt><span data-sym="muD"></span> <span class="const-val">= 5¢</span></dt>
               <dd class="const-label">Expected dividend per period</dd>
-              <dd class="const-note">&ldquo;The expected dividend in each period is 10 cents (= ½ × 0 cents + ½ × 20 cents).&rdquo;<span class="const-src">§I, footnote 5</span></dd>
+              <dd class="const-note">&ldquo;The expected dividend in each period is 10 cents (= ½ × 0 cents + ½ × 20 cents).&rdquo; Under the simulator's halved dividend support this becomes <span data-sym="muD"></span> = ½ × 0 + ½ × 10 = 5¢.<span class="const-src">§I, footnote 5 &middot; scaled in assets.js</span></dd>
             </div>
             <div class="const-item">
               <dt><span data-sym="fvDef"></span></dt>
               <dd class="const-label">Fundamental value, by backward induction</dd>
-              <dd class="const-note">&ldquo;With k periods remaining, the fundamental value is k × 10 cents.&rdquo;<span class="const-src">§I, p. 1732</span></dd>
+              <dd class="const-note">&ldquo;With k periods remaining, the fundamental value is k × 10 cents.&rdquo; Under the simulator's <span data-sym="muD"></span> = 5¢ this becomes FV = k × 5¢, so FV<sub>1</sub> = 20 × 5 = 100¢ still holds at the round boundary.<span class="const-src">§I, p. 1732 &middot; scaled in assets.js</span></dd>
             </div>
             <div class="const-item">
               <dt>endowment A <span class="const-val">200¢, 6 shares</span></dt>
@@ -957,7 +957,7 @@
     <div class="arch-header">
       <div class="arch-title-block">
         <h2>System Design</h2>
-        <p class="arch-desc">Figures 1–4: the four-stage pipeline from asset fundamentals through information aggregation to price discovery. A single Start press runs 10 sessions ($R = 4$ rounds each, 720 ticks/session) with per-round data collected as $\texttt{R\{r\}\_S\{s\}}$.</p>
+        <p class="arch-desc">Figures 1–4: the four-stage pipeline from asset fundamentals through information aggregation to price discovery. A single Start press runs 10 sessions ($R = 4$ rounds each, 1 440 ticks/session) with per-round data collected as $\texttt{R\{r\}\_S\{s\}}$.</p>
       </div>
     </div>
 
@@ -1061,8 +1061,8 @@
         <div class="arch-def-card card-paper">
           <h4>Fundamental Value</h4>
           <p class="role">Market constant</p>
-          <div class="formula">$$ \mathrm{FV}_t \;=\; \mathbb{E}[d] \cdot (T - t + 1), \qquad \mathbb{E}[d] = \tfrac{1}{2}(0) + \tfrac{1}{2}(20) = 10\text{¢} $$</div>
-          <p class="body">Risk-neutral price of one share at the start of period $t$: $T = 10$ periods of remaining asset life, $d \in \{0, 20\}$¢ i.i.d. dividend draws, yielding a deterministic staircase from $\mathrm{FV}_1 = 100$¢ to $\mathrm{FV}_{10} = 10$¢ that resets at every round boundary. The DLM (2005) market substrate lives underneath every plan.</p>
+          <div class="formula">$$ \mathrm{FV}_t \;=\; \mathbb{E}[d] \cdot (T - t + 1), \qquad \mathbb{E}[d] = \tfrac{1}{2}(0) + \tfrac{1}{2}(10) = 5\text{¢} $$</div>
+          <p class="body">Risk-neutral price of one share at the start of period $t$: $T = 20$ periods of remaining asset life, $d \in \{0, 10\}$¢ i.i.d. dividend draws, yielding a deterministic staircase from $\mathrm{FV}_1 = 100$¢ to $\mathrm{FV}_{20} = 5$¢ that resets at every round boundary. The DLM (2005) market substrate lives underneath every plan.</p>
         </div>
       </div>
     </figure>
@@ -1089,7 +1089,7 @@
           <g class="n n-paper" transform="translate(40 40)">
             <rect width="340" height="40" rx="6" ry="6"/>
             <foreignObject width="340" height="40">
-              <div class="fo-node"><div class="fo-t">$T = 10$ periods &nbsp; $d \in \{0,20\}$¢ &nbsp; $\mathbb{E}[d] = 10$¢</div></div>
+              <div class="fo-node"><div class="fo-t">$T = 20$ periods &nbsp; $d \in \{0,10\}$¢ &nbsp; $\mathbb{E}[d] = 5$¢</div></div>
             </foreignObject>
           </g>
           <g class="n n-util" transform="translate(400 40)">
@@ -1740,7 +1740,7 @@ Action Rules
       <table class="gloss-table">
         <thead><tr><th>Symbol</th><th>Definition</th><th>Where it appears</th></tr></thead>
         <tbody>
-          <tr><td class="term math">$\mathrm{FV}_t$</td><td>Fundamental value at the start of period $t$. $\mathrm{FV}_t = \mathbb{E}[d]\cdot(T - t + 1)$, with $\mathbb{E}[d] = \tfrac{1}{2}(0) + \tfrac{1}{2}(20) = 10$¢ and $T = 10$. Yields a staircase from $\mathrm{FV}_1 = 100$¢ to $\mathrm{FV}_{10} = 10$¢, resetting at every round boundary.</td><td>Shared substrate — drives every agent's prior (Figures 1–4)</td></tr>
+          <tr><td class="term math">$\mathrm{FV}_t$</td><td>Fundamental value at the start of period $t$. $\mathrm{FV}_t = \mathbb{E}[d]\cdot(T - t + 1)$, with $\mathbb{E}[d] = \tfrac{1}{2}(0) + \tfrac{1}{2}(10) = 5$¢ and $T = 20$. Yields a staircase from $\mathrm{FV}_1 = 100$¢ to $\mathrm{FV}_{20} = 5$¢, resetting at every round boundary.</td><td>Shared substrate — drives every agent's prior (Figures 1–4)</td></tr>
           <tr><td class="term math">$V_{i,t}^{\text{prior}}$</td><td>Agent $i$'s pre-blend valuation at period $t$ — v3 §2 decomposition: $V_{i,t}^{\text{prior}} = \max\!\bigl(0,\,[\alpha_i\!\cdot\!\widetilde{\mathrm{FV}}_{i,t} + (1-\alpha_i)\!\cdot\!H_{i,t}](1 + b_i) + \varepsilon_i\bigr)$. Identical across all three plans; only the posterior update (Step 3) differs.</td><td>Prior Formation stage (Figures 1–2)</td></tr>
           <tr><td class="term math">$\widetilde{\mathrm{FV}}_{i,t}$</td><td>Agent $i$'s model-based fundamental value at period $t$ — the asset-specific closed form from v5 §5.{4,10,16,22,28,34}. For the Linear-Declining (DLM) asset this is $\widetilde{\mathrm{FV}}_{i,t} = 5\!\cdot\!(T - t + 1)$, so a rational $\alpha_i = 1$ trader recovers the public $\mathrm{FV}_t$ exactly; every other asset reads its per-asset form off the Figure-2 card.</td><td>v3 §2 prior — model-based term (Figure 2)</td></tr>
           <tr><td class="term math">$H_{i,t}$</td><td>Four-term heuristic mix (v3 §4): $H_{i,t} = \beta_1\!\cdot\!\text{Anchor} + \beta_2\!\cdot\!\text{Trend} + \beta_3\!\cdot\!\text{DividendSignal} + \beta_4\!\cdot\!\text{Narrative}$ with default weights $(\beta_1,\beta_2,\beta_3,\beta_4) = (0.50, 0.20, 0.20, 0.10)$ from §6.2 — live-tunable via the green β-row in Advanced settings; the Σβ tile at the end of the row flips amber when the weights no longer sum to 1. Trend drops out at $t = 1$ (no prior period to difference against) per §6.3. The heuristic value enters the prior with weight $1 - \alpha_i$, so novices lean on $H$ while veterans anchor to $\widetilde{\mathrm{FV}}$.</td><td>v3 §2 prior — heuristic term (Figure 2)</td></tr>
@@ -1946,7 +1946,7 @@ Action Rules
       <div class="slide" data-slide="6">
         <div class="slide-body">
           <h2 class="slide-heading">Market substrate · DLM (2005)</h2>
-          <p class="slide-text">The shared environment replicates the Dufwenberg, Lindqvist &amp; Moore (2005) continuous double auction exactly. A session consists of $R = 4$ rounds, each a complete $T = 10$-period market. Dividends are i.i.d. draws from $\{0, 20\}$¢ with $\mathbb{E}[d] = 10$¢.</p>
+          <p class="slide-text">The shared environment replicates the Dufwenberg, Lindqvist &amp; Moore (2005) continuous double auction, scaled to $T = 20$ periods per round. A session consists of $R = 4$ rounds, each a complete $T = 20$-period market. Dividends are i.i.d. draws from $\{0, 10\}$¢ with $\mathbb{E}[d] = 5$¢ (the paper used $T = 10$ with $d \in \{0, 20\}$¢; scaled here to keep $\mathrm{FV}_1 = 100$¢).</p>
           <div class="slide-formula-card">
             $$ \mathrm{FV}_t \;=\; \mathbb{E}[d] \cdot (T - t + 1) \;=\; 10\,(T - t + 1), \qquad \mathrm{FV}_1 = 100\text{¢},\;\; \mathrm{FV}_{10} = 10\text{¢} $$
           </div>
@@ -2123,7 +2123,7 @@ Action Rules
               <p class="slide-sm"><strong>Risk composition:</strong> $(\alpha_L, \alpha_N, \alpha_A)$ summing to 100%</p>
               <p class="slide-sm"><strong>Deception:</strong> honest / strategic misreporting</p>
               <p class="slide-sm"><strong>Population:</strong> $N = 100$ Utility agents; risk split $(\alpha_L, \alpha_N, \alpha_A)$</p>
-              <p class="slide-sm"><strong>Session structure:</strong> $R = 4$ rounds of $T = 10$ periods</p>
+              <p class="slide-sm"><strong>Session structure:</strong> $R = 4$ rounds of $T = 20$ periods</p>
             </div>
             <div class="slide-card">
               <h4>Controls &amp; reproducibility</h4>
@@ -2134,7 +2134,7 @@ Action Rules
             </div>
           </div>
           <div class="slide-formula-card">
-            $$ \text{Session} \;=\; R \times T \times K \;=\; 4 \times 10 \times 18 \;=\; 720 \;\text{ticks}, \qquad \text{Batch} = 10 \;\text{sessions} \;=\; 7200 \;\text{ticks} $$
+            $$ \text{Session} \;=\; R \times T \times K \;=\; 4 \times 20 \times 18 \;=\; 1\,440 \;\text{ticks}, \qquad \text{Batch} = 10 \;\text{sessions} \;=\; 14\,400 \;\text{ticks} $$
           </div>
           <div class="slide-card slide-highlight">
             <p class="slide-sm"><strong>Data collection.</strong> Per-round metrics are labelled $\texttt{R\{r\}\_S\{s\}}$ (Round $r$ of Session $s$). One Start press runs all 10 sessions (5 &times; first treatment + 5 &times; other), collecting 40 round-level rows (4 rounds &times; 10 sessions) with mean deviation, turnover, trades, volume, and payoff.</p>

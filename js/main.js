@@ -33,13 +33,16 @@ const App = {
   // DLM 2005 unit of study is a *session* of four consecutive markets
   // ("rounds") with the same population sharing across rounds 1-3 (the
   // paper pins it at six traders; this simulator scales to one hundred)
-  // and a mixed-experience swap in round 4. One round lasts
-  // ten periods with a {0,20}¢ i.i.d. dividend, so an entire session
-  // is roundsPerSession × periods × ticksPerPeriod = 720 ticks by
-  // default. The three numbers below are DLM paper constants and are
-  // surfaced read-only in the Paper constants panel — the user does
-  // not edit them, so that every comparison holds market structure
-  // fixed. ticksPerPeriod is the simulator's own discretisation of
+  // and a mixed-experience swap in round 4. The paper uses ten periods
+  // per round with a {0,20}¢ i.i.d. dividend; this simulator doubles the
+  // horizon to twenty periods and halves the dividend support to {0,10}¢
+  // so FV_1 = 100¢ is preserved under a finer-grained staircase. An
+  // entire session is roundsPerSession × periods × ticksPerPeriod = 1 440
+  // ticks by default. The three numbers below are the scaled constants
+  // surfaced read-only in the Paper constants panel alongside the paper
+  // originals — the user does not edit them, so that every comparison
+  // holds market structure fixed. ticksPerPeriod is the simulator's
+  // own discretisation of
   // DLM's two-minute continuous trading windows and lives alongside
   // the paper constants because it shapes the tick-level dynamics.
   config: {
@@ -2669,7 +2672,7 @@ const App = {
       this._pendingExportDownload = true;
       // Snapshot the user's current pacing so we can restore it once
       // the batch completes. Turbo values: no inter-frame delay,
-      // 720 ticks per frame = one full session (R × T × K ticks) per
+      // 1 440 ticks per frame = one full session (R × T × K ticks) per
       // animation frame, so all ten sessions chew through in ~10-15
       // frames on Plan I. Plan II/III is still paced by the LLM
       // round-trips (each period boundary awaits a network call),
