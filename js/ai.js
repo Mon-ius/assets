@@ -133,7 +133,7 @@ const AI = {
     });
     if (!res.ok) {
       const text = await res.text().catch(() => '');
-      throw new Error(`ai.openai: HTTP ${res.status} ${text}`);
+      throw this._httpError('openai', res, text);
     }
     const data = await res.json();
     const content = data?.choices?.[0]?.message?.content;
@@ -160,7 +160,7 @@ const AI = {
     });
     if (!res.ok) {
       const text = await res.text().catch(() => '');
-      throw new Error(`ai.gemini: HTTP ${res.status} ${text}`);
+      throw this._httpError('gemini', res, text);
     }
     const data = await res.json();
     const content = data?.candidates?.[0]?.content?.parts?.[0]?.text;
@@ -188,7 +188,7 @@ const AI = {
     });
     if (!res.ok) {
       const text = await res.text().catch(() => '');
-      throw new Error(`ai.claude: HTTP ${res.status} ${text}`);
+      throw this._httpError('claude', res, text);
     }
     const data = await res.json();
     const block = (data?.content || []).find(b => b.type === 'text');
@@ -196,17 +196,141 @@ const AI = {
     return block.text.trim();
   },
 
-  /**
-   * Unified call dispatcher — routes to the provider-specific handler
-   * based on `cfg.provider`. Falls back to OpenAI format for backwards
-   * compatibility when provider is unset.
-   */
-  async call(cfg, system, prompt) {
-    if (!cfg || !cfg.apiKey) throw new Error('ai.call: missing apiKey');
+  /* ---- Retry machinery (shared by all providers) ----
+     Rate limits are the dominant real-world failure when running Plan
+     II / III at N = 100 utility agents — a single period fires up to
+     a hundred concurrent completions, and every provider's per-minute
+     token budget will bite at least once per session. Retrying at the
+     `call()` seam (rather than inside each provider) means the AIPE
+     anchor path and the per-period belief update both benefit without
+     duplicating logic. */
+
+  /** Build a typed HTTP error carrying `status` and a parsed wait hint. */
+  _httpError(providerKey, res, body) {
+    const err = new Error(`ai.${providerKey}: HTTP ${res.status} ${body || ''}`);
+    err.status     = res.status;
+    err.provider   = providerKey;
+    err.retryAfter = this._parseRetryAfter(
+      res.headers && typeof res.headers.get === 'function' ? res.headers.get('Retry-After') : null,
+      body,
+    );
+    return err;
+  },
+
+  _sleep(ms) { return new Promise(r => setTimeout(r, ms)); },
+
+  /** Retriable: rate-limit (429), request-timeout (408), too-early (425),
+   *  any 5xx, or a network-level failure (no status attached). */
+  _isRetriable(err) {
+    const s = err && err.status;
+    if (s === 429 || s === 408 || s === 425) return true;
+    if (typeof s === 'number' && s >= 500 && s <= 599) return true;
+    if (s == null) return true;
+    return false;
+  },
+
+  /** Pick a wait duration. Prefer the provider's own hint when present;
+   *  otherwise full-jitter exponential backoff (base 1 s, cap 30 s). */
+  _computeWaitMs(err, attempt) {
+    const hinted = err && err.retryAfter;
+    if (Number.isFinite(hinted) && hinted > 0) {
+      return Math.min(60_000, Math.ceil(hinted * 1000) + 250 + Math.floor(Math.random() * 500));
+    }
+    const base = Math.min(30_000, 1000 * Math.pow(2, attempt));
+    return Math.max(500, Math.floor(base * (0.5 + Math.random() * 0.5)));
+  },
+
+  /** Extract a wait-in-seconds hint from a Retry-After header or the
+   *  provider-specific error body. Supports:
+   *    • Retry-After: "<seconds>" or HTTP-date
+   *    • OpenAI:  "Please try again in 3.59s" / "in 1m20s" / "in 500ms"
+   *    • Gemini:  "retryDelay": "25s"
+   *    • Claude:  "retry_after": 30                                   */
+  _parseRetryAfter(headerVal, bodyText) {
+    if (headerVal) {
+      const asNum = Number(headerVal);
+      if (Number.isFinite(asNum) && asNum > 0) return asNum;
+      const asDate = Date.parse(headerVal);
+      if (!Number.isNaN(asDate)) {
+        const diff = (asDate - Date.now()) / 1000;
+        if (diff > 0) return diff;
+      }
+    }
+    if (typeof bodyText !== 'string' || !bodyText) return null;
+
+    // OpenAI "... try again in 3.59s" / "in 1m20s" / "in 500ms".
+    const m = bodyText.match(/try again in\s+([0-9]+(?:\.[0-9]+)?)\s*(ms|s|m)\b/i);
+    if (m) {
+      const v = parseFloat(m[1]);
+      const u = (m[2] || 's').toLowerCase();
+      if (u === 'ms') return v / 1000;
+      if (u === 'm')  return v * 60;
+      return v;
+    }
+    // OpenAI sometimes emits a compound form "in 1m20s".
+    const m2 = bodyText.match(/try again in\s+(?:([0-9]+)m)?\s*([0-9]+(?:\.[0-9]+)?)?\s*s?\b/i);
+    if (m2 && (m2[1] || m2[2])) {
+      const mins = m2[1] ? parseInt(m2[1], 10) : 0;
+      const secs = m2[2] ? parseFloat(m2[2])   : 0;
+      if (mins || secs) return mins * 60 + secs;
+    }
+    // Gemini: retryDelay: "25s".
+    const g = bodyText.match(/retryDelay[^0-9]*([0-9]+(?:\.[0-9]+)?)\s*s/i);
+    if (g) return parseFloat(g[1]);
+    // Claude: retry_after: 30 (seconds).
+    const c = bodyText.match(/retry[_-]after[^0-9]*([0-9]+(?:\.[0-9]+)?)/i);
+    if (c) return parseFloat(c[1]);
+    return null;
+  },
+
+  _errLabel(err) {
+    if (err && err.status) return 'HTTP ' + err.status;
+    const msg = err && err.message ? String(err.message) : 'unknown';
+    return msg.length > 80 ? msg.slice(0, 80) + '…' : msg;
+  },
+
+  /** Provider dispatch without retries — used as the inner call of
+   *  the retry loop in `call()`. */
+  async _callOnce(cfg, system, prompt) {
     const provider = cfg.provider || this.DEFAULT_PROVIDER;
     if (provider === 'gemini') return this._callGemini(cfg, system, prompt);
     if (provider === 'claude') return this._callClaude(cfg, system, prompt);
     return this._callOpenAI(cfg, system, prompt);
+  },
+
+  /**
+   * Unified call dispatcher with automatic retries for rate-limit /
+   * transient failures. Each provider's `_call*` builds a typed error
+   * with `{status, retryAfter}` on HTTP failure; this wrapper catches
+   * those, waits for the hinted duration (or exponential-backoff
+   * fallback), and retries up to `cfg.maxRetries` times (default 5).
+   *
+   * Permanent failures (4xx other than 429/408/425, no-content parse
+   * errors) propagate immediately so a bad API key doesn't burn five
+   * wait cycles before falling back to the deterministic path.
+   */
+  async call(cfg, system, prompt) {
+    if (!cfg || !cfg.apiKey) throw new Error('ai.call: missing apiKey');
+    const maxRetries = Number.isFinite(cfg.maxRetries) ? cfg.maxRetries : 5;
+    let attempt = 0;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      try {
+        return await this._callOnce(cfg, system, prompt);
+      } catch (err) {
+        if (attempt >= maxRetries || !this._isRetriable(err)) throw err;
+        const waitMs = this._computeWaitMs(err, attempt);
+        if (typeof console !== 'undefined' && console.warn) {
+          const prov = cfg.provider || this.DEFAULT_PROVIDER;
+          console.warn(
+            `[ai.call] ${prov} attempt ${attempt + 1}/${maxRetries + 1} failed ` +
+            `(${this._errLabel(err)}); retrying in ${(waitMs / 1000).toFixed(1)}s`,
+          );
+        }
+        await this._sleep(waitMs);
+        attempt++;
+      }
+    }
   },
 
   /**
