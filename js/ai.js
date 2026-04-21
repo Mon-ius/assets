@@ -829,8 +829,9 @@ Providing liquidity is part of rational behavior in this market.`;
          '2. No vague answers.\n' +
          '3. No "depends".\n' +
          '4. Immediate execution is preferred.\n' +
-         '5. Orders must use allowed prices.\n' +
-         '6. Output must follow the specified format.')
+         '5. Prefer the allowed candidate prices for orders.\n' +
+         '6. If the book is empty, initiate trading with a BID or ASK_1 anchored on your valuation rather than holding.\n' +
+         '7. Output must follow the specified format.')
       : '';
 
     // Parameter-configuration addendum — always present; values pulled
@@ -964,11 +965,20 @@ Use these tendencies when forming your valuation and decision.`;
       // concrete actions; the same xMul is threaded through to
       // agents.js _translateLLMAction so the executed price matches
       // what the prompt promised.
-      const bidWithX = bidPrice != null
-        ? Math.max(1, Math.round(bidPrice * xMul))
+      // When the book is one-sided or empty, BID / ASK_1 fall back to
+      // an FV-anchored quote so the agent can bootstrap the market
+      // rather than being forced to HOLD. This matches the FV fallback
+      // already wired into _translateLLMAction in agents.js so the
+      // executed price agrees with what the prompt promised.
+      const bidAnchor = bidPrice != null ? bidPrice : fvNow;
+      const askAnchor = askPrice != null ? askPrice : fvNow;
+      const bidAnchorLabel = bidPrice != null ? 'best_bid' : 'FV';
+      const askAnchorLabel = askPrice != null ? 'best_ask' : 'FV';
+      const bidWithX = Number.isFinite(bidAnchor)
+        ? Math.max(1, Math.round(bidAnchor * xMul))
         : null;
-      const askWithX = askPrice != null
-        ? Math.max(1, Math.round(askPrice / xMul))
+      const askWithX = Number.isFinite(askAnchor)
+        ? Math.max(1, Math.round(askAnchor / xMul))
         : null;
       const actions = [];
       const constraints = [];
@@ -976,22 +986,24 @@ Use these tendencies when forming your valuation and decision.`;
       if (askPrice != null && cash >= askPrice) {
         actions.push(`1. BUY_NOW: Immediately buy 1 unit at the current lowest ask price (best_ask).`);
       } else {
-        constraints.push(`- BUY_NOW cannot be selected${askPrice == null ? ' (no ask available)' : ` (cash ${cash} < best_ask ${askPrice.toFixed(0)})`}.`);
+        constraints.push(`- BUY_NOW cannot be selected${askPrice == null ? ' (no ask available — submit a BID to initiate trading)' : ` (cash ${cash} < best_ask ${askPrice.toFixed(0)})`}.`);
       }
       if (bidPrice != null && inv >= 1) {
         actions.push(`2. SELL_NOW: Immediately sell 1 unit at the current highest bid price (best_bid).`);
       } else {
-        constraints.push(`- SELL_NOW cannot be selected${bidPrice == null ? ' (no bid available)' : ' (holdings < 1)'}.`);
+        constraints.push(`- SELL_NOW cannot be selected${bidPrice == null ? ' (no bid available — submit an ASK_1 to initiate trading)' : ' (holdings < 1)'}.`);
       }
       if (cash > 0 && bidWithX != null) {
-        actions.push(`3. BID: Submit bid = best_bid*x = ${bidWithX}.`);
+        const bidNote = bidAnchorLabel === 'FV' ? ' (no bid in book; anchored on FV)' : '';
+        actions.push(`3. BID: Submit bid = ${bidAnchorLabel}*x = ${bidWithX}.${bidNote}`);
       } else {
-        constraints.push(`- BID cannot be selected${bidWithX == null ? ' (no bid available)' : ` (cash ${cash} ≤ 0)`}.`);
+        constraints.push(`- BID cannot be selected${bidWithX == null ? ' (no FV reference available)' : ` (cash ${cash} ≤ 0)`}.`);
       }
       if (inv >= 1 && askWithX != null) {
-        actions.push(`4. ASK_1: Submit ask = best_ask/x = ${askWithX}.`);
+        const askNote = askAnchorLabel === 'FV' ? ' (no ask in book; anchored on FV)' : '';
+        actions.push(`4. ASK_1: Submit ask = ${askAnchorLabel}/x = ${askWithX}.${askNote}`);
       } else {
-        constraints.push(`- ASK_1 cannot be selected${askWithX == null ? ' (no ask available)' : ' (holdings < 1)'}.`);
+        constraints.push(`- ASK_1 cannot be selected${askWithX == null ? ' (no FV reference available)' : ' (holdings < 1)'}.`);
       }
       actions.push(`5. HOLD: Do not trade.`);
 
@@ -1176,7 +1188,7 @@ Use these tendencies when forming your valuation and decision.`;
       lines.push(
         ``,
         `【You must choose one of the following actions】`,
-        `0. A random percentage x = ${xPctStr}% (drawn uniformly from [1%, 10%]) has been generated for this period; the BID and ASK_1 prices below are the result of applying x to best_bid / best_ask.`,
+        `0. A random percentage x = ${xPctStr}% (drawn uniformly from [1%, 10%]) has been generated for this period; the BID and ASK_1 prices below are the result of applying x to best_bid / best_ask — or to the current FV when the opposite side of the book is empty, so you can still initiate trading.`,
         ...actions,
         `The action you choose must maximize your wealth given the possible wealths generated from the five actions.`,
       );
