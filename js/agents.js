@@ -998,7 +998,7 @@ class UtilityAgent extends Agent {
     const cash = this.cash;
     const inv  = this.inventory;
     // x is the multiplier the engine pre-drew in ai.js (range
-    // [1.01, 1.03], i.e. a 1-3% spread). It was already spliced into
+    // [1.01, 1.10], i.e. a 1-10% spread). It was already spliced into
     // the prompt with the resolved bid/ask prices, and the same value
     // is threaded back here so the executed price matches what the
     // LLM was shown. Defaults to 1.02 only if the field is missing.

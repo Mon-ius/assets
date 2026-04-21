@@ -717,8 +717,8 @@ const AI = {
 
       // ---- Available actions + constraints ----
       // x is pre-drawn by the engine for each agent each period (see
-      // tasks loop below) as a multiplier in [1.01, 1.03] — i.e. a
-      // random 1-3% spread above best_bid (for BID) or below best_ask
+      // tasks loop below) as a multiplier in [1.01, 1.10] — i.e. a
+      // random 1-10% spread above best_bid (for BID) or below best_ask
       // (for ASK_1). The resolved bid/ask prices are spliced into the
       // action lines so the LLM can rank wealth across all five
       // concrete actions; the same xMul is threaded through to
@@ -934,7 +934,7 @@ const AI = {
       lines.push(
         ``,
         `【You must choose one of the following actions】`,
-        `0. A random percentage x = ${xPctStr}% (drawn uniformly from [1%, 3%]) has been generated for this period; the BID and ASK_1 prices below are the result of applying x to best_bid / best_ask.`,
+        `0. A random percentage x = ${xPctStr}% (drawn uniformly from [1%, 10%]) has been generated for this period; the BID and ASK_1 prices below are the result of applying x to best_bid / best_ask.`,
         ...actions,
         `The action you choose must maximize your wealth given the possible wealths generated from the five actions.`,
       );
@@ -966,11 +966,11 @@ const AI = {
     };
 
     const tasks = utilityAgents.map(async (a) => {
-      // Per-agent, per-period x — multiplier in [1.01, 1.03]. Math.random
+      // Per-agent, per-period x — multiplier in [1.01, 1.10]. Math.random
       // is used (not the seeded engine RNG) because Plan II/III runs are
       // already non-deterministic at the LLM call seam, so seeding x
       // would only give a false sense of reproducibility.
-      const xMul = 1.01 + Math.random() * 0.02;
+      const xMul = 1.01 + Math.random() * 0.09;
       const userPrompt = promptFor(a, xMul);
       a.lastLLMPrompt = { system, user: userPrompt, plan, ts: Date.now() };
       try {
