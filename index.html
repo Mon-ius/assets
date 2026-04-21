@@ -795,6 +795,7 @@
           <dt><span data-sym="subjV"></span></dt><dd>agent <em>i</em>'s private (true) subjective valuation at tick <em>t</em></dd>
           <dt><span data-sym="reportV"></span></dt><dd>valuation reported in a broadcast message</dd>
           <dt><span data-sym="lieGap"></span></dt><dd>lie gap for deceptive messages</dd>
+          <dt>hover</dt><dd>header <code>R<em>r</em>_S<em>s</em> · P<em>p</em> · t=<em>N</em></code> names round · session · period · tick; rows summarise the per-tick cross-agent distribution as percentiles <strong>P10</strong> / <strong>P25</strong> / <strong>median</strong> / <strong>P75</strong> / <strong>P90</strong>, with <strong>FV</strong> the fundamental baseline and <strong>N</strong> the number of agents in that bucket</dd>
         </dl>
       </div>
     </figcaption>
@@ -814,6 +815,7 @@
         <dl class="fig-note-list">
           <dt><span data-sym="uOfW"></span></dt><dd>universal CRRA utility <span data-sym="uCRRA"></span> with per-agent <span data-sym="rhoI"></span> sampled uniformly in (−1, 0) loving · {0} neutral · (0, 1) averse</dd>
           <dt><span data-sym="wealth"></span></dt><dd>mark-to-fundamental wealth at tick <em>t</em></dd>
+          <dt>hover</dt><dd>header <code>R<em>r</em>_S<em>s</em> · P<em>p</em> · t=<em>N</em></code> names round · session · period · tick; rows summarise the per-tick cross-agent distribution as percentiles <strong>P10</strong> / <strong>P25</strong> / <strong>median</strong> / <strong>P75</strong> / <strong>P90</strong>, with <strong>FV</strong> the fundamental baseline and <strong>N</strong> the number of agents in that bucket</dd>
         </dl>
       </div>
     </figcaption>
@@ -897,6 +899,7 @@
           <dt><span data-sym="pnl"></span></dt><dd>running profit and loss in cents at tick <em>t</em></dd>
           <dt><span data-sym="wealth"></span></dt><dd>mark-to-market wealth = cash + inventory · subjective valuation</dd>
           <dt><span data-sym="wealth0"></span></dt><dd>initial wealth at the start of the agent's first round</dd>
+          <dt>hover</dt><dd>header <code>R<em>r</em>_S<em>s</em> · P<em>p</em> · t=<em>N</em></code> names round · session · period · tick; rows summarise the per-tick cross-agent distribution as percentiles <strong>P10</strong> / <strong>P25</strong> / <strong>median</strong> / <strong>P75</strong> / <strong>P90</strong>, with <strong>FV</strong> the fundamental baseline and <strong>N</strong> the number of agents in that bucket</dd>
         </dl>
       </div>
     </figcaption>
@@ -916,6 +919,7 @@
         <dl class="fig-note-list">
           <dt><span data-sym="subjV"></span></dt><dd>subjective valuation of agent <em>i</em> at tick <em>t</em></dd>
           <dt><span data-sym="fv"></span></dt><dd>risk-neutral fundamental value at tick <em>t</em></dd>
+          <dt>hover</dt><dd>header <code>R<em>r</em>_S<em>s</em> · P<em>p</em> · t=<em>N</em></code> names round · session · period · tick; rows summarise the per-tick cross-agent distribution as percentiles <strong>P10</strong> / <strong>P25</strong> / <strong>median</strong> / <strong>P75</strong> / <strong>P90</strong>, with <strong>FV</strong> the fundamental baseline and <strong>N</strong> the number of agents in that bucket</dd>
         </dl>
       </div>
     </figcaption>
@@ -956,6 +960,23 @@
       <h3>Decisions recorded at this tick</h3>
       <div id="trace-body"></div>
     </div>
+    <footer class="replay-legend">
+      <h4 class="replay-legend-title">Note — controls and trace cards</h4>
+      <dl class="replay-legend-list">
+        <dt><span class="rl-btn">« Step</span> / <span class="rl-btn">Step »</span></dt>
+        <dd>move the replay cursor one recorded tick earlier or later; all figures re-render from the snapshot at that tick</dd>
+        <dt><span class="rl-btn rl-primary">● Live</span></dt>
+        <dd>return to the running edge — resumes live rendering and follows new ticks as they are produced</dd>
+        <dt><span class="rl-slider">slider</span></dt>
+        <dd>scrub the full recorded range; range is <code>0</code> … <code>tickMax</code>, where <code>tickMax</code> grows as the engine runs</dd>
+        <dt><code>Live — tick <em>N</em></code></dt>
+        <dd>readout of the current cursor position; shows <code>Replay — tick <em>N</em></code> when paused off the live edge</dd>
+        <dt><span class="rl-kind rl-bid">BID</span> / <span class="rl-kind rl-ask">ASK</span> / <span class="rl-kind rl-hold">HOLD</span></dt>
+        <dd>decision kind on each trace card — agent submitted a buy, a sell, or stayed out that tick</dd>
+        <dt>card body</dt>
+        <dd>per-agent reasoning trace: subjective valuation, prior, belief-update terms, order size and price, and any regulator / message inputs that entered the decision</dd>
+      </dl>
+    </footer>
   </section>
 </main>
 </section>
