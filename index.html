@@ -899,7 +899,18 @@
           <dt><span data-sym="pnl"></span></dt><dd>running profit and loss in cents at tick <em>t</em></dd>
           <dt><span data-sym="wealth"></span></dt><dd>mark-to-market wealth = cash + inventory · subjective valuation</dd>
           <dt><span data-sym="wealth0"></span></dt><dd>initial wealth at the start of the agent's first round</dd>
-          <dt>hover</dt><dd>header <code>R<em>r</em>_S<em>s</em> · P<em>p</em> · t=<em>N</em></code> names round · session · period · tick; rows summarise the per-tick cross-agent distribution as percentiles <strong>P10</strong> / <strong>P25</strong> / <strong>median</strong> / <strong>P75</strong> / <strong>P90</strong>, with <strong>FV</strong> the fundamental baseline and <strong>N</strong> the number of agents in that bucket</dd>
+          <dt>hover — header</dt>
+          <dd><code>R<em>r</em>_S<em>s</em> · P<em>p</em> · t=<em>N</em></code> names, left to right, the round (<code>R<em>r</em></code>, 1 … <em>roundsPerSession</em>), the session in the batch (<code>S<em>s</em></code>, 1 … 10), the trading period inside that round (<code>P<em>p</em></code>, 1 … <em>T</em>), and the global tick index <code>t=<em>N</em></code> the cursor is snapped to</dd>
+          <dt>hover — rows</dt>
+          <dd>summarise the <em>distribution of per-agent P&amp;L across all agents at that tick</em> — not a time series, but a cross-section — as five percentiles of <span data-sym="pnl"></span> = <span data-sym="wealth"></span> − <span data-sym="wealth0"></span></dd>
+          <dt><strong>P90</strong></dt><dd>90<sup>th</sup> percentile: 10 % of agents are doing better than this number, 90 % worse (the top performers)</dd>
+          <dt><strong>P75</strong></dt><dd>upper-quartile boundary of the fan chart's shaded IQR band — top quarter of agents lie above</dd>
+          <dt><strong>median</strong></dt><dd>50<sup>th</sup> percentile — the line drawn through the centre of the fan; half the population is above, half below</dd>
+          <dt><strong>P25</strong></dt><dd>lower-quartile boundary of the IQR band — bottom quarter of agents lie below</dd>
+          <dt><strong>P10</strong></dt><dd>10<sup>th</sup> percentile: 90 % of agents are doing better than this, 10 % worse (the bottom performers)</dd>
+          <dt><strong>N</strong></dt><dd>number of agents contributing a P&amp;L sample at this tick; drops when an agent is replaced at the round-3/4 boundary under T20/T40 and the fresh clone has not yet accumulated a data point</dd>
+          <dt>value format</dt><dd>signed cents, e.g. <code>+12.4¢</code> (above initial endowment) or <code>−7.1¢</code> (below); the dashed horizontal line at <code>0¢</code> on the chart is the break-even reference — anything above is net gain, anything below is net loss for that percentile</dd>
+          <dt>fan vs. lines</dt><dd>with N &gt; 60 agents the chart renders as a percentile fan (shaded P10–P90 envelope, darker IQR band, solid median) so the hover is the only way to read exact numbers; with N ≤ 60 each agent is drawn as its own line and the same tooltip still reports the cross-sectional percentiles of those lines at the hovered tick</dd>
         </dl>
       </div>
     </figcaption>
