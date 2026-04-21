@@ -1116,7 +1116,12 @@ const UI = {
         ? experienceFactors(rp)
         : { k: rp, alpha: 0.4, sigma: 15, omega: 0.6 };
       const exp = UI._blendExperience(trained, a, v);
-      const expRows = `
+      // Experience-derived modelling parameters (α_i, σ_i, ω_i) drive
+      // only Plan I's updateBelief() pipeline. The LLM never sees these
+      // numbers — under Plan II/III experience is conveyed to the
+      // model as the agent's lived per-round price+payoff history
+      // (ai.js buildHistoryBlock), not as a formula. Drop the row.
+      const expRows = isLLMPlan ? '' : `
           <span class="metric">Fundamental weight <span class="sym">${sym.alphaI || ''}</span></span> <span class="metric-val">${exp.alpha.toFixed(2)}</span>
           <span class="metric">Valuation noise <span class="sym">${sym.sigmaI || ''}</span></span> <span class="metric-val">${exp.sigma.toFixed(1)}</span>
           <span class="metric">Self (non-peer) weight <span class="sym">${sym.omegaI || ''}</span></span> <span class="metric-val">${exp.omega.toFixed(2)}</span>`;
@@ -3775,10 +3780,14 @@ const UI = {
               </div>`).join('')}
           </div>` : '';
 
-      // Prior adjustment flags.
+      // Prior adjustment flags. The `bias` and `noise` knobs only feed
+      // Plan I's updateBelief(), so when the trace comes from a Plan
+      // II/III decision (no `r.utility` block) we suppress the line —
+      // otherwise the user reads "prior adj: bias+noise" next to an
+      // LLM action that those flags did not influence.
       const priorFlags = [];
-      if (r.biasActive)    priorFlags.push(`bias:${r.biasMode || '—'}(${r.biasAmount != null ? r.biasAmount.toFixed(2) : '—'})`);
-      if (r.noiseActive)   priorFlags.push('noise');
+      if (r.utility && r.biasActive)  priorFlags.push(`bias:${r.biasMode || '—'}(${r.biasAmount != null ? r.biasAmount.toFixed(2) : '—'})`);
+      if (r.utility && r.noiseActive) priorFlags.push('noise');
       const priorBlock = priorFlags.length
         ? `<div class="trace-row muted">prior adj: ${priorFlags.join(' + ')}</div>`
         : '';

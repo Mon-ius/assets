@@ -1457,6 +1457,13 @@ body:not(.plan-iii) .plan-iii-only { display: none !important; }
    threshold is non-zero, and the tile's border turns red whenever
    the threshold is non-zero (driven by JS via .regulator-active). */
 body:not(.plan-ii):not(.plan-iii) .plan-llm-only { display: none !important; }
+/* Inverse gate: Plan I-only sliders (experience anchors α₀/σ₀/ω₀/γ_α/γ_σ,
+   heuristic betas β₁..β₄, Prior Bias / Prior Noise toggles) drop out
+   under Plans II / III, where the LLM is the sole information channel
+   and these knobs control nothing. Same body-class rule as
+   .plan-llm-only, just inverted. */
+body.plan-ii .plan-i-only,
+body.plan-iii .plan-i-only { display: none !important; }
 .dlm-treatment-opt.regulator-tile,
 .dlm-treatment-opt.scale-tile {
   flex-direction: column;
