@@ -3861,8 +3861,8 @@ const UI = {
             <span>${agentName} <span class="muted">· ${t.agentType}</span></span>
             <span class="trace-kind ${kind}">${kindLabel}</span>
           </div>
-          <div class="trace-row">rule <strong>${r.ruleUsed}</strong></div>
-          <div class="trace-row">trigger <strong>${r.triggerCondition || '—'}</strong></div>
+          <div class="trace-row"><strong>${r.ruleUsed}</strong></div>
+          <div class="trace-row">trigger: <strong>${r.triggerCondition || '—'}</strong></div>
           <div class="trace-row">est. FV <strong>${valStr}</strong></div>
           <div class="trace-row">cash <strong>${t.state.cash.toFixed(0)}</strong> · shares <strong>${t.state.inventory}</strong></div>
           ${uBlock}
