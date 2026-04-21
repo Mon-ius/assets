@@ -53,6 +53,14 @@ class Engine {
   start() {
     if (this.running || this.isFinished()) return;
     this.running = true;
+    // Plan II / III — fire the first LLM call before the very first
+    // tick. Without this the earliest prompt is only built at the first
+    // period boundary (tick = ticksPerPeriod), so clicking "View Prompt"
+    // on any Utility agent before then shows the generic
+    // "algorithmic decision rules" fallback even though the run is
+    // meant to be strictly LLM-driven. The call is idempotent and
+    // fire-and-forget, so a replay/resume re-issuing it is safe.
+    this._schedulePlanLLM();
     this._loop();
   }
   pause() {

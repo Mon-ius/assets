@@ -1127,6 +1127,7 @@ const UI = {
 
       // Back-face content — LLM prompt for utility agents, rule
       // explanation for algorithmic agents.
+      // isLLMPlan is defined above (Plan II/III + utility agent).
       const hasLLM = isUtil && a.lastLLMPrompt;
       const ruleDesc = {
         fundamentalist: 'Fundamentalist agents make decisions through coded rules — FV-anchored spreads that cross the book when mispricing exceeds ±2%, otherwise post passive quotes around the fundamental value.',
@@ -1156,6 +1157,23 @@ const UI = {
                 <pre class="llm-text llm-response">${UI._escHtml(String(a.lastLLMResponse || '—'))}</pre>
               </div>
             </div>
+          </div>`;
+      } else if (isLLMPlan) {
+        // Plan II/III is strictly LLM-driven — no algorithmic
+        // fallback. This branch fires only in the tiny window between
+        // engine.start() kicking off _schedulePlanLLM() and the first
+        // prompt string being attached to each agent (microtask delay)
+        // or while the very first network call is still in flight. The
+        // "awaiting LLM" copy here matches the agent's own decide()
+        // reasoning ("awaiting_llm") so the card and the replay trace
+        // read the same story.
+        cardBack = `
+          <div class="card-back">
+            <div class="card-back-head">
+              <span class="card-back-title">LLM · Plan ${v.plan}</span>
+              <span class="card-back-hint">click to flip back</span>
+            </div>
+            <p class="card-back-note">Waiting for the first LLM response for this agent. Plan ${v.plan} does not fall back to algorithmic decision rules — this agent will hold until its period-boundary prompt returns.</p>
           </div>`;
       } else {
         const desc = ruleDesc[a.type] || 'This agent uses algorithmic decision rules. No LLM prompt is generated.';

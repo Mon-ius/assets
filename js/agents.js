@@ -878,13 +878,57 @@ class UtilityAgent extends Agent {
     // Plan II / III — LLM direct action override. The cached action
     // from the period-boundary LLM call is translated into an order
     // using the *current* book state. Consumed once, then cleared.
+    //
+    // Under Plans II and III the LLM is the sole decision channel: we
+    // do NOT fall back to Plan I's EU maximiser, even when the LLM
+    // hasn't responded yet (first period, rate-limited retry in
+    // flight, parse failure). Instead the agent holds with an
+    // "awaiting_llm" reasoning trace so the run remains strictly
+    // AI-driven. The _schedulePlanLLM kickoff in Engine.start() plus
+    // the FV-anchored BID/ASK options in ai.js (offered when the book
+    // is empty) ensure the LLM always has an actionable candidate, so
+    // the market can still bootstrap from tick 0.
     const plan = ctx && ctx.plan;
     const llmEntry = ctx && ctx.llmActions && ctx.llmActions[this.id];
-    if ((plan === 'II' || plan === 'III') && llmEntry) {
-      const result = this._translateLLMAction(llmEntry, market, ctx);
-      delete ctx.llmActions[this.id];
-      if (result) return result;
-      // Falls through to EU evaluation if action is invalid.
+    if (plan === 'II' || plan === 'III') {
+      if (llmEntry) {
+        const result = this._translateLLMAction(llmEntry, market, ctx);
+        delete ctx.llmActions[this.id];
+        if (result) return result;
+        // LLM returned an action we couldn't translate (e.g. BUY_NOW
+        // with no ask present). Hold rather than silently reverting
+        // to the Plan I algorithm.
+        return {
+          type: 'hold',
+          passive: false,
+          reasoning: {
+            ruleUsed:         'llm_action_invalid',
+            estimatedValue:   this.subjectiveValuation,
+            expectedProfit:   null,
+            triggerCondition: `LLM returned ${llmEntry.action} but book state does not permit it`,
+            llmReason:        llmEntry.reason || '',
+            receivedMsgs:     this.receivedMsgs.map(m => ({
+              from: m.senderName, claim: m.claimedValuation, sig: m.signal,
+            })),
+          },
+        };
+      }
+      // No cached LLM action yet — the period-boundary call hasn't
+      // come back. Hold deterministically.
+      return {
+        type: 'hold',
+        passive: false,
+        reasoning: {
+          ruleUsed:         'awaiting_llm',
+          estimatedValue:   this.subjectiveValuation,
+          expectedProfit:   null,
+          triggerCondition: `Plan ${plan} — holding until the LLM response for this period lands`,
+          llmReason:        '',
+          receivedMsgs:     this.receivedMsgs.map(m => ({
+            from: m.senderName, claim: m.claimedValuation, sig: m.signal,
+          })),
+        },
+      };
     }
 
     const { candidates, w0, U0 } = this.evaluate(market, rng, ctx);
@@ -986,23 +1030,38 @@ class UtilityAgent extends Agent {
     // BID_1/3 and ASK_1/3 improvements rest on the book and so are
     // tagged passive = true — this keeps the Figure 5 legend honest
     // across Plans I/II/III (passive ↔ dashed, aggressive ↔ solid).
+    //
+    // When the book is one-sided or empty the BID/ASK passive actions
+    // fall back to FV as the anchor (matching the price offered in
+    // the LLM prompt in ai.js). This lets Plan II/III bootstrap the
+    // market from tick 0 without ever falling back to Plan I math.
+    const fv = (typeof market.fundamentalValue === 'function')
+      ? market.fundamentalValue()
+      : null;
+    const bidAnchor = bid ? bid.price : fv;
+    const askAnchor = ask ? ask.price : fv;
+
     if (action === 'BUY_NOW' && ask && cash >= ask.price) {
       return { type: 'bid', price: ask.price, quantity: 1, passive: false, reasoning };
     }
     if (action === 'SELL_NOW' && bid && inv > 0) {
       return { type: 'ask', price: bid.price, quantity: 1, passive: false, reasoning };
     }
-    if (action === 'BID_1' && bid && cash >= bid.price + 1) {
-      return { type: 'bid', price: round2(bid.price + 1), quantity: 1, passive: true, reasoning };
+    if (action === 'BID_1' && bidAnchor != null) {
+      const p = Math.max(1, Math.round(bidAnchor + 1));
+      if (cash >= p) return { type: 'bid', price: round2(p), quantity: 1, passive: true, reasoning };
     }
-    if (action === 'BID_3' && bid && cash >= bid.price + 3) {
-      return { type: 'bid', price: round2(bid.price + 3), quantity: 1, passive: true, reasoning };
+    if (action === 'BID_3' && bidAnchor != null) {
+      const p = Math.max(1, Math.round(bidAnchor + 3));
+      if (cash >= p) return { type: 'bid', price: round2(p), quantity: 1, passive: true, reasoning };
     }
-    if (action === 'ASK_1' && ask && inv > 0) {
-      return { type: 'ask', price: round2(ask.price - 1), quantity: 1, passive: true, reasoning };
+    if (action === 'ASK_1' && askAnchor != null && inv > 0) {
+      const p = Math.max(1, Math.round(askAnchor - 1));
+      return { type: 'ask', price: round2(p), quantity: 1, passive: true, reasoning };
     }
-    if (action === 'ASK_3' && ask && inv > 0) {
-      return { type: 'ask', price: round2(ask.price - 3), quantity: 1, passive: true, reasoning };
+    if (action === 'ASK_3' && askAnchor != null && inv > 0) {
+      const p = Math.max(1, Math.round(askAnchor - 3));
+      return { type: 'ask', price: round2(p), quantity: 1, passive: true, reasoning };
     }
     if (action === 'HOLD') {
       return { type: 'hold', passive: false, reasoning };

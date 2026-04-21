@@ -674,6 +674,21 @@ const AI = {
       const inv  = a.inventory;
 
       // ---- Available actions + constraints ----
+      // When the book is empty (tick 0 / cold-start, or a one-sided
+      // book), Plans II and III still need an actionable BID / ASK so
+      // the market can bootstrap without falling back to Plan I math.
+      // We anchor the passive price to FV in that case and surface the
+      // anchor so the LLM knows it is looking at an FV-referenced
+      // price rather than a peer-referenced one. BUY_NOW / SELL_NOW
+      // remain disabled — crossing the book needs a real counterparty.
+      const bidAnchor = bidPrice != null ? bidPrice : fvNow;
+      const askAnchor = askPrice != null ? askPrice : fvNow;
+      const bidSource = bidPrice != null ? 'best_bid' : 'FV (book empty)';
+      const askSource = askPrice != null ? 'best_ask' : 'FV (book empty)';
+      const bid1Price = Math.max(1, Math.round(bidAnchor + 1));
+      const bid3Price = Math.max(1, Math.round(bidAnchor + 3));
+      const ask1Price = Math.max(1, Math.round(askAnchor - 1));
+      const ask3Price = Math.max(1, Math.round(askAnchor - 3));
       const actions = [];
       const constraints = [];
 
@@ -687,21 +702,21 @@ const AI = {
       } else {
         constraints.push(`- SELL_NOW cannot be selected${bidPrice == null ? ' (no bid available)' : ' (holdings < 1)'}.`);
       }
-      if (bidPrice != null && cash >= bidPrice + 1) {
-        actions.push(`3. BID_1: Submit bid = best_bid + 1 = ${(bidPrice + 1).toFixed(0)}.`);
+      if (cash >= bid1Price) {
+        actions.push(`3. BID_1: Submit bid = ${bidSource} + 1 = ${bid1Price}.`);
       } else {
-        constraints.push(`- BID_1 cannot be selected${bidPrice == null ? ' (no bid available)' : ` (cash ${cash} < ${(bidPrice + 1).toFixed(0)})`}.`);
+        constraints.push(`- BID_1 cannot be selected (cash ${cash} < ${bid1Price}).`);
       }
-      if (bidPrice != null && cash >= bidPrice + 3) {
-        actions.push(`4. BID_3: Submit bid = best_bid + 3 = ${(bidPrice + 3).toFixed(0)}.`);
+      if (cash >= bid3Price) {
+        actions.push(`4. BID_3: Submit bid = ${bidSource} + 3 = ${bid3Price}.`);
       } else {
-        constraints.push(`- BID_3 cannot be selected${bidPrice == null ? ' (no bid available)' : ` (cash ${cash} < ${(bidPrice + 3).toFixed(0)})`}.`);
+        constraints.push(`- BID_3 cannot be selected (cash ${cash} < ${bid3Price}).`);
       }
-      if (askPrice != null && inv >= 1) {
-        actions.push(`5. ASK_1: Submit ask = best_ask - 1 = ${(askPrice - 1).toFixed(0)}.`);
-        actions.push(`6. ASK_3: Submit ask = best_ask - 3 = ${(askPrice - 3).toFixed(0)}.`);
+      if (inv >= 1) {
+        actions.push(`5. ASK_1: Submit ask = ${askSource} - 1 = ${ask1Price}.`);
+        actions.push(`6. ASK_3: Submit ask = ${askSource} - 3 = ${ask3Price}.`);
       } else {
-        constraints.push(`- ASK_1 / ASK_3 cannot be selected${askPrice == null ? ' (no ask available)' : ' (holdings < 1)'}.`);
+        constraints.push(`- ASK_1 / ASK_3 cannot be selected (holdings < 1).`);
       }
       actions.push(`7. HOLD: Do not trade.`);
 
