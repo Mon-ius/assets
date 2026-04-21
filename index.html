@@ -450,7 +450,7 @@
             <div class="const-item">
               <dt>endowment B <span class="const-val">600¢, 2 shares</span></dt>
               <dd class="const-label">The other discrete starting bundle</dd>
-              <dd class="const-note">Both bundles have an identical buy-and-hold value of 1,000¢ under the risk-neutral fundamental <span data-sym="fvDef"></span>; the two types differ only in inventory/cash mix, so the split is distributional, not value-creating.<span class="const-src">§I, p. 1733</span></dd>
+              <dd class="const-note">Both bundles have an identical buy-and-hold value of 800¢ under the risk-neutral fundamental <span data-sym="fvDef"></span> — cash + shares &middot; (T &middot; <span data-sym="muD"></span>) = 200 + 6&thinsp;&middot;&thinsp;100 = 600 + 2&thinsp;&middot;&thinsp;100 = 800¢. This holds under both the paper's (T = 10, <span data-sym="muD"></span> = 10¢) and the simulator's scaled (T = 20, <span data-sym="muD"></span> = 5¢) constants, since the product T &middot; <span data-sym="muD"></span> is preserved at 100¢ per share. The two types differ only in inventory/cash mix, so the split is distributional, not value-creating.<span class="const-src">§I, p. 1733</span></dd>
             </div>
             <div class="const-item">
               <dt>round-4 replacement <span class="const-val">R4-⅔ or R4-⅓</span></dt>
@@ -2144,7 +2144,7 @@ Action Rules
       <div class="slide" data-slide="15">
         <div class="slide-body">
           <h2 class="slide-heading">DLM replication · Strict-DLM mode</h2>
-          <p class="slide-text">The Strict-DLM paradigm replicates the DLM (2005) protocol scaled to $N = 100$ (half type A with $c = 200$¢, $q = 6$; half type B with $c = 600$¢, $q = 2$), buy-and-hold value $V_{\text{BH}} = 1000$¢. At the round 3→4 boundary, the engine runs Fisher-Yates replacement:</p>
+          <p class="slide-text">The Strict-DLM paradigm replicates the DLM (2005) protocol scaled to $N = 100$ (half type A with $c = 200$¢, $q = 6$; half type B with $c = 600$¢, $q = 2$), buy-and-hold value $V_{\text{BH}} = c + q\!\cdot\!(T\!\cdot\!\mu_d) = 800$¢ (identical across both bundles under $T\!\cdot\!\mu_d = 100$¢/share — the product is preserved from the paper's $(10, 10)$ to the simulator's scaled $(20, 5)$). At the round 3→4 boundary, the engine runs Fisher-Yates replacement:</p>
           <div class="slide-two-col">
             <div class="slide-card">
               <h4>T20 treatment (R4-⅔)</h4>
