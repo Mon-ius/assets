@@ -2892,22 +2892,25 @@ const App = {
       this._autoRunAll            = true;
       this._pendingExportDownload = true;
       // Snapshot the user's current pacing so we can restore it once
-      // the batch completes. Turbo values: no inter-frame delay,
-      // 1 440 ticks per frame = one full session (R × T × K ticks) per
-      // animation frame, so all ten sessions chew through in ~10-15
-      // frames on Plan I. Plan II/III is still paced by the LLM
-      // round-trips (each period boundary awaits a network call),
-      // but at least the human doesn't have to sit through a
-      // speed-14 animation for every round.
-      const R = this.config.roundsPerSession || 1;
-      const T = this.config.periods          || 20;
-      const K = this.config.ticksPerPeriod   || 18;
+      // the batch completes. Turbo (no inter-frame delay, one full
+      // session per animation frame) is only safe under Plan I where
+      // every tick is local. Under Plan II/III each period boundary
+      // awaits a network call per agent; cramming 1 440 ticks into a
+      // single frame would queue thousands of in-flight LLM requests
+      // and starve the result-handling path, so we keep the user's
+      // current Speed setting and just disable the auto-pause that
+      // normally stops between sessions.
       this._savedTickPacing = {
         tickInterval:  this.config.tickInterval,
         ticksPerFrame: this.config.ticksPerFrame,
       };
-      this.config.tickInterval  = 0;
-      this.config.ticksPerFrame = R * T * K;
+      if (this.plan === 'I') {
+        const R = this.config.roundsPerSession || 1;
+        const T = this.config.periods          || 20;
+        const K = this.config.ticksPerPeriod   || 18;
+        this.config.tickInterval  = 0;
+        this.config.ticksPerFrame = R * T * K;
+      }
       this.start();
       if (!this._batchRunning) {
         // Defensive: if some future start() branch bails without
