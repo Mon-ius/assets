@@ -997,6 +997,19 @@ class UtilityAgent extends Agent {
     const ask  = market.book.bestAsk();
     const cash = this.cash;
     const inv  = this.inventory;
+    // x is a random percent the LLM draws in [1, 3]; used to scale
+    // best_bid / best_ask for the BID and ASK_1 actions. Tolerate a
+    // few common emit shapes (raw percent like "2", decimal like
+    // "0.02", or near-1 multiplier like "1.02") and clamp to a sane
+    // band so a parse glitch can't post a 1¢ bid or a 5000¢ ask.
+    const _normPct = (raw) => {
+      if (!Number.isFinite(raw) || raw <= 0) return 2;
+      if (raw >= 1 && raw <= 100) return raw;
+      if (raw < 1) return raw * 100;
+      return 2;
+    };
+    const xPct = _normPct(llmEntry && llmEntry.x);
+    const xMul = 1 + (Math.min(3, Math.max(1, xPct)) / 100);
     const reasoning = {
       ruleUsed:         `llm_action`,
       estimatedValue:   this.subjectiveValuation,
@@ -1013,14 +1026,13 @@ class UtilityAgent extends Agent {
       })),
     };
 
-    // BUY_NOW / SELL_NOW cross the book (passive = false); the
-    // BID_1/3 and ASK_1/3 improvements rest on the book and so are
-    // tagged passive = true — this keeps the Figure 5 legend honest
-    // across Plans I/II/III (passive ↔ dashed, aggressive ↔ solid).
+    // BUY_NOW / SELL_NOW cross the book (passive = false); the BID
+    // and ASK_1 quotes scale the best-of-book by an LLM-drawn x (1-3%)
+    // and so are tagged passive = true — this keeps the Figure 5
+    // legend honest (passive ↔ dashed, aggressive ↔ solid).
     //
-    // When the book is one-sided or empty the BID/ASK passive actions
-    // fall back to FV as the anchor (matching the price offered in
-    // the LLM prompt in ai.js). This lets Plan II/III bootstrap the
+    // When the book is one-sided or empty the BID/ASK_1 quotes fall
+    // back to FV as the anchor so Plan II/III can bootstrap the
     // market from tick 0 without ever falling back to Plan I math.
     const fv = (typeof market.fundamentalValue === 'function')
       ? market.fundamentalValue()
@@ -1034,20 +1046,12 @@ class UtilityAgent extends Agent {
     if (action === 'SELL_NOW' && bid && inv > 0) {
       return { type: 'ask', price: bid.price, quantity: 1, passive: false, reasoning };
     }
-    if (action === 'BID_1' && bidAnchor != null) {
-      const p = Math.max(1, Math.round(bidAnchor + 1));
-      if (cash >= p) return { type: 'bid', price: round2(p), quantity: 1, passive: true, reasoning };
-    }
-    if (action === 'BID_3' && bidAnchor != null) {
-      const p = Math.max(1, Math.round(bidAnchor + 3));
+    if (action === 'BID' && bidAnchor != null) {
+      const p = Math.max(1, Math.round(bidAnchor * xMul));
       if (cash >= p) return { type: 'bid', price: round2(p), quantity: 1, passive: true, reasoning };
     }
     if (action === 'ASK_1' && askAnchor != null && inv > 0) {
-      const p = Math.max(1, Math.round(askAnchor - 1));
-      return { type: 'ask', price: round2(p), quantity: 1, passive: true, reasoning };
-    }
-    if (action === 'ASK_3' && askAnchor != null && inv > 0) {
-      const p = Math.max(1, Math.round(askAnchor - 3));
+      const p = Math.max(1, Math.round(askAnchor / xMul));
       return { type: 'ask', price: round2(p), quantity: 1, passive: true, reasoning };
     }
     if (action === 'HOLD') {
