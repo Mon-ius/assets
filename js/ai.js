@@ -83,8 +83,9 @@ const AI = {
       endpoint: 'https://gemini-20250719-bdb3d11b.rootdirectorylab.com/v1beta',
       keyPlaceholder: 'AIza...',
       models: [
-        { id: 'gemini-3-flash-preview',    label: 'Gemini 3 Flash Preview',  tpm: 1000000 },
-        { id: 'gemini-3.1-pro-preview',    label: 'Gemini 3.1 Pro Preview',  tpm:   32000 },
+        { id: 'gemini-3-flash-preview',        label: 'Gemini 3 Flash Preview',       tpm: 1000000 },
+        { id: 'gemini-3.1-flash-lite-preview', label: 'Gemini 3.1 Flash-Lite Preview', tpm: 4000000 },
+        { id: 'gemini-3.1-pro-preview',        label: 'Gemini 3.1 Pro Preview',       tpm:   32000 },
       ],
       default: 'gemini-3-flash-preview',
     },
