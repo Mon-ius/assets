@@ -897,7 +897,7 @@ const App = {
       const providerKey = this.aiConfig.provider || AI.DEFAULT_PROVIDER;
       const spec = (AI.getModels(providerKey) || []).find(m => m.id === modelId);
       const tpm = (spec && AI._fmtTPM) ? AI._fmtTPM(spec.tpm) : '';
-      const suffix = tpm ? ` (~${tpm}TPM)` : '';
+      const suffix = tpm ? ` (~${tpm} TPM)` : '';
       _modelLabels.forEach(l => { l.textContent = `Model${suffix}`; });
     };
 

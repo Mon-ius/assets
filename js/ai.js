@@ -101,11 +101,11 @@ const AI = {
     },
   },
 
-  /** Render a TPM integer as "30k" / "2M" for dropdown labels. */
+  /** Render a TPM integer as "30K" / "2M" for dropdown labels. */
   _fmtTPM(tpm) {
     if (!tpm && tpm !== 0) return '';
     if (tpm >= 1000000) return (tpm / 1000000).toFixed(tpm % 1000000 ? 1 : 0) + 'M';
-    if (tpm >= 1000)    return Math.round(tpm / 1000) + 'k';
+    if (tpm >= 1000)    return Math.round(tpm / 1000) + 'K';
     return String(tpm);
   },
 
