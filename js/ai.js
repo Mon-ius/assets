@@ -736,12 +736,12 @@ const AI = {
       const constraints = [];
 
       if (askPrice != null && cash >= askPrice) {
-        actions.push(`1. BUY_NOW: Immediately buy 1 unit at the current lowest ask price (${askPrice.toFixed(0)}).`);
+        actions.push(`1. BUY_NOW: Immediately buy 1 unit at the current lowest ask price (best_ask).`);
       } else {
         constraints.push(`- BUY_NOW cannot be selected${askPrice == null ? ' (no ask available)' : ` (cash ${cash} < best_ask ${askPrice.toFixed(0)})`}.`);
       }
       if (bidPrice != null && inv >= 1) {
-        actions.push(`2. SELL_NOW: Immediately sell 1 unit at the current highest bid price (${bidPrice.toFixed(0)}).`);
+        actions.push(`2. SELL_NOW: Immediately sell 1 unit at the current highest bid price (best_bid).`);
       } else {
         constraints.push(`- SELL_NOW cannot be selected${bidPrice == null ? ' (no bid available)' : ' (holdings < 1)'}.`);
       }
