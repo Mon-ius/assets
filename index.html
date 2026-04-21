@@ -972,9 +972,31 @@
         <dt><code>Live — tick <em>N</em></code></dt>
         <dd>readout of the current cursor position; shows <code>Replay — tick <em>N</em></code> when paused off the live edge</dd>
         <dt><span class="rl-kind rl-bid">BID</span> / <span class="rl-kind rl-ask">ASK</span> / <span class="rl-kind rl-hold">HOLD</span></dt>
-        <dd>decision kind on each trace card — agent submitted a buy, a sell, or stayed out that tick</dd>
-        <dt>card body</dt>
-        <dd>per-agent reasoning trace: subjective valuation, prior, belief-update terms, order size and price, and any regulator / message inputs that entered the decision</dd>
+        <dd>decision kind pill on each trace card — agent submitted a buy, a sell, or stayed out; the pill reads <code>BID <em>q</em> @ <em>p</em></code> (order size · price), with a trailing <code>✓</code> if the order filled this tick</dd>
+        <dt>card header</dt>
+        <dd><code>#<em>id</em> <em>Name</em> · <em>typeLabel</em></code> — numeric agent id, sampled personal name, and strategy class (e.g. <code>utility</code>, <code>dlm</code>)</dd>
+        <dt><code>rule</code></dt>
+        <dd>named decision rule that fired (e.g. <code>utility_max_loving</code>, <code>fundamental_anchor</code>); tells you <em>which branch</em> of the agent's strategy took responsibility for this decision</dd>
+        <dt><code>trigger</code></dt>
+        <dd>short description of the condition that selected the rule — for utility agents typically <code>argmax EU over <em>N</em> candidates</code></dd>
+        <dt><code>est value</code></dt>
+        <dd>agent's estimated per-share value used inside the decision (may differ from subjective V when the rule mixes book state); a dash "—" means the rule did not compute one</dd>
+        <dt><code>E[π]</code></dt>
+        <dd>expected marginal payoff from the chosen action, in cents per share</dd>
+        <dt><code>cash</code> · <code>inv</code></dt>
+        <dd>agent's cash (cents) and inventory (shares) at the moment the decision was taken</dd>
+        <dt><code>subj V</code> <span class="rl-paren">(true <em>x</em>)</span></dt>
+        <dd>private subjective valuation the agent is acting on; the parenthesised <code>true</code> value is the uncorrupted belief before any bias / noise / deception transform — if they differ, the agent is using a biased or reported-to-peers valuation</dd>
+        <dt><code>w<sub>0</sub></code> · <code>U<sub>0</sub></code> <span class="rl-paren">(loving ∣ neutral ∣ averse)</span></dt>
+        <dd>initial wealth <code>w<sub>0</sub></code> (cents) and initial CRRA utility <code>U<sub>0</sub></code> used as the per-agent baseline; the parenthesised label is the agent's risk preference (<code>loving</code> ρ ∈ (−1, 0), <code>neutral</code> ρ = 0, <code>averse</code> ρ ∈ (0, 1))</dd>
+        <dt>candidate table</dt>
+        <dd>the five candidate actions scored at this tick — <code>hold</code>, <code>buy@ask</code>, <code>sell@bid</code>, <code>passive bid</code>, <code>passive ask</code> — with each row's <em>expected utility</em> (not price) on the right; the row highlighted in green is the argmax that was submitted</dd>
+        <dt><code>prior adj</code></dt>
+        <dd>appears only when Advanced → Prior Bias or Prior Noise is on; shows the active adjustments as <code>bias:<em>mode</em>(<em>amt</em>)</code> and/or <code>noise</code>, corresponding to the prior transform <code>FV̂ × (1 + bias + noise)</code></dd>
+        <dt><code>LLM</code></dt>
+        <dd>Plan II / III only — the one-line rationale returned by the language model for this action, escaped as plain text</dd>
+        <dt><code>heard</code></dt>
+        <dd>broadcast messages received this period, formatted <code>#<em>from</em> <em>Name</em>:<em>claim</em>(<em>sig</em>)</code> — sender id, reported valuation in cents (rounded), and the signal <code>buy</code> / <code>sell</code> / <code>hold</code>; this is the raw peer-information input to the belief update</dd>
       </dl>
     </footer>
   </section>

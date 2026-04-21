@@ -3261,6 +3261,12 @@ body.n-small .agents-flip-inner { min-height: 0; }
 .panel-replay .replay-legend-list dt .rl-kind.rl-bid  { color: var(--green); background: var(--green-bg); }
 .panel-replay .replay-legend-list dt .rl-kind.rl-ask  { color: var(--red);   background: var(--red-bg); }
 .panel-replay .replay-legend-list dt .rl-kind.rl-hold { color: var(--fg-2);  background: var(--bg-3); }
+.panel-replay .replay-legend-list dt .rl-paren {
+  font-size: 10px;
+  color: var(--fg-3);
+  font-weight: 400;
+  margin-left: 2px;
+}
 
 /* ---------- Timeline legend ---------- */
 .legend {
