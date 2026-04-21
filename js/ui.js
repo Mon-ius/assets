@@ -1088,9 +1088,10 @@ const UI = {
       const isLLMPlan = isUtil && (v.plan === 'II' || v.plan === 'III');
       const brOn      = !!(v.tunables && v.tunables.applyBoundedRationality);
       const brBadge   = isLLMPlan
-        ? `<span class="dlm-badge dlm-badge-br dlm-badge-br-${brOn ? 'on' : 'off'}" title="Bounded Rationality toggle in AI endpoint panel">BR · ${brOn ? 'ON' : 'OFF'}</span>`
+        ? `<span class="dlm-badge dlm-badge-br dlm-badge-br-${brOn ? 'on' : 'off'}" title="Bounded Rationality toggle in AI endpoint panel">Bounded Rationality · ${brOn ? 'ON' : 'OFF'}</span>`
         : '';
-      const badgeRow = `<div class="dlm-badges">${endowBadge}${expBadge}${freshBadge}${brBadge}</div>`;
+      const brRow     = brBadge ? `<div class="dlm-badges dlm-badges-br">${brBadge}</div>` : '';
+      const badgeRow  = `<div class="dlm-badges">${endowBadge}${expBadge}${freshBadge}</div>${brRow}`;
       // Live-updating numeric values plus the agent's exact welfare
       // functional. Every utility agent now evaluates the same
       // universal CRRA form; what differs is the per-agent ρ drawn
