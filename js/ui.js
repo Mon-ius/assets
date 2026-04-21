@@ -1120,9 +1120,14 @@ const UI = {
           <span class="metric">Fundamental weight <span class="sym">${sym.alphaI || ''}</span></span> <span class="metric-val">${exp.alpha.toFixed(2)}</span>
           <span class="metric">Valuation noise <span class="sym">${sym.sigmaI || ''}</span></span> <span class="metric-val">${exp.sigma.toFixed(1)}</span>
           <span class="metric">Self (non-peer) weight <span class="sym">${sym.omegaI || ''}</span></span> <span class="metric-val">${exp.omega.toFixed(2)}</span>`;
-      const extraRows = isUtil ? `
+      // Subj V / Report V are Plan I artefacts (algorithmic prior +
+      // peer-message broadcast). Under Plans II and III the LLM is the
+      // sole decision channel, agents.js nulls both fields, and the
+      // numbers would only mislead — so the rows drop out entirely.
+      const subjReportRows = (isUtil && !isLLMPlan) ? `
           <span class="metric">Subj V <span class="sym">${sym.subjV || ''}</span></span> <span class="metric-val">${a.subjectiveValuation != null ? a.subjectiveValuation.toFixed(1) : '—'}</span>
-          <span class="metric">Report <span class="sym">${sym.reportV || ''}</span></span> <span class="metric-val">${a.reportedValuation != null ? a.reportedValuation.toFixed(1) : '—'}</span>
+          <span class="metric">Report <span class="sym">${sym.reportV || ''}</span></span> <span class="metric-val">${a.reportedValuation != null ? a.reportedValuation.toFixed(1) : '—'}</span>` : '';
+      const extraRows = isUtil ? `${subjReportRows}
           <span class="metric metric-util">Utility <span class="sym">${sym.uOfW || ''}</span></span> <span class="metric-val metric-util-val"><span class="sym">${formulaSym}</span></span>${expRows}` : expRows;
 
       // Back-face content — LLM prompt for utility agents, rule

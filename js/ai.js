@@ -382,12 +382,15 @@ const AI = {
   },
 
   /**
-   * Period-boundary LLM belief update for Plans II and III.
+   * Period-boundary LLM action request for Plans II and III.
    *
    * Fires one chat completion per utility agent in parallel and
-   * returns a { [agentId]: subjectiveValuation } map, which the
-   * engine writes into `ctx.llmBeliefs` for the next period's
-   * `updateBelief` pass to consume.
+   * returns a { [agentId]: {action, reason} } map, which the engine
+   * writes into `ctx.llmActions` for the next tick's `decide()` to
+   * consume. Under Plans II/III the LLM is the sole information AND
+   * decision channel — agents.js skips updateBelief() entirely on
+   * those plans, so no algorithmic prior, peer blend, or
+   * subjectiveValuation is computed.
    *
    * The prompt is structured into two clearly labelled blocks:
    *
