@@ -994,8 +994,10 @@
         <dd>agent's cash (cents) and inventory (shares) at the moment the decision was taken</dd>
         <dt><code>subj V</code></dt>
         <dd>private subjective valuation the agent is acting on (the post-peer-blend belief after the §7 update)</dd>
-        <dt><code>w<sub>0</sub></code> · <code>U<sub>0</sub></code> <span class="rl-paren">(loving ∣ neutral ∣ averse)</span></dt>
-        <dd>initial wealth <code>w<sub>0</sub></code> (cents) and initial CRRA utility <code>U<sub>0</sub></code> used as the per-agent baseline; the parenthesised label is the agent's risk preference (<code>loving</code> ρ ∈ (−1, 0), <code>neutral</code> ρ = 0, <code>averse</code> ρ ∈ (0, 1))</dd>
+        <dt><code>initial wealth</code></dt>
+        <dd>per-agent baseline wealth w<sub>0</sub> = cash + inventory · V at the moment of the decision (cents)</dd>
+        <dt><code>initial utility</code></dt>
+        <dd>CRRA utility U<sub>0</sub> evaluated at w<sub>0</sub> using the agent's risk-preference curvature</dd>
         <dt>candidate table</dt>
         <dd>the five candidate actions scored at this tick — <code>hold</code>, <code>buy@ask</code>, <code>sell@bid</code>, <code>passive bid</code>, <code>passive ask</code> — with each row's <em>expected utility</em> (not price) on the right; the row highlighted in green is the argmax that was submitted</dd>
         <dt><code>prior adj</code></dt>

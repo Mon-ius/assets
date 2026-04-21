@@ -3787,7 +3787,8 @@ const UI = {
       const u = r.utility;
       const uBlock = u ? `
           <div class="trace-row">subj V <strong>${u.subjectiveValue != null ? u.subjectiveValue.toFixed(2) : '—'}</strong></div>
-          <div class="trace-row">w₀ <strong>${u.wealth0 != null ? u.wealth0.toFixed(0) : '—'}</strong> · U₀ <strong>${u.U0 != null ? u.U0.toFixed(3) : '—'}</strong> <span class="muted">(${u.riskPref})</span></div>
+          <div class="trace-row">initial wealth <strong>${u.wealth0 != null ? u.wealth0.toFixed(0) : '—'}</strong></div>
+          <div class="trace-row">initial utility <strong>${u.U0 != null ? u.U0.toFixed(3) : '—'}</strong></div>
           <div class="trace-eu">
             ${(u.candidates || []).map(c => `
               <div class="eu-row${c.label === u.chosen ? ' chosen' : ''}">
