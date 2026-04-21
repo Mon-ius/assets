@@ -988,10 +988,8 @@
         <dd>named decision rule that fired (e.g. <code>utility_max_loving</code>, <code>fundamental_anchor</code>); tells you <em>which branch</em> of the agent's strategy took responsibility for this decision</dd>
         <dt><code>trigger</code></dt>
         <dd>short description of the condition that selected the rule — for utility agents typically <code>argmax EU over <em>N</em> candidates</code></dd>
-        <dt><code>est value</code></dt>
-        <dd>agent's estimated per-share value used inside the decision (may differ from subjective V when the rule mixes book state); a dash "—" means the rule did not compute one</dd>
-        <dt><code>E[π]</code></dt>
-        <dd>expected marginal payoff from the chosen action, in cents per share</dd>
+        <dt><code>est. FV</code></dt>
+        <dd>agent's estimated per-share fundamental value used inside the decision (may differ from subjective V when the rule mixes book state); a dash "—" means the rule did not compute one</dd>
         <dt><code>cash</code> · <code>shares</code></dt>
         <dd>agent's cash (cents) and inventory (shares) at the moment the decision was taken</dd>
         <dt><code>subj V</code> <span class="rl-paren">(true <em>x</em>)</span></dt>

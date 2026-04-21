@@ -3776,7 +3776,6 @@ const UI = {
       const r         = t.reasoning;
       const kind      = d.type;
       const valStr    = r.estimatedValue != null ? r.estimatedValue.toFixed(2) : '—';
-      const profitStr = r.expectedProfit != null ? r.expectedProfit.toFixed(2) : '—';
       const priceStr  = d.price          != null ? d.price.toFixed(2)          : '—';
       const qtyStr    = d.quantity       != null ? d.quantity                  : '—';
       const agentName = t.agentName || ('A' + t.agentId);
@@ -3822,7 +3821,7 @@ const UI = {
           </div>
           <div class="trace-row">rule <strong>${r.ruleUsed}</strong></div>
           <div class="trace-row">trigger <strong>${r.triggerCondition || '—'}</strong></div>
-          <div class="trace-row">est value <strong>${valStr}</strong> · E[π] <strong>${profitStr}</strong></div>
+          <div class="trace-row">est. FV <strong>${valStr}</strong></div>
           <div class="trace-row">cash <strong>${t.state.cash.toFixed(0)}</strong> · shares <strong>${t.state.inventory}</strong></div>
           ${uBlock}
           ${llmBlock}
