@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Virtual Trading Platform</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="stylesheet" href="styles.css?v=6">
+<link rel="stylesheet" href="styles.css?v=7">
 <!--
   KaTeX — client-side math rendering for the Architecture, Glossary,
   and Slides tabs. Mirrors the lying project's setup (same version,
@@ -51,7 +51,8 @@
     </div>
   </nav>
   <div class="controls">
-    <label>Speed
+    <label>
+      <span class="speed-label-row">Speed <span id="speed-val" class="speed-val">×14</span></span>
       <input id="speed" type="range" min="0.1" max="50" step="0.1" value="14">
     </label>
     <button id="btn-start" class="primary">▶ Start</button>
@@ -2567,6 +2568,6 @@ Action Rules
 <script data-cfasync="false" src="js/ui.js?v=42"></script>
 <script data-cfasync="false" src="js/replay.js?v=24"></script>
 <script data-cfasync="false" src="js/ziputil.js?v=1"></script>
-<script data-cfasync="false" src="js/main.js?v=44"></script>
+<script data-cfasync="false" src="js/main.js?v=45"></script>
 </body>
 </html>

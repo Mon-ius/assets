@@ -316,6 +316,19 @@ math[display="inline"] { white-space: nowrap; }
   min-width: 80px;
 }
 .controls input[type=range] { padding: 0 4px; min-width: 130px; }
+.speed-label-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.speed-val {
+  color: var(--fg-0);
+  font-size: 11px;
+  font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  text-transform: none;
+  letter-spacing: 0;
+}
 .controls button {
   background: var(--bg-2);
   color: var(--fg-0);

@@ -560,6 +560,13 @@ const App = {
     const themeBtn = document.getElementById('btn-theme');
     if (themeBtn) themeBtn.addEventListener('click', () => this._cycleTheme());
 
+    const speedEl = document.getElementById('speed');
+    const speedValEl = document.getElementById('speed-val');
+    const fmtSpeed = (s) => {
+      const str = s.toFixed(1);
+      return '×' + (str.endsWith('.0') ? str.slice(0, -2) : str);
+    };
+    if (speedValEl && speedEl) speedValEl.textContent = fmtSpeed(Number(speedEl.value));
     document.getElementById('speed').addEventListener('input', e => {
       // Three regimes, all on a single slider (step 0.1):
       //   0.1 ≤ s < 1   — sub-1 slow zone for Plan II/III TPM headroom.
@@ -581,6 +588,7 @@ const App = {
         this.config.tickInterval = 16;  // ~60 fps
         this.config.ticksPerFrame = Math.round(1 + (s - 20) * 1.5);  // 2-46 ticks/frame
       }
+      if (speedValEl) speedValEl.textContent = fmtSpeed(s);
     });
 
     this._wireParamsPanel();
