@@ -1599,8 +1599,44 @@ Important Rules:
 3. You cannot say "depends on" or "insufficient information." You must make the best decision based on the given information.
 4. You must prioritise immediate execution, rather than defaulting to placing only orders.
 5. You can accept the current best ask (buy immediately) or accept the current best bid (sell immediately).
-6. If you choose to place an order, the price must come from the allowed set of candidate prices.
+6. If you choose to place an order, you should prioritize choosing a price that comes from the allowed set of candidate prices.
 7. Your output must strictly conform to the specified format.
+8. If there is no current bid or ask in the market, you are still allowed (and expected) to initiate trading by submitting your own bid or ask price. You do not need existing market quotes to place orders.
+9. In addition to maximizing expected utility, you should actively participate in price discovery. Providing liquidity by submitting bids and asks is part of optimal behavior, especially when the market is empty or inactive.
+10. If no executable price is available, you should propose a reasonable bid or ask based on your valuation rather than choosing HOLD.
+11. When the market is empty:
+- If your valuation V > FV: submit a bid slightly below your valuation
+- If your valuation V < FV: submit an ask slightly above your valuation
+- If uncertain: submit a mid-price around your valuation
+Do not remain inactive.
+12. You can:
+- accept existing prices (if available), OR
+- create new prices by submitting bids or asks
+Submitting quotes is always feasible, even when no market exists.
+
+--------------------------------------------------
+LIQUIDITY AND MARKET INITIATION
+--------------------------------------------------
+
+The market may start with no bids or asks.
+
+In such cases:
+
+- You are expected to actively initiate trading
+- You can and should submit your own bid or ask prices
+- You do NOT need existing market quotes to act
+
+Important:
+
+Choosing HOLD purely because the market is empty is NOT optimal behavior.
+
+Instead:
+
+- If you believe the asset is undervalued → submit a bid
+- If you believe the asset is overvalued → submit an ask
+- If uncertain → submit a reasonable quote near your valuation
+
+Providing liquidity is part of rational behavior in this market.
 
 --------------------------------------------------
 PARAMETER CONFIGURATION (CURRENT SETTING)
