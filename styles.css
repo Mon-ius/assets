@@ -2433,14 +2433,12 @@ body.n-small .agents-grid { max-height: none; overflow-y: visible; padding-right
 }
 /* Bounded-Rationality row — sits on its own line directly beneath
    the experience/endowment badges so the full "Bounded Rationality
-   · ON/OFF" label is readable without elision. */
+   · ON/OFF" label is readable without elision. The chip itself
+   inherits the same pill dimensions and typography as INEXPERIENCED
+   / EXPERIENCED / R4 REPLACEMENT; only its row position differs. */
 .agent-card .dlm-badges-br {
   margin-top: -2px;
   margin-bottom: 6px;
-}
-.agent-card .dlm-badges-br .dlm-badge-br {
-  width: 100%;
-  text-align: center;
 }
 .agent-card .dlm-badge {
   font-size: 9px;
