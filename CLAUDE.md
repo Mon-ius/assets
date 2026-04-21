@@ -53,11 +53,13 @@ ai.js        ─ OpenAI/Anthropic/Gemini chat wrapper used by (a) the AIPE
                 Plan II/III utility traders for per-tick action
                 selection. `AI.getPlanBeliefs(...)` reads
                 `market.assetType.agentTemplate` for the current round
-                (populated in `js/assets.js` from v3 §5.3/§5.9/§5.15/
-                §5.21/§5.27/§5.33) and splices an 【Asset Environment】
-                block — dividend rule, horizon, model-based FV formula,
-                common heuristic mistake — into the user prompt. The
-                system prompt carries the v3 §2 decomposition
+                (populated in `js/assets.js` from companion-paper v3
+                §5.3/§5.9/§5.15/§5.21/§5.27/§5.33 — section numbers
+                resolve against `latex/`, which has its own README)
+                and splices an 【Asset Environment】 block — dividend
+                rule, horizon, model-based FV formula, common heuristic
+                mistake — into the user prompt. The system prompt
+                carries the v3 §2 decomposition
                 `V = λ·FṼ + (1−λ)·H`; historical FV paths in the prompt
                 read through `market.fundamentalValue(p)` so they track
                 the active asset instead of the DLM staircase. When the
@@ -258,18 +260,39 @@ risk-preference split (αL/αN/αA).
 ## Paradigms
 
 The navbar switches between three paradigms; each pins a different
-sampling pipeline and a different set of visible controls.
+sampling pipeline and a different set of visible controls. The table
+below is the **conceptual decomposition only** — none of these
+compositions are actually instantiated. At runtime the simulator
+always calls `sampleAgents(mix, rng, options)` with 100 `UtilityAgent`
+slots regardless of paradigm. The paradigm selection changes prompts,
+visible controls, and elicitation hooks, not the agent class mix.
 
-| Paradigm    | Composition                                         | Purpose                                                         |
+| Paradigm    | Conceptual composition (not instantiated)           | Purpose                                                         |
 |-------------|-----------------------------------------------------|-----------------------------------------------------------------|
 | Strict-DLM  | 100 `DLMTrader`, 50 × type A + 50 × type B          | Scaled replication of Dufwenberg–Lindqvist–Moore (2005)         |
 | Lopez-Lira  | 100 `UtilityAgent` (strategy cube over bias/belief/risk) | Expected-utility messaging market from Lopez-Lira (2025)   |
 | AIPE        | Utility block + fixed F/T/R background              | AI-Agent Prior Elicitation on top of the Lopez-Lira model       |
 
-The paradigm table above is the conceptual decomposition, but at
-runtime the simulator always uses `sampleAgents(mix, rng, options)`
-with 100 `UtilityAgent` slots. The T20/T40 treatment selector in Trade
-Settings controls the round-4 replacement size.
+The T20/T40 treatment selector in Trade Settings controls the round-4
+replacement size.
+
+### Plan I / Plan II / Plan III
+
+Orthogonal to the paradigm axis, the UI exposes three *plans* that
+control the cognition channel for utility agents:
+
+- **Plan I** — no LLM. Deterministic priors anchored on the model FV;
+  agent behavior is driven purely by `UtilityAgent` code in
+  `utility.js`. This is the baseline and the fastest configuration.
+- **Plan II / Plan III** — LLM-driven. Each utility agent's per-tick
+  action is selected by `AI.getPlanBeliefs(...)` in `ai.js`
+  (OpenAI/Anthropic/Gemini). Plan II/III also unlock the Regulator
+  slider, the LLM-only sliders, and the per-agent reasoning trace
+  fields sourced from the LLM response.
+
+The current plan is reflected on `<body>` as the CSS classes `plan-i`,
+`plan-ii`, or `plan-iii`, and Plan II/III-only controls are gated by
+the `.plan-llm-only` selector.
 
 **10-session batch.** One press of Start runs 10 sessions animated
 at the Speed slider rate (5 × first selected treatment + 5 × the
