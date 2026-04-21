@@ -205,11 +205,15 @@ const AI = {
      anchor path and the per-period belief update both benefit without
      duplicating logic. */
 
-  /** Build a typed HTTP error carrying `status` and a parsed wait hint. */
+  /** Build a typed HTTP error carrying `status`, the raw response body,
+   *  and a parsed wait hint. The body is preserved verbatim so the
+   *  failure-warning UI can show the user what the endpoint actually
+   *  returned instead of a truncated one-liner. */
   _httpError(providerKey, res, body) {
     const err = new Error(`ai.${providerKey}: HTTP ${res.status} ${body || ''}`);
     err.status     = res.status;
     err.provider   = providerKey;
+    err.body       = body || '';
     err.retryAfter = this._parseRetryAfter(
       res.headers && typeof res.headers.get === 'function' ? res.headers.get('Retry-After') : null,
       body,
@@ -318,7 +322,12 @@ const AI = {
       try {
         return await this._callOnce(cfg, system, prompt);
       } catch (err) {
-        if (attempt >= maxRetries || !this._isRetriable(err)) throw err;
+        if (attempt >= maxRetries || !this._isRetriable(err)) {
+          // Annotate the error with the attempt count so the failure
+          // warning UI can tell the user e.g. "6 attempts exhausted".
+          err.attempts = attempt + 1;
+          throw err;
+        }
         const waitMs = this._computeWaitMs(err, attempt);
         if (typeof console !== 'undefined' && console.warn) {
           const prov = cfg.provider || this.DEFAULT_PROVIDER;
@@ -331,6 +340,13 @@ const AI = {
         attempt++;
       }
     }
+  },
+
+  /** Redact the API key from an endpoint URL (Gemini passes it as a
+   *  query param) so we never leak it into the failure-warning UI. */
+  _redactEndpoint(url) {
+    if (!url) return '';
+    return String(url).replace(/([?&]key=)[^&]*/i, '$1[REDACTED]');
   },
 
   /**
@@ -941,6 +957,34 @@ const AI = {
       } catch (err) {
         a.lastLLMResponse = '[error] ' + (err.message || err);
         console.warn('[ai.getPlanBeliefs]', a.id, err.message || err);
+        // Dispatch a window event so the UI layer can surface a
+        // user-visible warning panel with the actual request and
+        // response. The payload carries everything a user would want
+        // to debug: provider, endpoint (API key redacted), model,
+        // per-agent prompts, final error body, HTTP status, and
+        // attempt count. main.js installs the listener; in a Node
+        // smoke-test context the event is silently dropped.
+        if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+          const providerKey = aiCfg.provider || this.DEFAULT_PROVIDER;
+          window.dispatchEvent(new CustomEvent('ai-call-failed', {
+            detail: {
+              ts:         Date.now(),
+              provider:   providerKey,
+              model:      aiCfg.model    || this.getDefaultModel(providerKey),
+              endpoint:   this._redactEndpoint(aiCfg.endpoint || this.getDefaultEndpoint(providerKey)),
+              agentId:    a.id,
+              agentName:  a.displayName || ('A' + a.id),
+              plan,
+              system,
+              user:       userPrompt,
+              status:     Number.isFinite(err.status) ? err.status : null,
+              attempts:   Number.isFinite(err.attempts) ? err.attempts : 1,
+              retryAfter: Number.isFinite(err.retryAfter) ? err.retryAfter : null,
+              errorMsg:   String(err.message || err),
+              responseBody: typeof err.body === 'string' ? err.body : '',
+            },
+          }));
+        }
         return null;
       }
     });

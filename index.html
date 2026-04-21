@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Virtual Trading Platform</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
-<link rel="stylesheet" href="styles.css?v=5">
+<link rel="stylesheet" href="styles.css?v=6">
 <!--
   KaTeX — client-side math rendering for the Architecture, Glossary,
   and Slides tabs. Mirrors the lying project's setup (same version,
@@ -2398,6 +2398,21 @@ Action Rules
   </div>
 </section>
 
+<!--
+  AI failure panel — surfaced when every retry of a Plan II/III LLM call
+  fails. Populated by main.js's `ai-call-failed` window event listener
+  with the actual (redacted) request + response, so the user can see
+  what really broke. Hidden until the first failure arrives.
+-->
+<aside id="ai-failure-panel" class="ai-failure-panel" hidden aria-live="polite">
+  <header class="aifp-header">
+    <span class="aifp-title">LLM call failed</span>
+    <span class="aifp-count" id="aifp-count">0</span>
+    <button type="button" class="aifp-btn aifp-clear" id="aifp-clear" title="Dismiss all">Clear</button>
+  </header>
+  <div class="aifp-list" id="aifp-list"></div>
+</aside>
+
 <script defer src="https://cloud.umami.is/script.js" data-website-id="7949072b-501b-43b1-b400-323e6dbc53c4"></script>
 <script data-cfasync="false" src="js/mathml.js?v=24"></script>
 <script data-cfasync="false" src="js/utility.js?v=26"></script>
@@ -2547,11 +2562,11 @@ Action Rules
 <script data-cfasync="false" src="js/agents.js?v=23"></script>
 <script data-cfasync="false" src="js/logger.js?v=21"></script>
 <script data-cfasync="false" src="js/viz.js?v=21"></script>
-<script data-cfasync="false" src="js/ai.js?v=21"></script>
+<script data-cfasync="false" src="js/ai.js?v=22"></script>
 <script data-cfasync="false" src="js/engine.js?v=23"></script>
 <script data-cfasync="false" src="js/ui.js?v=41"></script>
 <script data-cfasync="false" src="js/replay.js?v=24"></script>
 <script data-cfasync="false" src="js/ziputil.js?v=1"></script>
-<script data-cfasync="false" src="js/main.js?v=41"></script>
+<script data-cfasync="false" src="js/main.js?v=42"></script>
 </body>
 </html>

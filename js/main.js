@@ -256,6 +256,7 @@ const App = {
     document.body.classList.add('plan-' + this.plan.toLowerCase());
     this._wireControls();
     this._initRichTips();
+    this._initAIFailurePanel();
     this.reset();
   },
 
@@ -385,6 +386,125 @@ const App = {
     });
     window.addEventListener('scroll', hide, { passive: true });
     window.addEventListener('resize', hide);
+  },
+
+  /* ----- AI failure-warning panel ---------------------------------
+     Listens for the `ai-call-failed` CustomEvent that ai.js dispatches
+     when every retry of a Plan II/III LLM call has been exhausted.
+     Each failure becomes a collapsible card in a fixed bottom-right
+     aside, showing the actual (API-key-redacted) request and response
+     so the user can see what really broke — rate-limit, 5xx, wrong
+     model name, malformed endpoint, whatever.
+
+     Failures are coalesced so a rate-limit storm against 100 agents
+     in the same tick collapses into "100× agent A1 … A100 (same
+     status / same body)" rather than a hundred identical cards. */
+  _aiFailures: [],
+  _aiFailureCap: 40,
+
+  _initAIFailurePanel() {
+    const panel = document.getElementById('ai-failure-panel');
+    const list  = document.getElementById('aifp-list');
+    const clear = document.getElementById('aifp-clear');
+    if (!panel || !list || !clear) return;
+    clear.addEventListener('click', () => {
+      this._aiFailures = [];
+      this._renderAIFailurePanel();
+    });
+    window.addEventListener('ai-call-failed', (ev) => {
+      if (!ev || !ev.detail) return;
+      this._onAIFailure(ev.detail);
+    });
+  },
+
+  _onAIFailure(d) {
+    const keyOf = (x) => [
+      x.provider || '',
+      x.model || '',
+      x.status == null ? '' : String(x.status),
+      (x.errorMsg || '').slice(0, 160),
+      (x.responseBody || '').slice(0, 240),
+    ].join('|');
+    const k = keyOf(d);
+    // Coalesce identical failures arriving in the same tick window.
+    const recent = this._aiFailures[0];
+    if (recent && recent._key === k && (d.ts - recent.ts) < 5000) {
+      recent.count = (recent.count || 1) + 1;
+      recent.agents.push({ id: d.agentId, name: d.agentName });
+      if (recent.agents.length > 8) recent.agents.length = 8;
+      recent.ts = d.ts;
+    } else {
+      this._aiFailures.unshift({
+        ...d,
+        _key: k,
+        count: 1,
+        agents: [{ id: d.agentId, name: d.agentName }],
+        _expanded: false,
+      });
+      if (this._aiFailures.length > this._aiFailureCap) {
+        this._aiFailures.length = this._aiFailureCap;
+      }
+    }
+    this._renderAIFailurePanel();
+  },
+
+  _renderAIFailurePanel() {
+    const panel = document.getElementById('ai-failure-panel');
+    const list  = document.getElementById('aifp-list');
+    const count = document.getElementById('aifp-count');
+    if (!panel || !list || !count) return;
+    if (!this._aiFailures.length) {
+      panel.hidden = true;
+      list.innerHTML = '';
+      count.textContent = '0';
+      return;
+    }
+    panel.hidden = false;
+    count.textContent = String(this._aiFailures.reduce((s, f) => s + (f.count || 1), 0));
+    const esc = (s) => String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const fmtTime = (ts) => {
+      const d = new Date(ts);
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      const ss = String(d.getSeconds()).padStart(2, '0');
+      return `${hh}:${mm}:${ss}`;
+    };
+    list.innerHTML = this._aiFailures.map((f, i) => {
+      const who = f.count > 1
+        ? `${f.count}× agents (${f.agents.map(a => esc(a.name)).join(', ')}${f.count > f.agents.length ? ', …' : ''})`
+        : `agent ${esc(f.agents[0] && f.agents[0].name || f.agentName)}`;
+      const statusLabel = f.status != null ? `HTTP ${f.status}` : 'network error';
+      const retryLabel  = Number.isFinite(f.retryAfter) ? ` · retry-after ${f.retryAfter}s` : '';
+      const body = (f.responseBody || '').slice(0, 4000);
+      return `
+<details class="aifp-card" data-idx="${i}"${f._expanded ? ' open' : ''}>
+  <summary>
+    <span class="aifp-status">${esc(statusLabel)}</span>
+    <span class="aifp-plan">Plan ${esc(f.plan)}</span>
+    <span class="aifp-provider">${esc(f.provider)} · ${esc(f.model)}</span>
+    <span class="aifp-who">${who}</span>
+    <span class="aifp-time">${esc(fmtTime(f.ts))}</span>
+  </summary>
+  <div class="aifp-body">
+    <div class="aifp-row"><span class="aifp-k">endpoint</span><code>${esc(f.endpoint)}</code></div>
+    <div class="aifp-row"><span class="aifp-k">attempts</span><code>${esc(f.attempts)}</code>${retryLabel ? `<span class="aifp-hint">${esc(retryLabel.replace(/^ · /, ''))}</span>` : ''}</div>
+    <div class="aifp-row"><span class="aifp-k">error</span><code>${esc(f.errorMsg)}</code></div>
+    <div class="aifp-sub">request — system prompt</div>
+    <pre class="aifp-pre">${esc(f.system || '')}</pre>
+    <div class="aifp-sub">request — user prompt <span class="aifp-hint">(for ${esc(f.agentName)})</span></div>
+    <pre class="aifp-pre">${esc(f.user || '')}</pre>
+    <div class="aifp-sub">response body</div>
+    <pre class="aifp-pre">${esc(body) || '<em>(empty)</em>'}</pre>
+  </div>
+</details>`;
+    }).join('');
+    list.querySelectorAll('details.aifp-card').forEach((el) => {
+      el.addEventListener('toggle', () => {
+        const idx = Number(el.getAttribute('data-idx'));
+        if (this._aiFailures[idx]) this._aiFailures[idx]._expanded = el.open;
+      });
+    });
   },
 
   /* -------- Theme: auto / light / dark -------- */
