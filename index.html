@@ -627,25 +627,23 @@
     <h2>Trade &amp; Dividend Feed</h2>
     <ul id="trade-feed"></ul>
     <footer class="feed-legend">
-      <details>
-        <summary>Symbols in this feed</summary>
-        <dl>
-          <dt><span class="lg-tick">t<em>N</em></span></dt>
-          <dd>global tick index (1-based across the whole batch). Maps to the active round/period via <em>g</em> = &lceil;<em>N</em> / K&rceil; where K = ticksPerPeriod (default 18).</dd>
+      <h4 class="feed-legend-title">Note &mdash; symbols in this feed</h4>
+      <dl class="feed-legend-list">
+        <dt><span class="lg-tick">t<em>N</em></span></dt>
+        <dd>global tick index (1-based across the whole batch). Maps to the active round/period via <em>g</em> = &lceil;<em>N</em> / K&rceil; where K = ticksPerPeriod (default 18).</dd>
 
-          <dt><span class="lg-price">$<em>N.NN</em></span></dt>
-          <dd>executed trade price in cents. One row per individual crossed order — multiple rows can share the same <em>t</em> when several orders cross in a single match pass.</dd>
+        <dt><span class="lg-price">$<em>N.NN</em></span></dt>
+        <dd>executed trade price in cents. One row per individual crossed order &mdash; multiple rows can share the same <em>t</em> when several orders cross in a single match pass.</dd>
 
-          <dt>{buyer} &larr; {seller}</dt>
-          <dd>the buyer (bid side) received the share from the seller (ask side). Labels are the <code>#id name</code> form assigned at sampling.</dd>
+        <dt>{buyer} &larr; {seller}</dt>
+        <dd>the buyer (bid side) received the share from the seller (ask side). Labels are the <code>#id name</code> form assigned at sampling.</dd>
 
-          <dt><span class="lg-dividend"><span class="lg-kind">Dividend</span> $<em>N</em> &middot; R{r}&middot;P{p}</span></dt>
-          <dd>dividend event: per-share cash paid to every holder at the end of period <em>p</em> of round <em>r</em>. Dividends land on the final tick of the period; the payout is stochastic under the active asset's <code>drawDividend</code> rule.</dd>
+        <dt><span class="lg-dividend"><span class="lg-kind">Dividend</span> $<em>N</em> &middot; R{r}&middot;P{p}</span></dt>
+        <dd>dividend event: per-share cash paid to every holder at the end of period <em>p</em> of round <em>r</em>. Dividends land on the final tick of the period; the payout is stochastic under the active asset's <code>drawDividend</code> rule.</dd>
 
-          <dt><span class="lg-silent">&mdash; &middot; no trade</span></dt>
-          <dd>a tick with no trade and no dividend. Rendered muted so the feed reads as an exhaustive per-tick record without mistaking a gap for activity.</dd>
-        </dl>
-      </details>
+        <dt><span class="lg-silent">&mdash; &middot; no trade</span></dt>
+        <dd>a tick with no trade and no dividend. Rendered muted so the feed reads as an exhaustive per-tick record without mistaking a gap for activity.</dd>
+      </dl>
     </footer>
   </section>
 
