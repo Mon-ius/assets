@@ -1955,7 +1955,7 @@ const UI = {
           : `Period ${r.e.period}`;
         return `<li class="feed-dividend">
           <span class="t-tick">t${r.e.tick}</span>
-          <span class="t-price">DIV $${r.e.value.toFixed(0)}</span>
+          <span class="t-price"><span class="t-kind">Dividend</span> $${r.e.value.toFixed(0)}</span>
           <span class="t-agents">${where} · all holders</span>
         </li>`;
       }

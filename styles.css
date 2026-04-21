@@ -2981,6 +2981,15 @@ body.n-small .agents-flip-inner { min-height: 0; }
 }
 #trade-feed li.feed-dividend .t-price { color: var(--fv); }
 #trade-feed li.feed-dividend .t-agents { color: var(--fv); }
+#trade-feed li.feed-dividend .t-kind {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.85;
+  margin-right: 3px;
+  vertical-align: 0.5px;
+}
 #trade-feed li.feed-silent {
   opacity: 0.45;
   border-bottom-style: dotted;
@@ -3080,6 +3089,15 @@ body.n-small .agents-flip-inner { min-height: 0; }
   opacity: 0.55;
   font-weight: 500;
   background: transparent;
+}
+.panel-feed .feed-legend dt .lg-kind {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.85;
+  margin-right: 3px;
+  vertical-align: 0.5px;
 }
 
 /* ---------- Replay ---------- */
