@@ -3861,7 +3861,13 @@ const UI = {
             <span>${agentName} <span class="muted">· ${t.agentType}</span></span>
             <span class="trace-kind ${kind}">${kindLabel}</span>
           </div>
-          <div class="trace-row"><strong>${r.ruleUsed}</strong></div>
+          <div class="trace-row">${(() => {
+            const idx = (r.ruleUsed || '').indexOf(':');
+            if (idx < 0) return `<strong>${r.ruleUsed}</strong>`;
+            const label = r.ruleUsed.slice(0, idx + 1);
+            const value = r.ruleUsed.slice(idx + 1).trim();
+            return `${label} <strong>${value}</strong>`;
+          })()}</div>
           <div class="trace-row">trigger: <strong>${r.triggerCondition || '—'}</strong></div>
           <div class="trace-row">est. FV <strong>${valStr}</strong></div>
           <div class="trace-row">cash <strong>${t.state.cash.toFixed(0)}</strong> · shares <strong>${t.state.inventory}</strong></div>
