@@ -631,33 +631,20 @@ class UtilityAgent extends Agent {
 
   /* ---- Pipeline step 2: update belief ----
    *
-   * The three research plans share one scaffold:
-   *   prior = FV (both experienced and inexperienced traders know the
-   *   fundamental-value pattern per DLM 2005, so neither branch does a
-   *   horizon discount)
-   *   posterior = blend(prior, peer messages from last period)
+   * Plan I only. `decide()` invokes this method exclusively on the
+   * algorithmic branch; Plans II and III route belief and action
+   * formation through the LLM and never call updateBelief(), so
+   * alpha0 / heuristics / peer-message blending cannot leak into
+   * the AI-driven runs.
    *
-   * They differ only in how the blend is computed:
-   *
-   *   Plan I   — algorithmic. posterior = w·prior + (1 − w)·avg(foreign),
-   *              with w = 0.6 + 0.1·min(3, roundsPlayed). A fresh agent
-   *              starts at w = 0.6 (easy to influence) and hardens
-   *              toward w = 0.9 by the fourth round, matching the
-   *              DLM stylized fact that experienced traders are less
-   *              susceptible to peer influence.
-   *
-   *   Plan II  — LLM with utility form. ctx.llmBeliefs[agentId] holds
-   *              the subjective valuation returned by the last
-   *              period-boundary LLM call, which was prompted with
-   *              the agent's risk preference AND the universal CRRA
-   *              utility U(w; ρ) = w^(1−ρ)/(1−ρ) with the agent's
-   *              sampled ρ substituted. If absent (first period, API
-   *              error, missing key), Plan II falls back to Plan I.
-   *
-   *   Plan III — LLM with label only. Same channel as Plan II but the
-   *              prompt omits the utility formulas and only states the
-   *              risk-preference label. Tests whether the label alone
-   *              is sufficient to recover the utility-aware belief.
+   * Scaffold (Plan I):
+   *   prior     = α_i · FṼ + (1 − α_i) · H + ε_i
+   *   posterior = ω_i · prior + (1 − ω_i) · m̄_t
+   * with α_i, σ_i, ω_i from experienceFactors(roundsPlayed) and m̄_t
+   * the mean of foreign messages received last period. A fresh agent
+   * starts with ω = 0.6 (easy to influence) and hardens toward ω = 0.9
+   * by the fourth round, matching the DLM stylized fact that
+   * experienced traders are less susceptible to peer influence.
    */
   updateBelief(market, ctx, rng) {
     // v6 §7 Step 1 — agent's model-based FṼ derived from the *public*
@@ -669,7 +656,6 @@ class UtilityAgent extends Agent {
     const fv   = (typeof market.modelBasedFV === 'function')
       ? market.modelBasedFV()
       : market.fundamentalValue();
-    const plan = (ctx && ctx.plan) || 'I';
 
     // v3 §7 implementation flow:
     //   Step 1 — FṼ_{i,t} (model-based value) from `fv` above.
@@ -731,28 +717,15 @@ class UtilityAgent extends Agent {
     this.receivedMsgs = msgs;
     const foreign = msgs.filter(m => m.senderId !== this.id);
 
-    // Plans II and III consume a cached LLM belief first — it's already
-    // blended on the model side so the algorithmic fallback is skipped
-    // when a fresh cached value is available. The cache is keyed by
-    // agent id and refreshed at period boundary by Engine._runPlanLLM.
-    let subjective = null;
-    if (plan === 'II' || plan === 'III') {
-      const cache = ctx && ctx.llmBeliefs;
-      if (cache && cache[this.id] != null) {
-        subjective = cache[this.id];
-      }
-    }
-
     // Step 3 — peer blend using the experience-weighted ω_i. Empty
     // foreign set collapses to the prior (nothing to average).
-    if (subjective == null) {
-      const omega = expFactor.omega;
-      if (foreign.length) {
-        const mBar = foreign.reduce((s, m) => s + m.claimedValuation, 0) / foreign.length;
-        subjective = omega * prior + (1 - omega) * mBar;
-      } else {
-        subjective = prior;
-      }
+    let subjective;
+    const omega = expFactor.omega;
+    if (foreign.length) {
+      const mBar = foreign.reduce((s, m) => s + m.claimedValuation, 0) / foreign.length;
+      subjective = omega * prior + (1 - omega) * mBar;
+    } else {
+      subjective = prior;
     }
 
     this.subjectiveValuation = Math.max(0, subjective);
@@ -873,17 +846,24 @@ class UtilityAgent extends Agent {
   /* ---- Pipeline step 4 + 5: choose + execute ---- */
   decide(market, rng, ctx = {}) {
     this.observe(market);
-    this.updateBelief(market, ctx, rng);
 
     // Plan II / III — LLM direct action override. The cached action
     // from the period-boundary LLM call is translated into an order
     // using the *current* book state. Consumed once, then cleared.
     //
-    // Under Plans II and III the LLM is the sole decision channel: we
-    // do NOT fall back to Plan I's EU maximiser, even when the LLM
-    // hasn't responded yet (first period, rate-limited retry in
-    // flight, parse failure). Instead the agent holds with an
-    // "awaiting_llm" reasoning trace so the run remains strictly
+    // Under Plans II and III the LLM is the sole information AND
+    // decision channel: every input the agent uses (FV, book, history,
+    // own status, peer chatter) is already inside the prompt built by
+    // ai.js, and the agent's order is exactly what the LLM returned.
+    // We therefore SKIP updateBelief() entirely so no algorithmic
+    // alpha-weighted prior, peer blend, or subjectiveValuation is
+    // computed (those would feed back through communicate() into other
+    // agents' prompts and silently let alpha0/heuristics steer the
+    // LLM run). subjectiveValuation / reportedValuation / _lastBelief
+    // are nulled so the UI cards and trace render "—" instead of
+    // stale Plan I values. We also do NOT fall back to Plan I's EU
+    // maximiser when the LLM hasn't responded yet — the agent holds
+    // with an "awaiting_llm" trace so the run remains strictly
     // AI-driven. The _schedulePlanLLM kickoff in Engine.start() plus
     // the FV-anchored BID/ASK options in ai.js (offered when the book
     // is empty) ensure the LLM always has an actionable candidate, so
@@ -891,6 +871,9 @@ class UtilityAgent extends Agent {
     const plan = ctx && ctx.plan;
     const llmEntry = ctx && ctx.llmActions && ctx.llmActions[this.id];
     if (plan === 'II' || plan === 'III') {
+      this.subjectiveValuation = null;
+      this.reportedValuation   = null;
+      this._lastBelief         = null;
       if (llmEntry) {
         const result = this._translateLLMAction(llmEntry, market, ctx);
         delete ctx.llmActions[this.id];
@@ -931,6 +914,10 @@ class UtilityAgent extends Agent {
       };
     }
 
+    // Plan I — algorithmic belief + EU maximisation. updateBelief()
+    // is *only* called on this branch so its alpha-weighted prior, peer
+    // blend, and subjectiveValuation never leak into Plans II/III.
+    this.updateBelief(market, ctx, rng);
     const { candidates, w0, U0 } = this.evaluate(market, rng, ctx);
 
     let chosen = candidates[0];

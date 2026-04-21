@@ -437,27 +437,35 @@ class Engine {
     const trust    = this.ctx.trustTracker;
     const ext      = this.ctx.extended;
     const tunables = this.ctx.tunables;
-    if (!bus || !ext || !ext.communication) return;
-    const period = this.market.period;
-    for (const id of Object.keys(this.agents)) {
-      const a = this.agents[id];
-      if (typeof a.communicate !== 'function') continue;
-      const msg = a.communicate(this.market, this._rng, this.ctx);
-      if (!msg) continue;
-      if (!ext.deception) {
-        // Global deception toggle off — collapse every claim to truth.
-        msg.claimedValuation = msg.trueValuation;
-        msg.deceptionMode    = 'honest';
-        msg.deceptive        = false;
+    const plan     = this.ctx && this.ctx.plan;
+    // Algorithmic peer-message + trust loop is Plan I only. Under
+    // Plans II and III the LLM is the sole information channel: agents
+    // do not compute subjectiveValuation or reportedValuation, so
+    // there is nothing to broadcast and no trust signal to update.
+    // Peer info, if any, must be carried inside the LLM prompt itself.
+    const skipAlgoMessages = (plan === 'II' || plan === 'III');
+    if (bus && ext && ext.communication && !skipAlgoMessages) {
+      const period = this.market.period;
+      for (const id of Object.keys(this.agents)) {
+        const a = this.agents[id];
+        if (typeof a.communicate !== 'function') continue;
+        const msg = a.communicate(this.market, this._rng, this.ctx);
+        if (!msg) continue;
+        if (!ext.deception) {
+          // Global deception toggle off — collapse every claim to truth.
+          msg.claimedValuation = msg.trueValuation;
+          msg.deceptionMode    = 'honest';
+          msg.deceptive        = false;
+        }
+        bus.post(msg);
+        this.logger.logMessage(msg);
       }
-      bus.post(msg);
-      this.logger.logMessage(msg);
-    }
-    if (trust) {
-      const alpha = (tunables && tunables.trustAlpha != null) ? tunables.trustAlpha : 0.3;
-      trust.update(bus, this.market, period, alpha);
-      trust.snapshot(this.market.tick);
-      this.logger.logTrust({ tick: this.market.tick, period, trust: trust.copy() });
+      if (trust) {
+        const alpha = (tunables && tunables.trustAlpha != null) ? tunables.trustAlpha : 0.3;
+        trust.update(bus, this.market, period, alpha);
+        trust.snapshot(this.market.tick);
+        this.logger.logTrust({ tick: this.market.tick, period, trust: trust.copy() });
+      }
     }
     // Optional regulator pass — must run BEFORE _schedulePlanLLM so
     // any warning that fires in this period is visible in the prompt
@@ -471,7 +479,7 @@ class Engine {
     // promise resolves, `ctx.llmActions` is populated with action
     // choices that decide() will consume on the next tick. If the
     // LLM is slower than the next period boundary, the affected
-    // agents simply fall back to EU evaluation for that period.
+    // agents hold (no Plan I fallback under the AI-only contract).
     // Plan I ignores this block entirely.
     this._schedulePlanLLM();
   }
