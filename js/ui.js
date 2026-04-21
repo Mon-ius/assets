@@ -3533,7 +3533,14 @@ const UI = {
 
     const hasExtended = (v.valuationHistory && v.valuationHistory.length) ||
                         (v.utilityHistory && v.utilityHistory.length);
-    if (!hasExtended) {
+    // Plans II/III run the LLM as the sole information channel and do
+    // not log subjectiveValuation / utility / messages — every metric
+    // below the "Market quality" group depends on those Plan I streams,
+    // so those groups would render as solid em-dashes. Skip the empty
+    // bail-out for Plan II/III and instead emit only the market-quality
+    // table (which is plan-agnostic, derived from prices + FV).
+    const isLLMPlan = (v.plan === 'II' || v.plan === 'III');
+    if (!hasExtended && !isLLMPlan) {
       el.innerHTML = '<div class="muted">Select the Utility population to see extended metrics.</div>';
       return;
     }
@@ -3719,15 +3726,14 @@ const UI = {
     const grp = label =>
       `<tr class="batch-group-label"><td colspan="2">${label}</td></tr>`;
 
-    el.innerHTML = `<table class="batch-table"><tbody>
-      ${grp('Market quality &middot; Dufwenberg, Lindqvist &amp; Moore (2005)')}
-      ${row('Haessel R&sup2;', '1 &minus; &Sigma;(P&#772;&minus;FV)&sup2; / &Sigma;(P&#772;&minus;P&#772;&#772;)&sup2;', fmt(haessel, 3))}
-      ${row('Norm. absolute price deviation', '&Sigma;|P&minus;FV|&middot;q / Q', fmt(normAbsDev, 2))}
-      ${row('Norm. average price deviation', sym.normAvgDev || '', fmt(normAvgDev, 2))}
-      ${row('Price amplitude', '(max&minus;min)(P&#772;&minus;FV) / FV&#8321;', fmt(amplitude, 3))}
-      ${row('Turnover', '&Sigma; q / Q', fmt(turnover, 3))}
-      ${row('P / FV ratio', (sym.rhoT || '') + ' (Lopez-Lira 2025)', fmt(rho, 3))}
-
+    // Welfare + deception + AIPE blocks all derive from Plan I streams
+    // (subjectiveValuation via valuationHistory, message bus, utility
+    // history). Under Plans II/III those streams are empty by design,
+    // so the rows would all render as em-dashes. Suppress them and
+    // surface a single line explaining why.
+    const planIBlocks = isLLMPlan ? `
+      ${grp('Utility-agent welfare &middot; AIPE allocation')}
+      <tr><td colspan="2" class="muted">Plan I only — Plan ${v.plan} routes belief and messaging through the LLM, so subjective V, peer messages, and the AIPE allocation gap are not computed.</td></tr>` : `
       ${grp('Utility-agent welfare &amp; deception')}
       ${row('Avg subjective V&#770;', sym.avgVbar || '', fmt(avgV))}
       ${row('Allocative efficiency', sym.efficiencyEq || '', fmt(efficiency, 3))}
@@ -3740,7 +3746,17 @@ const UI = {
       ${row('Top holder vs highest V&#770;', '', '<span class="' + (psychMatch === true ? 'ok' : psychMatch === false ? 'bad' : '') + '">' + (psychMatch == null ? '—' : psychMatch ? 'match' : 'miss') + '</span>')}
       ${row('Top-holder id &middot; V&#770;', '', psychTopHolderId == null ? '—' : 'A' + psychTopHolderId + ' &middot; ' + fmt(psychTopHolderV))}
       ${row('Max-V&#770; id &middot; V&#770;*', '', psychMaxVid == null ? '—' : 'A' + psychMaxVid + ' &middot; ' + fmt(psychMaxV))}
-      ${row('Valuation gap', '(V&#770;* &minus; V&#770;&#8341;) / V&#770;*', fmt(psychGap, 3))}
+      ${row('Valuation gap', '(V&#770;* &minus; V&#770;&#8341;) / V&#770;*', fmt(psychGap, 3))}`;
+
+    el.innerHTML = `<table class="batch-table"><tbody>
+      ${grp('Market quality &middot; Dufwenberg, Lindqvist &amp; Moore (2005)')}
+      ${row('Haessel R&sup2;', '1 &minus; &Sigma;(P&#772;&minus;FV)&sup2; / &Sigma;(P&#772;&minus;P&#772;&#772;)&sup2;', fmt(haessel, 3))}
+      ${row('Norm. absolute price deviation', '&Sigma;|P&minus;FV|&middot;q / Q', fmt(normAbsDev, 2))}
+      ${row('Norm. average price deviation', sym.normAvgDev || '', fmt(normAvgDev, 2))}
+      ${row('Price amplitude', '(max&minus;min)(P&#772;&minus;FV) / FV&#8321;', fmt(amplitude, 3))}
+      ${row('Turnover', '&Sigma; q / Q', fmt(turnover, 3))}
+      ${row('P / FV ratio', (sym.rhoT || '') + ' (Lopez-Lira 2025)', fmt(rho, 3))}
+      ${planIBlocks}
     </tbody></table>`;
   },
 

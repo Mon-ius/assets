@@ -1605,7 +1605,10 @@ const App = {
       pair.appendChild(postSel);
 
       const corr = document.createElement('span');
-      corr.className = 'session-asset-corr';
+      // Only consumed by experienceEffective() inside Plan I's
+      // updateBelief(); Plans II/III skip that pipeline so the
+      // correlation has no observable effect — hide via .plan-i-only.
+      corr.className = 'session-asset-corr plan-i-only';
       corr.dataset.session = String(s);
       corr.title = 'Pearson correlation of the pre and post assets\u2019 determined fundamental-value points as plotted on Figure 1 (corr = 1 when both selectors pick the same asset)';
 
