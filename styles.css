@@ -2992,6 +2992,96 @@ body.n-small .agents-flip-inner { min-height: 0; }
   font-weight: 400;
 }
 
+/* ------------------------------------------------------------------
+ * Feed legend — collapsible glossary pinned to the bottom of
+ * panel-feed. `flex: 0 0 auto` keeps it at its intrinsic height so
+ * the UL above still shrinks/scrolls to fill the remaining row.
+ * The dt tokens reuse the feed row colours so the legend visually
+ * aliases the actual feed rows without duplicating their layout.
+ * ------------------------------------------------------------------ */
+.panel-feed .feed-legend {
+  flex: 0 0 auto;
+  border-top: 1px dashed var(--border);
+  margin-top: 6px;
+  padding-top: 6px;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  color: var(--fg-2);
+}
+.panel-feed .feed-legend summary {
+  cursor: pointer;
+  list-style: none;
+  color: var(--fg-1);
+  font-weight: 600;
+  padding: 2px 0;
+  user-select: none;
+}
+.panel-feed .feed-legend summary::-webkit-details-marker { display: none; }
+.panel-feed .feed-legend summary::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 6px;
+  color: var(--fg-2);
+  transition: transform 0.15s ease;
+}
+.panel-feed .feed-legend details[open] summary::before {
+  transform: rotate(90deg);
+}
+.panel-feed .feed-legend dl {
+  display: grid;
+  grid-template-columns: minmax(140px, max-content) 1fr;
+  gap: 6px 12px;
+  margin: 8px 0 2px;
+  align-items: baseline;
+}
+.panel-feed .feed-legend dt {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--fg-1);
+}
+.panel-feed .feed-legend dd {
+  margin: 0;
+  color: var(--fg-2);
+  line-height: 1.45;
+}
+.panel-feed .feed-legend dd code {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 10px;
+  background: var(--chip-bg, rgba(127,127,127,0.12));
+  padding: 0 4px;
+  border-radius: 3px;
+}
+.panel-feed .feed-legend dt .lg-tick,
+.panel-feed .feed-legend dt .lg-price,
+.panel-feed .feed-legend dt .lg-dividend,
+.panel-feed .feed-legend dt .lg-silent {
+  display: inline-block;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 700;
+  font-size: 10px;
+}
+.panel-feed .feed-legend dt .lg-tick {
+  background: var(--chip-bg, rgba(127,127,127,0.14));
+  color: var(--fg-2);
+}
+.panel-feed .feed-legend dt .lg-price {
+  color: var(--accent);
+  background: rgba(127,127,127,0.08);
+}
+.panel-feed .feed-legend dt .lg-dividend {
+  color: var(--fv);
+  background: var(--amber-bg);
+  border-left: 2px solid var(--amber);
+  padding-left: 5px;
+}
+.panel-feed .feed-legend dt .lg-silent {
+  color: var(--fg-2);
+  opacity: 0.55;
+  font-weight: 500;
+  background: transparent;
+}
+
 /* ---------- Replay ---------- */
 .panel-replay .replay-controls {
   display: flex;
