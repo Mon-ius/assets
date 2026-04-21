@@ -797,7 +797,98 @@ Important Rules:
          '6. Output must follow the specified format.')
       : '';
 
-    const system = systemBase + systemBR;
+    // Parameter-configuration addendum — always present; values pulled
+    // live from Advanced Settings tunables. The Advanced sliders for
+    // expAlpha0/expSigma0/expOmega0 (novice anchors at k_i = 0),
+    // betaAnchor/betaTrend/betaDividend/betaNarrative (heuristic mix),
+    // and expGammaAlpha/expGammaSigma (experience growth/decay rates)
+    // all drive this block, so edits in the Advanced panel flow into
+    // every Plan II/III prompt without a code change.
+    const tun = tunables || {};
+    const numOr = (v, d) => (Number.isFinite(+v) ? +v : d);
+    const pAlpha    = numOr(tun.expAlpha0,     1.00);
+    const pSigma    = numOr(tun.expSigma0,     5);
+    const pOmega    = numOr(tun.expOmega0,     0.60);
+    const pBAnchor  = numOr(tun.betaAnchor,    0.50);
+    const pBTrend   = numOr(tun.betaTrend,     0.20);
+    const pBDiv     = numOr(tun.betaDividend,  0.20);
+    const pBNar     = numOr(tun.betaNarrative, 0.10);
+    const pGAlpha   = numOr(tun.expGammaAlpha, 0.15);
+    const pGSigma   = numOr(tun.expGammaSigma, 0.30);
+    const alphaInterp = pAlpha >= 0.80
+      ? 'You mostly trust model-based valuation'
+      : pAlpha >= 0.50
+        ? 'You balance fundamentals and heuristics'
+        : 'You lean on heuristics over fundamentals';
+    const sigmaInterp = pSigma < 3
+      ? 'Low uncertainty in valuation'
+      : pSigma <= 10
+        ? 'Moderate uncertainty in valuation'
+        : 'High uncertainty in valuation';
+    const omegaInterp = pOmega >= 0.75
+      ? 'You are largely independent from market signals'
+      : pOmega >= 0.40
+        ? 'You partially rely on market signals'
+        : 'You heavily follow the crowd';
+    const betaPairs = [
+      ['anchoring',        pBAnchor],
+      ['trend following',  pBTrend],
+      ['dividend signals', pBDiv],
+      ['narrative',        pBNar],
+    ].sort((a, b) => b[1] - a[1]);
+    const heurInterp = `Your heuristics are dominated by ${betaPairs[0][0]}, with moderate ${betaPairs[1][0]} and ${betaPairs[2][0]}`;
+    const learnInterp = (pGAlpha > 0 && pGSigma > 0)
+      ? 'Experience gradually increases reliance on fundamentals and reduces noise'
+      : 'Experience has no effect on your valuation or noise';
+    const systemParams =
+`
+
+--------------------------------------------------
+PARAMETER CONFIGURATION (CURRENT SETTING)
+--------------------------------------------------
+
+You operate under the following parameter values:
+
+Fundamental weight:
+α_i = ${pAlpha.toFixed(2)}
+→ ${alphaInterp}
+
+Noise level:
+σ_i = ${pSigma.toFixed(1)}
+→ ${sigmaInterp}
+
+Self-weight (confidence vs market):
+ω_i = ${pOmega.toFixed(2)}
+→ ${omegaInterp}
+
+Heuristic weights:
+β1 (Anchor) = ${pBAnchor.toFixed(2)}
+β2 (Trend) = ${pBTrend.toFixed(2)}
+β3 (DividendSignal) = ${pBDiv.toFixed(2)}
+β4 (Narrative) = ${pBNar.toFixed(2)}
+
+→ ${heurInterp}
+
+Learning parameters:
+γ_α = ${pGAlpha.toFixed(2)}
+γ_σ = ${pGSigma.toFixed(2)}
+
+→ ${learnInterp}
+
+--------------------------------------------------
+INTERPRETATION
+--------------------------------------------------
+
+You should interpret these parameters as behavioral tendencies:
+
+- Higher α_i → more fundamental-driven decisions
+- Higher ω_i → more independent from the market
+- Higher β2 → stronger trend-following
+- Higher β1 → stronger anchoring bias
+
+Use these tendencies when forming your valuation and decision.`;
+
+    const system = systemBase + systemBR + systemParams;
 
     const labelOf = (risk) =>
       risk === 'loving' ? 'Risk loving' :
