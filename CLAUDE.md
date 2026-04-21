@@ -34,8 +34,9 @@ assets.js    ─ Registry of six tradeable asset environments
                 Advanced → Session Replacement Rate and Pre/Post Asset
                 & FV Correlation.
 agents.js    ─ Agent base + Fundamentalist/Trend/Random/DLMTrader/Utility +
-                sampling helpers. At runtime all 100 slots are
-                `UtilityAgent`; the F/T/R/DLMTrader classes remain in
+                sampling helpers. At runtime every slot is a
+                `UtilityAgent` (N defaults to 10, adjustable up to 100);
+                the F/T/R/DLMTrader classes remain in
                 the file as historical reference for the Strict-DLM /
                 AIPE conceptual decomposition but are not instantiated
                 at runtime. Decisions return order objects with a
@@ -249,12 +250,16 @@ When adding a new tunable:
 4. Read it from `ctx.tunables` in the consuming agent/engine code with a
    fallback to the hard-coded default so legacy callers still work.
 
-Total population is scaled to N = 100 (DLM 2005 §I pins it at 6; the
-simulator scales up for a thicker order book while keeping the R = 4
-round structure and the round-4 replacement fractions). DLM uses
-homogeneous human subjects with no algorithmic agent types
-(Fundamentalist/Trend/Random are not part of the DLM design). All
-100 slots are utility agents; the only composition knob is the
+Total population defaults to **N = 10** (set by `App.TOTAL_N` and
+`mix.U` in `js/main.js`) and is adjustable up to 100 via the Agents
+slider in Advanced settings. DLM 2005 §I pins the original design at
+6 subjects; the simulator's default N = 10 sits between the paper's
+six-subject design and the N = 100 scaled regime, and round-4
+treatment labels interpolate accordingly (T2/T4 at N = 10, T20/T40
+at N = 100 — see the dynamic `const-n-note` handler in `main.js`).
+DLM uses homogeneous human subjects with no algorithmic agent types
+(Fundamentalist/Trend/Random are not part of the DLM design). Every
+slot at runtime is a `UtilityAgent`; the only composition knob is the
 risk-preference split (αL/αN/αA).
 
 ## Paradigms
@@ -263,9 +268,10 @@ The navbar switches between three paradigms; each pins a different
 sampling pipeline and a different set of visible controls. The table
 below is the **conceptual decomposition only** — none of these
 compositions are actually instantiated. At runtime the simulator
-always calls `sampleAgents(mix, rng, options)` with 100 `UtilityAgent`
-slots regardless of paradigm. The paradigm selection changes prompts,
-visible controls, and elicitation hooks, not the agent class mix.
+always calls `sampleAgents(mix, rng, options)` with N `UtilityAgent`
+slots regardless of paradigm (N defaults to 10, adjustable via the
+Agents slider). The paradigm selection changes prompts, visible
+controls, and elicitation hooks, not the agent class mix.
 
 | Paradigm    | Conceptual composition (not instantiated)           | Purpose                                                         |
 |-------------|-----------------------------------------------------|-----------------------------------------------------------------|
@@ -303,12 +309,13 @@ metrics labeled `R{r}_S{s}` into `App.batchResults` (40 rows total:
 Experiment tab) renders these rows with per-treatment aggregates.
 Pause stops the chain via `_batchRunning = false`.
 
-The shorthand T20/T40 preserves DLM's R4-⅔ / R4-⅓ labelling at
-N = 100: **T20 ↔ R4-⅔** (20 fresh replacements, 80 veterans) and
-**T40 ↔ R4-⅓** (40 fresh replacements, 60 veterans). The DLM
-⅔ / ⅓ fractions refer to the original 6-subject design and are
-kept as names; at N = 100 the actual remaining-veteran fractions
-are 80/100 and 60/100 respectively.
+The shorthand T*k* preserves DLM's R4-⅔ / R4-⅓ labelling by pinning
+*k* to the number of fresh replacements at the current N: at N = 10
+that's **T2 / T4** (2 or 4 replacements), at N = 100 it's
+**T20 / T40** (20 or 40 replacements), with linear interpolation in
+between. The DLM ⅔ / ⅓ fractions refer to the original 6-subject
+design; at scaled N the remaining-veteran fractions drift (e.g.
+80/100 for T20 at N = 100) but the ⅔ / ⅓ labels are kept as names.
 
 Session payoff for agent `i` is
 `π_i = Σ_r roundFinalCash[r-1][i] + 500¢` (the show-up fee), captured
@@ -351,7 +358,8 @@ Fundamental value at the start of period *t* of any round is
 - The root `README.md` is user-facing marketing copy and has drifted from
   runtime behavior. Specifically: its "Reference configurations" table
   (6-agent presets like "2 Trend · 2 Random · 1 F · 1 E") and the `(ext.)`
-  chart-panel markers predate the N = 100 scaling. At runtime every slot
-  is a `UtilityAgent`, so those presets aren't reachable and the
+  chart-panel markers predate the all-UtilityAgent regime. At runtime
+  every slot is a `UtilityAgent` (N defaults to 10, slider up to 100),
+  so those presets aren't reachable and the
   "extended" panels always render. Trust this file and the current code
   over the README for runtime behavior.

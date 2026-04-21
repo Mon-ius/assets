@@ -444,14 +444,9 @@
               <dd class="const-note">&ldquo;With k periods remaining, the fundamental value is k × 10 cents.&rdquo; Under the simulator's <span data-sym="muD"></span> = 5¢ this becomes FV = k × 5¢, so FV<sub>1</sub> = 20 × 5 = 100¢ still holds at the round boundary.<span class="const-src">§I, p. 1732 &middot; scaled in assets.js</span></dd>
             </div>
             <div class="const-item">
-              <dt>endowment A <span class="const-val">200¢, 6 shares</span></dt>
-              <dd class="const-label">One of two discrete starting bundles</dd>
-              <dd class="const-note">&ldquo;Before a market opened, half of the traders started with 200 cents and six assets, while each of the other traders started with 600 cents and two assets.&rdquo;<span class="const-src">§I, p. 1733</span></dd>
-            </div>
-            <div class="const-item">
-              <dt>endowment B <span class="const-val">600¢, 2 shares</span></dt>
-              <dd class="const-label">The other discrete starting bundle</dd>
-              <dd class="const-note">Both bundles have an identical buy-and-hold value of 800¢ under the risk-neutral fundamental <span data-sym="fvDef"></span> — cash + shares &middot; (T &middot; <span data-sym="muD"></span>) = 200 + 6&thinsp;&middot;&thinsp;100 = 600 + 2&thinsp;&middot;&thinsp;100 = 800¢. This holds under both the paper's (T = 10, <span data-sym="muD"></span> = 10¢) and the simulator's scaled (T = 20, <span data-sym="muD"></span> = 5¢) constants, since the product T &middot; <span data-sym="muD"></span> is preserved at 100¢ per share. The two types differ only in inventory/cash mix, so the split is distributional, not value-creating.<span class="const-src">§I, p. 1733</span></dd>
+              <dt>endowment <span class="const-val">cash ~ U[800, 1200]¢ &middot; inv ~ U{2, 3, 4}</span></dt>
+              <dd class="const-label">Per-agent starting bundle (simulator replaces the paper's two discrete types)</dd>
+              <dd class="const-note">&ldquo;Before a market opened, half of the traders started with 200 cents and six assets, while each of the other traders started with 600 cents and two assets.&rdquo; The original Dufwenberg–Lindqvist–Moore (2005) bubble experiment pins two discrete bundles (A = 200¢ + 6 shares, B = 600¢ + 2 shares) with identical 800¢ buy-and-hold value under the risk-neutral fundamental. This simulator replaces the two-type design with an independent per-agent draw — cash uniform on [800, 1200]¢, inventory uniform on {2, 3, 4} shares — sampled in <code>sampleEndowment()</code> (<code>js/agents.js</code>, <code>ENDOWMENT_DEFAULT</code>). Each draw is independent across agents and editable before Start via the Agents panel.<span class="const-src">§I, p. 1733 &middot; js/agents.js — ENDOWMENT_DEFAULT</span></dd>
             </div>
             <div class="const-item">
               <dt>round-4 replacement <span class="const-val">R4-⅔ or R4-⅓</span></dt>
